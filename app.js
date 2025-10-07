@@ -1,4 +1,4 @@
-// app.js - Deriv Volatility Web frontend using pure WebSocket API
+// app.js - Deriv Volatility Web frontend
 const APP_ID = 105747;
 const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
 
@@ -8,16 +8,15 @@ const connectBtn = document.getElementById('connectBtn');
 const statusEl = document.getElementById('status');
 const balanceEl = document.getElementById('userBalance');
 const symbolListEl = document.getElementById('symbolList');
-const chartInner = document.getElementById('chartInner');
 const historyList = document.getElementById('historyList');
+const controlsEl = document.getElementById('controls'); // conteneur des boutons et automation
 
 // === Global state ===
 let connection = null;
 let selectedSymbol = null;
-let chart = null;
-let series = null;
 let lastTick = {};
 let token = null;
+let automationActive = false;
 
 // === Volatility symbols ===
 const volatilitySymbols = ['R_100', 'R_75', 'R_50', 'R_25'];
@@ -30,27 +29,7 @@ function logHistory(txt) {
 }
 function setStatus(s) { statusEl.textContent = s; }
 
-// === Chart ===
-function createChart() {
-  chartInner.innerHTML = '';
-  chart = LightweightCharts.createChart(chartInner, {
-    width: chartInner.clientWidth || 600,
-    height: chartInner.clientHeight || 400,
-    layout: { textColor: '#e6edf3', background: { color: '#0d1117' } },
-    grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
-    timeScale: { timeVisible: true, secondsVisible: true }
-  });
-  series = chart.addLineSeries({ color: '#00ff9c', lineWidth: 2 });
-
-  window.addEventListener('resize', () => {
-    chart.applyOptions({
-      width: chartInner.clientWidth || 600,
-      height: chartInner.clientHeight || 400
-    });
-  });
-}
-
-// === Build Symbol List ===
+// === Build Symbol List (affiche seulement Symbol, Last Price, Change, Direction) ===
 function buildSymbolList() {
   symbolListEl.innerHTML = '';
   volatilitySymbols.forEach(sym => {
@@ -60,8 +39,6 @@ function buildSymbolList() {
     div.innerHTML = `
       <div class="symTitle">${sym}</div>
       <div>Price: <span id="price-${sym}">--</span></div>
-      <div>Ask: <span id="ask-${sym}">--</span></div>
-      <div>Bid: <span id="bid-${sym}">--</span></div>
       <div>Change: <span id="change-${sym}">--</span></div>
       <div>Direction: <span id="dir-${sym}">--</span></div>
     `;
@@ -76,8 +53,6 @@ function selectSymbol(sym) {
   const el = document.getElementById('sym-' + sym);
   if (el) el.classList.add('active');
   selectedSymbol = sym;
-  createChart();
-  loadHistory(sym);
 }
 
 // === Connect button ===
@@ -129,7 +104,6 @@ function handleMessage(data) {
   }
 
   if (data.msg_type === 'tick' && data.tick?.symbol) handleTick(data.tick.symbol, data.tick);
-  if (data.msg_type === 'history') renderHistory(data);
 }
 
 // === Authorize account ===
@@ -142,47 +116,65 @@ function subscribeAllSymbols() { volatilitySymbols.forEach(s => connection.send(
 // === Handle incoming ticks ===
 function handleTick(symbol, tick) {
   const priceEl = document.getElementById('price-' + symbol);
-  const askEl = document.getElementById('ask-' + symbol);
-  const bidEl = document.getElementById('bid-' + symbol);
   const changeEl = document.getElementById('change-' + symbol);
   const dirEl = document.getElementById('dir-' + symbol);
 
   const quote = Number(tick.quote);
-  const ask = tick.ask ?? quote;
-  const bid = tick.bid ?? quote;
   const change = tick.change ?? 0;
   const prev = lastTick[symbol] ?? quote;
   const direction = quote >= prev ? '↑' : '↓';
   const color = quote >= prev ? '#00ff9c' : '#ff4040';
 
   if (priceEl) priceEl.textContent = quote.toFixed(2);
-  if (askEl) askEl.textContent = ask.toFixed(2);
-  if (bidEl) bidEl.textContent = bid.toFixed(2);
   if (changeEl) changeEl.textContent = change.toFixed(2);
   if (dirEl) { dirEl.textContent = direction; dirEl.style.color = color; }
 
   lastTick[symbol] = quote;
 
-  if (selectedSymbol === symbol && series) series.update({ time: tick.epoch, value: quote });
+  if (automationActive && selectedSymbol === symbol) runAutomation(symbol, quote);
 }
 
-// === Load historical ticks ===
-function loadHistory(symbol) {
-  connection.send(JSON.stringify({ ticks_history: symbol, end: 'latest', count: 300, style: 'ticks' }));
+// === Automation logic ===
+function runAutomation(symbol, price) {
+  // exemple basique : si automation activé, on peut lancer des ordres selon conditions
+  logHistory(`Automation: checking symbol ${symbol} at price ${price}`);
+  // Ici tu peux intégrer Money Management, TP/SL, Martingale...
 }
 
-// === Render history ===
-function renderHistory(data) {
-  const { history } = data;
-  const symbol = data.echo_req.ticks_history;
-  if (!history || !symbol) return;
+// === BUY/SELL/CLOSE Buttons ===
+function createControls() {
+  controlsEl.innerHTML = `
+    <button id="btnBuy">BUY</button>
+    <button id="btnSell">SELL</button>
+    <button id="btnClose">CLOSE</button>
+    <button id="btnLaunch">AUTOMATION LAUNCHER</button>
+    <button id="btnStop">STOP AUTOMATION</button>
+    <div id="moneyManagement">
+      <label>TF: <input type="text" id="tfInput" value="1m"></label>
+      <label>Lot: <input type="number" id="lotInput" value="1" min="0.01" step="0.01"></label>
+      <label>Buy/Sell number: <input type="number" id="bsNumInput" value="1" min="1"></label>
+    </div>
+    <div id="riskManagement">
+      <label>TP: <input type="number" id="tpInput" value="10"></label>
+      <label>SL: <input type="number" id="slInput" value="10"></label>
+      <label>Martingale: <input type="number" id="martInput" value="0"></label>
+    </div>
+    <div id="controlChecks">
+      <label><input type="checkbox" id="enableTP"> Enable TP</label>
+      <label><input type="checkbox" id="enableSL"> Enable SL</label>
+      <label><input type="checkbox" id="enableMart"> Enable Martingale</label>
+      <label><input type="checkbox" id="enableBSNum"> Enable Buy/Sell number</label>
+    </div>
+  `;
 
-  const points = history.times.map((t, i) => ({ time: Number(t), value: Number(history.prices[i]) }));
-  if (series && selectedSymbol === symbol) series.setData(points);
-  logHistory(`History loaded for ${symbol}`);
+  document.getElementById('btnBuy').onclick = () => { logHistory('BUY clicked'); };
+  document.getElementById('btnSell').onclick = () => { logHistory('SELL clicked'); };
+  document.getElementById('btnClose').onclick = () => { logHistory('CLOSE clicked'); };
+  document.getElementById('btnLaunch').onclick = () => { automationActive = true; logHistory('Automation started'); };
+  document.getElementById('btnStop').onclick = () => { automationActive = false; logHistory('Automation stopped'); };
 }
 
 // === Init ===
 buildSymbolList();
-createChart();
+createControls();
 logHistory('Interface ready. Enter token or connect in simulation mode.');
