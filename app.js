@@ -1,6 +1,10 @@
-// app.js - Web frontend for Deriv WebSocket
-// IMPORTANT: Test in "Simulation" first. Live mode will execute real trades on your account.
+// app.js - Deriv Boom/Crash Web frontend using @deriv/deriv-api
+// Supports: Simulation (no token) & Real (token authorize)
 
+import { DerivAPI } from '@deriv/deriv-api';
+import WebSocket from 'ws';
+
+// === Deriv connection ===
 const APP_ID = 105747;
 const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
 
@@ -11,45 +15,21 @@ const statusEl = document.getElementById('status');
 const balanceEl = document.getElementById('userBalance');
 const symbolListEl = document.getElementById('symbolList');
 const chartInner = document.getElementById('chartInner');
-
-const modeSelect = document.getElementById('modeSelect');
-const timeframe = document.getElementById('timeframe');
-const lotInput = document.getElementById('lot');
-const stakeInput = document.getElementById('stake');
-const tpInput = document.getElementById('tp');
-const slInput = document.getElementById('sl');
-const martingaleCheck = document.getElementById('martingale');
-const multiplierInput = document.getElementById('multiplier');
-
-const buyBtn = document.getElementById('buyBtn');
-const sellBtn = document.getElementById('sellBtn');
-const closeBtn = document.getElementById('closeBtn');
-const pnlEl = document.getElementById('pnl');
 const historyList = document.getElementById('historyList');
 
-// === Global states ===
-let ws = null;
-let isConnected = false;
-let isAuthorized = false;
-let authorizeInfo = null;
-let keepAliveTimer = null;
+// === Global state ===
+let api = null;
+let connection = null;
 let selectedSymbol = null;
-let lastTick = {};
 let chart = null;
 let series = null;
-let markers = [];
+let lastTick = {};
 
-// === Symbols with API codes and display labels ===
-const symbolLabels = {
-  "R_100": "Crash 1000",
-  "R_50":  "Crash 500",
-  "R_25":  "Crash 300",
-  "R_101": "Boom 1000",
-  "R_51":  "Boom 500",
-  "R_26":  "Boom 300"
-};
-
-const symbols = Object.keys(symbolLabels);
+// === Boom & Crash symbols ===
+const boomCrashSymbols = [
+  'BOOM1000', 'BOOM500', 'BOOM300',
+  'CRASH1000', 'CRASH500', 'CRASH300'
+];
 
 // === Helpers ===
 function logHistory(txt) {
@@ -62,7 +42,7 @@ function setStatus(s) {
   statusEl.textContent = s;
 }
 
-// === Chart creation ===
+// === Chart ===
 function createChart() {
   chartInner.innerHTML = '';
   chart = LightweightCharts.createChart(chartInner, {
@@ -74,78 +54,23 @@ function createChart() {
   });
   series = chart.addLineSeries({ color: '#00ff9c', lineWidth: 2 });
   window.addEventListener('resize', () => {
-    try {
-      chart.applyOptions({ width: chartInner.clientWidth, height: chartInner.clientHeight });
-    } catch (e) {}
+    chart.applyOptions({
+      width: chartInner.clientWidth,
+      height: chartInner.clientHeight
+    });
   });
 }
 
-// === WebSocket connection ===
-connectBtn.addEventListener('click', () => {
-  const token = tokenInput.value.trim();
-  connectToDeriv(token || null);
-});
-
-function connectToDeriv(token) {
-  if (ws) try { ws.close(); } catch(e){}
-  ws = new WebSocket(WS_URL);
-  setStatus('Connecting...');
-
-  ws.onopen = () => {
-    isConnected = true;
-    setStatus('Connected');
-    logHistory('WebSocket opened');
-
-    if (token) wsSendWhenOpen({ authorize: token });
-    else setStatus('Connected (simulation)');
-
-    keepAliveTimer = setInterval(() => wsSendWhenOpen({ ping: 1 }), 20000);
-    subscribeAllSymbols();
-  };
-
-  ws.onclose = () => {
-    isConnected = false;
-    isAuthorized = false;
-    setStatus('Disconnected');
-    clearInterval(keepAliveTimer);
-  };
-
-  ws.onerror = (err) => {
-    console.error('WS error', err);
-    setStatus('WebSocket error (check console)');
-  };
-
-  ws.onmessage = (evt) => {
-    const msg = JSON.parse(evt.data);
-    handleMessage(msg);
-  };
-}
-
-// === Send safely ===
-function wsSendWhenOpen(obj) {
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
-}
-
-// === Subscribe all symbols ===
-function subscribeAllSymbols() {
-  symbols.forEach(sym => wsSendWhenOpen({ ticks: sym, subscribe: 1 }));
-  logHistory('Subscribed to all symbols');
-}
-
-// === Build symbol list ===
+// === Build Symbol List ===
 function buildSymbolList() {
   symbolListEl.innerHTML = '';
-  symbols.forEach(sym => {
-    const label = symbolLabels[sym] || sym;
+  boomCrashSymbols.forEach(sym => {
     const div = document.createElement('div');
     div.className = 'symbolItem';
     div.id = 'sym-' + sym;
     div.innerHTML = `
-      <div class="symTitle">${label}</div>
-      <div>Bid: <span id="bid-${sym}">--</span></div>
-      <div>Ask: <span id="ask-${sym}">--</span></div>
-      <div>Δ: <span id="chg-${sym}">--</span></div>
-      <div>Spread: <span id="spr-${sym}">--</span></div>
+      <div class="symTitle">${sym}</div>
+      <div>Price: <span id="price-${sym}">--</span></div>
       <div>Tendance: <span id="dir-${sym}">--</span></div>
     `;
     div.addEventListener('click', () => selectSymbol(sym));
@@ -153,84 +78,132 @@ function buildSymbolList() {
   });
 }
 
-// === Select symbol ===
+// === Handle Symbol Selection ===
 function selectSymbol(sym) {
   document.querySelectorAll('.symbolItem').forEach(el => el.classList.remove('active'));
   const el = document.getElementById('sym-' + sym);
   if (el) el.classList.add('active');
   selectedSymbol = sym;
   createChart();
-  markers = [];
-  wsSendWhenOpen({ ticks_history: sym, end: 'latest', count: 300, style: 'ticks' });
-  wsSendWhenOpen({ ticks: sym, subscribe: 1 });
+  loadHistory(sym);
 }
 
-// === Handle messages ===
-function handleMessage(msg) {
-  if (msg.error) return logHistory('Error: ' + msg.error.message);
+// === Connect to Deriv ===
+connectBtn.addEventListener('click', async () => {
+  const token = tokenInput.value.trim();
+  await connectToDeriv(token || null);
+});
 
-  if (msg.authorize) {
-    isAuthorized = true;
-    authorizeInfo = msg.authorize;
-    setStatus('Authorized: ' + (authorizeInfo.loginid || 'unknown'));
-    wsSendWhenOpen({ balance: 1, subscribe: 1 });
-    return;
-  }
+async function connectToDeriv(token) {
+  setStatus('Connecting...');
+  connection = new WebSocket(WS_URL);
+  api = new DerivAPI({ connection });
 
-  if (msg.balance) {
-    const bal = msg.balance.balance || msg.balance;
-    balanceEl.textContent = 'Balance: ' + parseFloat(bal).toFixed(2);
-    return;
-  }
+  connection.onopen = async () => {
+    setStatus('Connected');
+    logHistory('✅ WebSocket connected');
 
-  if (msg.tick) {
-    const t = msg.tick;
-    const symbol = t.symbol;
-    const quote = Number(t.quote);
-    const epoch = Number(t.epoch);
-    lastTick[symbol] = quote;
-
-    const bid = (quote - 0.0005).toFixed(5);
-    const ask = (quote + 0.0005).toFixed(5);
-    const spread = (ask - bid).toFixed(5);
-
-    const bidEl = document.getElementById('bid-' + symbol);
-    const askEl = document.getElementById('ask-' + symbol);
-    const chgEl = document.getElementById('chg-' + symbol);
-    const sprEl = document.getElementById('spr-' + symbol);
-    const dirEl = document.getElementById('dir-' + symbol);
-
-    if (bidEl && askEl && chgEl && sprEl && dirEl) {
-      const prev = parseFloat(bidEl.dataset.prev || quote);
-      const change = ((quote - prev) / prev) * 100;
-
-      bidEl.textContent = bid;
-      askEl.textContent = ask;
-      chgEl.textContent = change.toFixed(3) + '%';
-      sprEl.textContent = spread;
-      chgEl.style.color = change >= 0 ? '#00ff9c' : '#ff4040';
-
-      dirEl.textContent = change >= 0 ? '↑' : '↓';
-      dirEl.style.color = change >= 0 ? '#00ff9c' : '#ff4040';
-      bidEl.dataset.prev = quote;
+    if (token) {
+      try {
+        const auth = await api.authorize(token);
+        logHistory(`Authorized as ${auth.authorize.loginid}`);
+        setStatus(`Authorized: ${auth.authorize.loginid}`);
+        getBalance();
+      } catch (err) {
+        console.error('Authorization failed:', err);
+        logHistory('❌ Invalid token, switching to simulation mode');
+        setStatus('Simulation mode (no token)');
+      }
+    } else {
+      setStatus('Simulation mode (no token)');
     }
 
-    if (symbol === selectedSymbol && series) {
-      series.update({ time: epoch, value: quote });
+    subscribeAllSymbols();
+  };
+
+  connection.onclose = () => {
+    setStatus('Disconnected');
+    logHistory('WebSocket closed');
+  };
+
+  connection.onerror = (err) => {
+    console.error('WebSocket error:', err);
+    setStatus('Connection error');
+  };
+}
+
+// === Subscribe to all Boom & Crash symbols ===
+async function subscribeAllSymbols() {
+  for (const symbol of boomCrashSymbols) {
+    try {
+      const tickStream = await api.subscribe({ ticks: symbol });
+      tickStream.onUpdate((data) => handleTick(symbol, data.tick));
+      tickStream.onError((error) => logHistory(`Error for ${symbol}: ${error.message}`));
+    } catch (e) {
+      logHistory(`Error subscribing to ${symbol}: ${e.message}`);
     }
-    return;
+  }
+  logHistory('Subscribed to all Boom/Crash symbols');
+}
+
+// === Handle incoming ticks ===
+function handleTick(symbol, tick) {
+  const priceEl = document.getElementById('price-' + symbol);
+  const dirEl = document.getElementById('dir-' + symbol);
+
+  const quote = Number(tick.quote);
+  const prev = lastTick[symbol] || quote;
+  const direction = quote >= prev ? '↑' : '↓';
+  const color = quote >= prev ? '#00ff9c' : '#ff4040';
+
+  if (priceEl && dirEl) {
+    priceEl.textContent = quote.toFixed(2);
+    dirEl.textContent = direction;
+    dirEl.style.color = color;
   }
 
-  if (msg.history && msg.history.prices && msg.history.times) {
-    const data = msg.history.times.map((t, i) => ({
-      time: Math.floor(Number(t)),
-      value: Number(msg.history.prices[i])
+  lastTick[symbol] = quote;
+
+  if (selectedSymbol === symbol && series) {
+    series.update({ time: tick.epoch, value: quote });
+  }
+}
+
+// === Fetch balance (real mode only) ===
+async function getBalance() {
+  try {
+    const balance = await api.balance({ subscribe: 1 });
+    balance.onUpdate((data) => {
+      const bal = data.balance.balance;
+      balanceEl.textContent = `Balance: ${parseFloat(bal).toFixed(2)} USD`;
+    });
+  } catch (err) {
+    console.error('Balance error:', err);
+  }
+}
+
+// === Load historical ticks for chart ===
+async function loadHistory(symbol) {
+  try {
+    const history = await api.ticks_history({
+      ticks_history: symbol,
+      end: 'latest',
+      count: 300,
+      style: 'ticks'
+    });
+
+    const data = history.history.times.map((t, i) => ({
+      time: Number(t),
+      value: Number(history.history.prices[i])
     }));
+
     if (series) series.setData(data);
+  } catch (e) {
+    logHistory(`Failed to load history for ${symbol}: ${e.message}`);
   }
 }
 
 // === Init ===
 createChart();
 buildSymbolList();
-logHistory('Interface ready. Select a symbol.');
+logHistory('Interface ready. Choose a symbol or connect.');
