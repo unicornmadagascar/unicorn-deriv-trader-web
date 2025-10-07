@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unicorn Deriv Trader Web</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+<header>
+  <h1>🦄 Unicorn Deriv Trader (Web)</h1>
+  <div class="header-right">
+    <input id="tokenInput" placeholder="Token Deriv">
+    <button id="connectBtn">Connect</button>
+    <span id="userBalance">Balance: 0.00 USD</span>
+  </div>
+</header>
+<main>
+  <aside id="symbolList"></aside>
+  <section id="chartSection">
+    <div id="chartInner"></div>
+    <div id="controls">
+      <select id="modeSelect">
+        <option value="simu">Simulation</option>
+        <option value="live">Live</option>
+      </select>
+      <input id="lot" type="number" step="0.01" value="1.00" placeholder="Lot">
+      <input id="tp" type="number" placeholder="TP">
+      <input id="sl" type="number" placeholder="SL">
+      <label><input type="checkbox" id="martingale"> Martingale</label>
+      <input id="multiplier" type="number" step="0.1" value="2.0" placeholder="×">
+      <button id="buyBtn">BUY</button>
+      <button id="sellBtn">SELL</button>
+      <button id="closeBtn">CLOSE</button>
+      <span id="pnl">0.00 USD</span>
+    </div>
+    <div id="tradeHistory"></div>
+  </section>
+</main>
+<script src="app.js" defer></script>
+</body>
+</html>
