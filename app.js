@@ -23,8 +23,7 @@ let token = null;
 
 // === Volatility symbols ===
 const volatilitySymbols = [
-  'R_100', 'R_75', 'R_50',
-  'R_25', 'R_10', 'R_15'
+  'R_100', 'R_75', 'R_50', 'R_25'
 ];
 
 // === Helpers ===
@@ -41,14 +40,17 @@ function setStatus(s) {
 // === Chart ===
 function createChart() {
   chartInner.innerHTML = '';
-  chart = window.LightweightCharts.createChart(chartInner, {
+  chart = LightweightCharts.createChart(chartInner, {
     width: chartInner.clientWidth,
     height: chartInner.clientHeight,
     layout: { textColor: '#e6edf3', background: { color: '#0d1117' } },
     grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
     timeScale: { timeVisible: true, secondsVisible: true }
   });
-  series = chart.addLineSeries({ color: '#00ff9c', lineWidth: 2 });
+
+  if (!series) {
+    series = chart.addLineSeries({ color: '#00ff9c', lineWidth: 2 });
+  }
 
   window.addEventListener('resize', () => {
     chart.applyOptions({
@@ -68,7 +70,7 @@ function buildSymbolList() {
     div.innerHTML = `
       <div class="symTitle">${sym}</div>
       <div>Price: <span id="price-${sym}">--</span></div>
-      <div>Trend: <span id="dir-${sym}">--</span></div>
+      <div>Tendance: <span id="dir-${sym}">--</span></div>
     `;
     div.addEventListener('click', () => selectSymbol(sym));
     symbolListEl.appendChild(div);
@@ -86,7 +88,7 @@ function selectSymbol(sym) {
 }
 
 // === Connect button ===
-connectBtn.addEventListener('click', () => {
+connectBtn.addEventListener('click', async () => {
   token = tokenInput.value.trim() || null;
   connectToDeriv();
 });
@@ -122,8 +124,11 @@ function connectToDeriv() {
   };
 }
 
-// === Handle incoming WebSocket messages ===
+// === Handle incoming messages safely ===
 function handleMessage(data) {
+  if (!data) return;
+
+  // Authorization response
   if (data.msg_type === 'authorize') {
     if (data.error) {
       logHistory('❌ Invalid token, switching to simulation mode');
@@ -135,19 +140,24 @@ function handleMessage(data) {
     setStatus(`Authorized: ${data.authorize.loginid}`);
     getBalance();
     subscribeAllSymbols();
+    return;
   }
 
-  if (data.msg_type === 'balance') {
+  // Balance updates
+  if (data.msg_type === 'balance' && data.balance) {
     const bal = data.balance.balance;
     balanceEl.textContent = `Balance: ${parseFloat(bal).toFixed(2)} USD`;
+    return;
   }
 
-  if (data.msg_type === 'tick') {
-    const symbol = data.tick.symbol;
-    handleTick(symbol, data.tick);
+  // Tick updates
+  if (data.msg_type === 'tick' && data.tick) {
+    handleTick(data.tick.symbol, data.tick);
+    return;
   }
 
-  if (data.msg_type === 'history') {
+  // History updates
+  if (data.msg_type === 'history' && data.history && data.echo_req) {
     renderHistory(data);
   }
 }
@@ -172,6 +182,8 @@ function subscribeAllSymbols() {
 
 // === Handle incoming ticks ===
 function handleTick(symbol, tick) {
+  if (!tick || !symbol) return;
+
   const priceEl = document.getElementById('price-' + symbol);
   const dirEl = document.getElementById('dir-' + symbol);
 
@@ -203,7 +215,7 @@ function loadHistory(symbol) {
   }));
 }
 
-// === Render historical data ===
+// === Render history ===
 function renderHistory(data) {
   const { history } = data;
   const symbol = data.echo_req.ticks_history;
