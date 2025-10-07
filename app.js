@@ -1,10 +1,6 @@
-// app.js - Deriv Boom/Crash Web frontend using @deriv/deriv-api
+// app.js - Deriv Boom/Crash Web frontend using @deriv/deriv-api (browser version)
 // Supports: Simulation (no token) & Real (token authorize)
 
-import { DerivAPI } from '@deriv/deriv-api';
-import WebSocket from 'ws';
-
-// === Deriv connection ===
 const APP_ID = 105747;
 const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
 
