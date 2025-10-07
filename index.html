@@ -6,8 +6,8 @@
   <title>🦄 Unicorn Deriv Trader (Web)</title>
   <link rel="stylesheet" href="style.css" />
 
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Lightweight Charts -->
+  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 
   <style>
     body {
@@ -76,8 +76,9 @@
       padding: 10px;
     }
 
-    #priceChart {
+    #chartInner {
       flex: 1;
+      min-height: 400px;
       background-color: #0d1117;
     }
 
@@ -119,8 +120,7 @@
     <aside id="symbolList"></aside>
 
     <section id="chartSection">
-      <!-- Chart.js canvas -->
-      <canvas id="priceChart"></canvas>
+      <div id="chartInner"></div>
 
       <div id="controls">
         <select id="modeSelect">
@@ -159,7 +159,6 @@
     </section>
   </main>
   
-  <!-- App JS -->
   <script src="app.js" defer></script>
 </body>
 </html>
