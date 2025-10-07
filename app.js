@@ -78,7 +78,7 @@ function selectSymbol(sym) {
   if (el) el.classList.add('active');
   selectedSymbol = sym;
   logHistory(`Selected symbol: ${sym}`);
-  createChart();
+  if (!chart) createChart();
   loadHistory(sym); // charge les 300 derniers ticks
 }
 
@@ -181,13 +181,12 @@ function handleHistory(data) {
     value: Number(data.history.prices[i])
   }));
 
-  if (selectedSymbol === symbol && series) {
-    series.setData(points);
-    logHistory(`Loaded 300 ticks for ${symbol}`);
-  }
+  if (!series) createChart();
+  series.setData(points);
+  logHistory(`Loaded ${points.length} ticks for ${symbol}`);
 }
 
-// === Load historical ticks for selected symbol ===
+// === Load historical ticks ===
 function loadHistory(symbol) {
   if (!connection) return;
 
@@ -202,7 +201,7 @@ function loadHistory(symbol) {
 // === Automation logic ===
 function runAutomation(symbol, price) {
   logHistory(`Automation: checking symbol ${symbol} at price ${price}`);
-  // Ici tu peux intégrer Money Management, TP/SL, Martingale, Buy/Sell Numbers séparés
+  // ici tu peux intégrer Money Management, TP/SL, Martingale, Buy/Sell Numbers séparés
 }
 
 // === BUY/SELL/CLOSE & Automation Controls + Money/Risk Management ===
@@ -246,14 +245,14 @@ function createControls() {
 // === Simulation mode for testing without token ===
 function startSimulation() {
   setStatus('Simulation mode ✅');
-  selectedSymbol = volatilitySymbols[0];
-  createChart();
+  if (!selectedSymbol) selectedSymbol = volatilitySymbols[0];
+  if (!chart) createChart();
 
   let tickValue = 1000;
   setInterval(() => {
     if (!selectedSymbol) return;
     tickValue += (Math.random() - 0.5) * 2;
-    const tick = { quote: tickValue, epoch: Math.floor(Date.now()/1000) };
+    const tick = { quote: tickValue, epoch: Math.floor(Date.now() / 1000) };
     handleTick(selectedSymbol, tick);
   }, 1000);
 }
