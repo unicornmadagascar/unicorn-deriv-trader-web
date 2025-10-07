@@ -19,7 +19,7 @@ let token = null;
 let automationActive = false;
 
 // === Volatility symbols ===
-const volatilitySymbols = ['R_100', 'R_75', 'R_50', 'R_25','R_90','R_30','R_10','R_15'];
+const volatilitySymbols = ['R_100', 'R_75', 'R_50', 'R_25','R_10'];
 
 // === Helpers ===
 function logHistory(txt) {
