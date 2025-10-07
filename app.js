@@ -10,6 +10,7 @@ const balanceEl = document.getElementById('userBalance');
 const symbolListEl = document.getElementById('symbolList');
 const historyList = document.getElementById('historyList');
 const controlsEl = document.getElementById('controls');
+const chartInner = document.getElementById('chartInner');
 
 // === Global state ===
 let connection = null;
@@ -17,6 +18,8 @@ let selectedSymbol = null;
 let lastTick = {};
 let token = null;
 let automationActive = false;
+let chart = null;
+let series = null;
 
 // === Volatility symbols ===
 const volatilitySymbols = ['R_100', 'R_75', 'R_50', 'R_25','R_10'];
@@ -29,7 +32,7 @@ function logHistory(txt) {
 }
 function setStatus(s) { statusEl.textContent = s; }
 
-// === Build Symbol List (Price, Change, Direction) ===
+// === Build Symbol List (Price + Direction) ===
 function buildSymbolList() {
   symbolListEl.innerHTML = '';
   volatilitySymbols.forEach(sym => {
@@ -39,7 +42,6 @@ function buildSymbolList() {
     div.innerHTML = `
       <div class="symTitle">${sym}</div>
       <div>Price: <span id="price-${sym}">--</span></div>
-      <div>Change: <span id="change-${sym}">--</span></div>
       <div>Direction: <span id="dir-${sym}">--</span></div>
     `;
     div.addEventListener('click', () => selectSymbol(sym));
@@ -54,6 +56,28 @@ function selectSymbol(sym) {
   if (el) el.classList.add('active');
   selectedSymbol = sym;
   logHistory(`Selected symbol: ${sym}`);
+  createChart();
+}
+
+// === Chart ===
+function createChart() {
+  chartInner.innerHTML = '';
+  chart = LightweightCharts.createChart(chartInner, {
+    width: chartInner.clientWidth || 600,
+    height: chartInner.clientHeight || 300,
+    layout: { textColor: '#e6edf3', background: { color: '#0d1117' } },
+    grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
+    timeScale: { timeVisible: true, secondsVisible: true }
+  });
+
+  series = chart.addLineSeries({ color: '#00ff9c', lineWidth: 2 });
+
+  window.addEventListener('resize', () => {
+    chart.applyOptions({
+      width: chartInner.clientWidth || 600,
+      height: chartInner.clientHeight || 300
+    });
+  });
 }
 
 // === Connect button ===
@@ -120,20 +144,21 @@ function subscribeAllSymbols() {
 // === Handle incoming ticks ===
 function handleTick(symbol, tick) {
   const priceEl = document.getElementById('price-' + symbol);
-  const changeEl = document.getElementById('change-' + symbol);
   const dirEl = document.getElementById('dir-' + symbol);
 
   const quote = Number(tick.quote);
-  const change = tick.change ?? 0;
   const prev = lastTick[symbol] ?? quote;
   const direction = quote >= prev ? '↑' : '↓';
   const color = quote >= prev ? '#00ff9c' : '#ff4040';
 
   if (priceEl) priceEl.textContent = quote.toFixed(2);
-  if (changeEl) changeEl.textContent = change.toFixed(2);
   if (dirEl) { dirEl.textContent = direction; dirEl.style.color = color; }
 
   lastTick[symbol] = quote;
+
+  if (selectedSymbol === symbol) {
+    if (series) series.update({ time: tick.epoch, value: quote });
+  }
 
   if (automationActive && selectedSymbol === symbol) runAutomation(symbol, quote);
 }
