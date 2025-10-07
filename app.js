@@ -1,4 +1,4 @@
-// app.js - Deriv Boom/Crash Web frontend using pure WebSocket API
+// app.js - Deriv Volatility Web frontend using pure WebSocket API
 // Supports: Simulation (no token) & Real (token authorize)
 
 const APP_ID = 105747;
@@ -45,20 +45,13 @@ function createChart() {
     grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
     timeScale: { timeVisible: true, secondsVisible: true }
   });
-
-  if (chart && typeof chart.addLineSeries === 'function') {
-    series = chart.addLineSeries({ color: '#00ff9c', lineWidth: 2 });
-  } else {
-    console.error('Erreur: chart invalide, impossible d’ajouter une série');
-  }
+  series = chart.addLineSeries({ color: '#00ff9c', lineWidth: 2 });
 
   window.addEventListener('resize', () => {
-    if (chart) {
-      chart.applyOptions({
-        width: chartInner.clientWidth || 600,
-        height: chartInner.clientHeight || 400
-      });
-    }
+    chart.applyOptions({
+      width: chartInner.clientWidth || 600,
+      height: chartInner.clientHeight || 400
+    });
   });
 }
 
@@ -72,6 +65,9 @@ function buildSymbolList() {
     div.innerHTML = `
       <div class="symTitle">${sym}</div>
       <div>Price: <span id="price-${sym}">--</span></div>
+      <div>Ask: <span id="ask-${sym}">--</span></div>
+      <div>Bid: <span id="bid-${sym}">--</span></div>
+      <div>Change: <span id="change-${sym}">--</span></div>
       <div>Direction: <span id="dir-${sym}">--</span></div>
     `;
     div.addEventListener('click', () => selectSymbol(sym));
@@ -148,14 +144,10 @@ function handleMessage(data) {
   }
 
   if (data.msg_type === 'tick') {
-    if (data.tick && data.tick.symbol) {
-      handleTick(data.tick.symbol, data.tick);
-    }
+    if (data.tick && data.tick.symbol) handleTick(data.tick.symbol, data.tick);
   }
 
-  if (data.msg_type === 'history') {
-    renderHistory(data);
-  }
+  if (data.msg_type === 'history') renderHistory(data);
 }
 
 // === Authorize account ===
@@ -179,15 +171,25 @@ function subscribeAllSymbols() {
 // === Handle incoming ticks ===
 function handleTick(symbol, tick) {
   const priceEl = document.getElementById('price-' + symbol);
+  const askEl = document.getElementById('ask-' + symbol);
+  const bidEl = document.getElementById('bid-' + symbol);
+  const changeEl = document.getElementById('change-' + symbol);
   const dirEl = document.getElementById('dir-' + symbol);
 
   const quote = Number(tick.quote);
+  const ask = tick.ask ? Number(tick.ask) : quote;
+  const bid = tick.bid ? Number(tick.bid) : quote;
+  const change = tick.change ? Number(tick.change) : 0;
+
   const prev = lastTick[symbol] || quote;
   const direction = quote >= prev ? '↑' : '↓';
   const color = quote >= prev ? '#00ff9c' : '#ff4040';
 
-  if (priceEl && dirEl) {
-    priceEl.textContent = quote.toFixed(2);
+  if (priceEl) priceEl.textContent = quote.toFixed(2);
+  if (askEl) askEl.textContent = ask.toFixed(2);
+  if (bidEl) bidEl.textContent = bid.toFixed(2);
+  if (changeEl) changeEl.textContent = change.toFixed(2);
+  if (dirEl) {
     dirEl.textContent = direction;
     dirEl.style.color = color;
   }
@@ -209,6 +211,7 @@ function loadHistory(symbol) {
   }));
 }
 
+// === Render history ===
 function renderHistory(data) {
   const { history } = data;
   const symbol = data.echo_req.ticks_history;
@@ -219,9 +222,7 @@ function renderHistory(data) {
     value: Number(history.prices[i])
   }));
 
-  if (series && selectedSymbol === symbol) {
-    series.setData(points);
-  }
+  if (series && selectedSymbol === symbol) series.setData(points);
   logHistory(`History loaded for ${symbol}`);
 }
 
