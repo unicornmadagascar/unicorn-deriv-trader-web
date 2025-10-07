@@ -54,3 +54,6 @@ button { cursor:pointer; }
 .symbolItem span {
   font-family: monospace;
 }
+
+.symTitle { font-weight: 700; margin-bottom: 4px; }
+
