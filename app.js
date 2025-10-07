@@ -1,6 +1,4 @@
-// app.js - Deriv Boom/Crash Web frontend using pure WebSocket API
-// Supports: Simulation (no token) & Real (token authorize)
-
+// app.js - Deriv Volatility Web frontend using pure WebSocket API
 const APP_ID = 105747;
 const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
 
@@ -30,10 +28,7 @@ function logHistory(txt) {
   div.textContent = `${new Date().toLocaleTimeString()} — ${txt}`;
   historyList.prepend(div);
 }
-
-function setStatus(s) {
-  statusEl.textContent = s;
-}
+function setStatus(s) { statusEl.textContent = s; }
 
 // === Chart ===
 function createChart() {
@@ -45,20 +40,13 @@ function createChart() {
     grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
     timeScale: { timeVisible: true, secondsVisible: true }
   });
-
-  if (chart && typeof chart.addLineSeries === 'function') {
-    series = chart.addLineSeries({ color: '#00ff9c', lineWidth: 2 });
-  } else {
-    console.error('Erreur: chart invalide, impossible d’ajouter une série');
-  }
+  series = chart.addLineSeries({ color: '#00ff9c', lineWidth: 2 });
 
   window.addEventListener('resize', () => {
-    if (chart) {
-      chart.applyOptions({
-        width: chartInner.clientWidth || 600,
-        height: chartInner.clientHeight || 400
-      });
-    }
+    chart.applyOptions({
+      width: chartInner.clientWidth || 600,
+      height: chartInner.clientHeight || 400
+    });
   });
 }
 
@@ -72,6 +60,9 @@ function buildSymbolList() {
     div.innerHTML = `
       <div class="symTitle">${sym}</div>
       <div>Price: <span id="price-${sym}">--</span></div>
+      <div>Ask: <span id="ask-${sym}">--</span></div>
+      <div>Bid: <span id="bid-${sym}">--</span></div>
+      <div>Change: <span id="change-${sym}">--</span></div>
       <div>Direction: <span id="dir-${sym}">--</span></div>
     `;
     div.addEventListener('click', () => selectSymbol(sym));
@@ -112,16 +103,8 @@ function connectToDeriv() {
   };
 
   connection.onmessage = msg => handleMessage(JSON.parse(msg.data));
-
-  connection.onclose = () => {
-    setStatus('Disconnected');
-    logHistory('WebSocket closed');
-  };
-
-  connection.onerror = err => {
-    console.error('WebSocket error:', err);
-    setStatus('Connection error');
-  };
+  connection.onclose = () => { setStatus('Disconnected'); logHistory('WebSocket closed'); };
+  connection.onerror = err => { console.error(err); setStatus('Connection error'); };
 }
 
 // === Handle messages ===
@@ -141,91 +124,65 @@ function handleMessage(data) {
     subscribeAllSymbols();
   }
 
-  if (data.msg_type === 'balance') {
-    if (data.balance && data.balance.balance != null) {
-      balanceEl.textContent = `Balance: ${parseFloat(data.balance.balance).toFixed(2)} USD`;
-    }
+  if (data.msg_type === 'balance' && data.balance?.balance != null) {
+    balanceEl.textContent = `Balance: ${parseFloat(data.balance.balance).toFixed(2)} USD`;
   }
 
-  if (data.msg_type === 'tick') {
-    if (data.tick && data.tick.symbol) {
-      handleTick(data.tick.symbol, data.tick);
-    }
-  }
-
-  if (data.msg_type === 'history') {
-    renderHistory(data);
-  }
+  if (data.msg_type === 'tick' && data.tick?.symbol) handleTick(data.tick.symbol, data.tick);
+  if (data.msg_type === 'history') renderHistory(data);
 }
 
 // === Authorize account ===
-function authorizeUser(token) {
-  connection.send(JSON.stringify({ authorize: token }));
-}
-
+function authorizeUser(token) { connection.send(JSON.stringify({ authorize: token })); }
 // === Subscribe to balance ===
-function getBalance() {
-  connection.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-}
-
+function getBalance() { connection.send(JSON.stringify({ balance: 1, subscribe: 1 })); }
 // === Subscribe to all symbols ===
-function subscribeAllSymbols() {
-  volatilitySymbols.forEach(symbol => {
-    connection.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
-  });
-  logHistory('Subscribed to all Volatility symbols');
-}
+function subscribeAllSymbols() { volatilitySymbols.forEach(s => connection.send(JSON.stringify({ ticks: s, subscribe: 1 }))); logHistory('Subscribed to all Volatility symbols'); }
 
 // === Handle incoming ticks ===
 function handleTick(symbol, tick) {
   const priceEl = document.getElementById('price-' + symbol);
+  const askEl = document.getElementById('ask-' + symbol);
+  const bidEl = document.getElementById('bid-' + symbol);
+  const changeEl = document.getElementById('change-' + symbol);
   const dirEl = document.getElementById('dir-' + symbol);
 
   const quote = Number(tick.quote);
-  const prev = lastTick[symbol] || quote;
+  const ask = tick.ask ?? quote;
+  const bid = tick.bid ?? quote;
+  const change = tick.change ?? 0;
+  const prev = lastTick[symbol] ?? quote;
   const direction = quote >= prev ? '↑' : '↓';
   const color = quote >= prev ? '#00ff9c' : '#ff4040';
 
-  if (priceEl && dirEl) {
-    priceEl.textContent = quote.toFixed(2);
-    dirEl.textContent = direction;
-    dirEl.style.color = color;
-  }
+  if (priceEl) priceEl.textContent = quote.toFixed(2);
+  if (askEl) askEl.textContent = ask.toFixed(2);
+  if (bidEl) bidEl.textContent = bid.toFixed(2);
+  if (changeEl) changeEl.textContent = change.toFixed(2);
+  if (dirEl) { dirEl.textContent = direction; dirEl.style.color = color; }
 
   lastTick[symbol] = quote;
 
-  if (selectedSymbol === symbol && series) {
-    series.update({ time: tick.epoch, value: quote });
-  }
+  if (selectedSymbol === symbol && series) series.update({ time: tick.epoch, value: quote });
 }
 
 // === Load historical ticks ===
 function loadHistory(symbol) {
-  connection.send(JSON.stringify({
-    ticks_history: symbol,
-    end: 'latest',
-    count: 300,
-    style: 'ticks'
-  }));
+  connection.send(JSON.stringify({ ticks_history: symbol, end: 'latest', count: 300, style: 'ticks' }));
 }
 
+// === Render history ===
 function renderHistory(data) {
   const { history } = data;
   const symbol = data.echo_req.ticks_history;
   if (!history || !symbol) return;
 
-  const points = history.times.map((t, i) => ({
-    time: Number(t),
-    value: Number(history.prices[i])
-  }));
-
-  if (series && selectedSymbol === symbol) {
-    series.setData(points);
-  }
+  const points = history.times.map((t, i) => ({ time: Number(t), value: Number(history.prices[i]) }));
+  if (series && selectedSymbol === symbol) series.setData(points);
   logHistory(`History loaded for ${symbol}`);
 }
 
 // === Init ===
-createChart();
 buildSymbolList();
+createChart();
 logHistory('Interface ready. Enter token or connect in simulation mode.');
