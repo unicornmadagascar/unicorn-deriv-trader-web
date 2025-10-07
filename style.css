@@ -1,80 +1,34 @@
+* { box-sizing: border-box; }
 body {
-  background: #101010;
-  color: #eee;
-  font-family: Inter, sans-serif;
   margin: 0;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  background: #0e0f14;
+  color: #e6edf3;
+  height: 100vh;
   display: flex;
   flex-direction: column;
-  height: 100vh;
 }
 header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #222;
-  padding: 10px 20px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding: 10px 16px;
+  background: #14161a;
+  border-bottom: 1px solid #222;
 }
-.header-right input {
-  margin-right: 8px;
-}
-#symbolList {
-  width: 240px;
-  background: #181818;
-  overflow-y: auto;
-  padding: 10px;
+.header-right { display:flex; gap:8px; align-items:center; }
+input, select, button { background:#0f1216; color:#e6edf3; border:1px solid #2b2f36; padding:6px 8px; border-radius:6px; }
+main { display:flex; flex:1; overflow:hidden; }
+aside#symbolList {
+  width: 260px; padding:10px; background:#111214; border-right:1px solid #222; overflow:auto;
 }
 .symbolItem {
-  padding: 6px;
-  margin-bottom: 4px;
-  background: #333;
-  border-radius: 6px;
-  cursor: pointer;
+  padding:8px; margin-bottom:6px; border-radius:6px; background:#131417; cursor:pointer; border:1px solid #222;
 }
-.symbolItem:hover { background: #444; }
-#chartSection {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-#chartInner {
-  flex: 1;
-  background: #000;
-}
-#controls {
-  display: flex;
-  gap: 10px;
-  background: #1c1c1c;
-  padding: 10px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-#tradeHistory {
-  background: #222;
-  color: #eee;
-  max-height: 150px;
-  overflow-y: auto;
-  padding: 6px;
-  margin-top: 6px;
-}
-button {
-  background: #673ab7;
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-}
-button:hover { background: #7e57c2; }
-input, select { 
-  background: #222;
-  color: #eee;
-  border: 1px solid #333;
-  border-radius: 5px;
-  padding: 5px;
-}
-#pnl {
-  margin-left: auto;
-  font-size: 18px;
-  font-weight: bold;
-  color: #00e676;
-}
+.symbolItem.active { background:#1f2328; border-color:#333; }
+#chartSection { flex:1; display:flex; flex-direction:column; padding:10px; gap:8px; }
+#chartInner { height: 420px; background:#000; border-radius:6px; overflow:hidden; }
+#controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; background:#131417; padding:10px; border-radius:6px; border:1px solid #222; }
+#tradeHistory { background:#121318; padding:8px; border-radius:6px; margin-top:6px; border:1px solid #222; color:#cfd8e3; max-height:160px; overflow:auto; }
+#pnl { margin-left:auto; font-weight:700; color:#00e676; }
+button { cursor:pointer; }
