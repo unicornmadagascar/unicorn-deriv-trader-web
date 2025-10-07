@@ -1,4 +1,4 @@
-// app.js - Deriv Boom/Crash Web frontend using @deriv/deriv-api (browser version)
+// app.js - Deriv Boom/Crash Web frontend using pure WebSocket API
 // Supports: Simulation (no token) & Real (token authorize)
 
 const APP_ID = 105747;
@@ -14,12 +14,14 @@ const chartInner = document.getElementById('chartInner');
 const historyList = document.getElementById('historyList');
 
 // === Global state ===
-let api = null;
 let connection = null;
 let selectedSymbol = null;
 let chart = null;
 let series = null;
 let lastTick = {};
+let balanceStreamId = null;
+let tickSubscriptions = {};
+let token = null;
 
 // === Boom & Crash symbols ===
 const boomCrashSymbols = [
@@ -84,38 +86,31 @@ function selectSymbol(sym) {
   loadHistory(sym);
 }
 
-// === Connect to Deriv ===
+// === Connect button ===
 connectBtn.addEventListener('click', async () => {
-  const token = tokenInput.value.trim();
-  await connectToDeriv(token || null);
+  token = tokenInput.value.trim() || null;
+  connectToDeriv();
 });
 
-async function connectToDeriv(token) {
+// === Connect to Deriv ===
+function connectToDeriv() {
   setStatus('Connecting...');
   connection = new WebSocket(WS_URL);
-  api = new DerivAPI({ connection });
 
-  connection.onopen = async () => {
-    setStatus('Connected');
-    logHistory('✅ WebSocket connected');
+  connection.onopen = () => {
+    setStatus('Connected ✅');
+    logHistory('Connected to Deriv WebSocket');
 
     if (token) {
-      try {
-        const auth = await api.authorize(token);
-        logHistory(`Authorized as ${auth.authorize.loginid}`);
-        setStatus(`Authorized: ${auth.authorize.loginid}`);
-        getBalance();
-      } catch (err) {
-        console.error('Authorization failed:', err);
-        logHistory('❌ Invalid token, switching to simulation mode');
-        setStatus('Simulation mode (no token)');
-      }
+      authorizeUser(token);
     } else {
       setStatus('Simulation mode (no token)');
+      logHistory('Simulation mode (no token)');
+      subscribeAllSymbols();
     }
-
-    subscribeAllSymbols();
   };
+
+  connection.onmessage = (msg) => handleMessage(JSON.parse(msg.data));
 
   connection.onclose = () => {
     setStatus('Disconnected');
@@ -128,17 +123,56 @@ async function connectToDeriv(token) {
   };
 }
 
-// === Subscribe to all Boom & Crash symbols ===
-async function subscribeAllSymbols() {
-  for (const symbol of boomCrashSymbols) {
-    try {
-      const tickStream = await api.subscribe({ ticks: symbol });
-      tickStream.onUpdate((data) => handleTick(symbol, data.tick));
-      tickStream.onError((error) => logHistory(`Error for ${symbol}: ${error.message}`));
-    } catch (e) {
-      logHistory(`Error subscribing to ${symbol}: ${e.message}`);
+// === Handle incoming WebSocket messages ===
+function handleMessage(data) {
+  // Handle authorization
+  if (data.msg_type === 'authorize') {
+    if (data.error) {
+      logHistory('❌ Invalid token, switching to simulation mode');
+      setStatus('Simulation mode (no token)');
+      subscribeAllSymbols();
+      return;
     }
+    logHistory(`Authorized as ${data.authorize.loginid}`);
+    setStatus(`Authorized: ${data.authorize.loginid}`);
+    getBalance();
+    subscribeAllSymbols();
   }
+
+  // Handle balance updates
+  if (data.msg_type === 'balance') {
+    const bal = data.balance.balance;
+    balanceEl.textContent = `Balance: ${parseFloat(bal).toFixed(2)} USD`;
+  }
+
+  // Handle ticks
+  if (data.msg_type === 'tick') {
+    const symbol = data.tick.symbol;
+    handleTick(symbol, data.tick);
+  }
+
+  // Handle history data
+  if (data.msg_type === 'history') {
+    renderHistory(data);
+  }
+}
+
+// === Authorize account ===
+function authorizeUser(token) {
+  connection.send(JSON.stringify({ authorize: token }));
+}
+
+// === Subscribe to balance ===
+function getBalance() {
+  connection.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+}
+
+// === Subscribe to all Boom & Crash symbols ===
+function subscribeAllSymbols() {
+  boomCrashSymbols.forEach(symbol => {
+    connection.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
+    tickSubscriptions[symbol] = true;
+  });
   logHistory('Subscribed to all Boom/Crash symbols');
 }
 
@@ -165,41 +199,30 @@ function handleTick(symbol, tick) {
   }
 }
 
-// === Fetch balance (real mode only) ===
-async function getBalance() {
-  try {
-    const balance = await api.balance({ subscribe: 1 });
-    balance.onUpdate((data) => {
-      const bal = data.balance.balance;
-      balanceEl.textContent = `Balance: ${parseFloat(bal).toFixed(2)} USD`;
-    });
-  } catch (err) {
-    console.error('Balance error:', err);
-  }
+// === Load historical ticks for chart ===
+function loadHistory(symbol) {
+  connection.send(JSON.stringify({
+    ticks_history: symbol,
+    end: 'latest',
+    count: 300,
+    style: 'ticks'
+  }));
 }
 
-// === Load historical ticks for chart ===
-async function loadHistory(symbol) {
-  try {
-    const history = await api.ticks_history({
-      ticks_history: symbol,
-      end: 'latest',
-      count: 300,
-      style: 'ticks'
-    });
-
-    const data = history.history.times.map((t, i) => ({
-      time: Number(t),
-      value: Number(history.history.prices[i])
-    }));
-
-    if (series) series.setData(data);
-  } catch (e) {
-    logHistory(`Failed to load history for ${symbol}: ${e.message}`);
+function renderHistory(data) {
+  const { history } = data;
+  const symbol = data.echo_req.ticks_history;
+  const points = history.times.map((t, i) => ({
+    time: Number(t),
+    value: Number(history.prices[i])
+  }));
+  if (series && selectedSymbol === symbol) {
+    series.setData(points);
   }
+  logHistory(`History loaded for ${symbol}`);
 }
 
 // === Init ===
 createChart();
 buildSymbolList();
-logHistory('Interface ready. Choose a symbol or connect.');
+logHistory('Interface ready. Enter token or connect in simulation mode.');

@@ -3,10 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Unicorn Deriv Trader (Web)</title>
+  <title>🦄 Unicorn Deriv Trader (Web)</title>
   <link rel="stylesheet" href="style.css" />
+
   <!-- Lightweight Charts -->
   <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+
+  <!-- ✅ Deriv API (Browser Build) -->
+  <script src="https://unpkg.com/@deriv/deriv-api/dist/DerivAPIBasic.umd.js"></script>
 </head>
 <body>
   <header>
@@ -33,7 +37,10 @@
 
         <label>Timeframe
           <select id="timeframe">
-            <option value="M1">M1</option><option value="M5">M5</option><option value="M15">M15</option><option value="H1">H1</option>
+            <option value="M1">M1</option>
+            <option value="M5">M5</option>
+            <option value="M15">M15</option>
+            <option value="H1">H1</option>
           </select>
         </label>
 
@@ -52,15 +59,14 @@
         <div id="pnl">PnL: --</div>
       </div>
 
-      <div id="tradeHistory"><strong>Trade history</strong><div id="historyList"></div></div>
+      <div id="tradeHistory">
+        <strong>Trade history</strong>
+        <div id="historyList"></div>
+      </div>
     </section>
   </main>
 
-  <script src="https://unpkg.com/@deriv/deriv-api/dist/DerivAPI.min.js"></script>
-  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
-  <script src="app.js"></script>
-
-
+  <!-- ✅ Ton script principal -->
   <script src="app.js" defer></script>
 </body>
 </html>
