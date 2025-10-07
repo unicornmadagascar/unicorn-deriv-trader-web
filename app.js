@@ -19,8 +19,7 @@ let lastTick = {};
 let token = null;
 let automationActive = false;
 let chart = null;
-let seriesMap = {}; // série pour chaque symbole
-let simulationInterval = null;
+let series = null;
 
 // === Volatility symbols ===
 const volatilitySymbols = ['R_100', 'R_75', 'R_50', 'R_25', 'R_10'];
@@ -51,37 +50,36 @@ function buildSymbolList() {
   });
 }
 
-// === Handle Symbol Selection ===
+// === Chart ===
+function createChart() {
+  chartInner.innerHTML = '';
+  chart = LightweightCharts.createChart(chartInner, {
+    width: chartInner.clientWidth || 600,
+    height: chartInner.clientHeight || 300,
+    layout: { textColor: '#e6edf3', background: { color: '#0d1117' } },
+    grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
+    timeScale: { timeVisible: true, secondsVisible: true }
+  });
+
+  series = chart.addLineSeries({ color: '#00ff9c', lineWidth: 2 });
+
+  window.addEventListener('resize', () => {
+    chart.applyOptions({
+      width: chartInner.clientWidth || 600,
+      height: chartInner.clientHeight || 300
+    });
+  });
+}
+
+// === Select Symbol ===
 function selectSymbol(sym) {
   document.querySelectorAll('.symbolItem').forEach(el => el.classList.remove('active'));
   const el = document.getElementById('sym-' + sym);
   if (el) el.classList.add('active');
   selectedSymbol = sym;
   logHistory(`Selected symbol: ${sym}`);
-}
-
-// === Chart Setup ===
-function createChart() {
-  chartInner.innerHTML = '';
-  chart = LightweightCharts.createChart(chartInner, {
-    width: chartInner.clientWidth || 600,
-    height: 300,
-    layout: { textColor: '#e6edf3', background: { color: '#0d1117' } },
-    grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
-    timeScale: { timeVisible: true, secondsVisible: true }
-  });
-
-  // une série par symbole
-  volatilitySymbols.forEach(sym => {
-    seriesMap[sym] = chart.addLineSeries({ color: '#00ff9c', lineWidth: 2 });
-  });
-
-  window.addEventListener('resize', () => {
-    chart.applyOptions({
-      width: chartInner.clientWidth || 600,
-      height: 300
-    });
-  });
+  createChart();
+  loadHistory(sym); // charge les 300 derniers ticks
 }
 
 // === Connect button ===
@@ -93,21 +91,18 @@ connectBtn.addEventListener('click', () => {
 // === Connect to Deriv ===
 function connectToDeriv() {
   setStatus('Connecting...');
-  if (!token) {
-    // Simulation mode
-    setStatus('Simulation mode');
-    logHistory('Running in simulation mode');
-    subscribeAllSymbols();
-    startSimulation();
-    return;
-  }
-
   connection = new WebSocket(WS_URL);
 
   connection.onopen = () => {
     setStatus('Connected ✅');
     logHistory('Connected to Deriv WebSocket');
-    authorizeUser(token);
+
+    if (token) authorizeUser(token);
+    else {
+      setStatus('Simulation mode');
+      subscribeAllSymbols();
+      startSimulation();
+    }
   };
 
   connection.onmessage = msg => handleMessage(JSON.parse(msg.data));
@@ -138,6 +133,7 @@ function handleMessage(data) {
   }
 
   if (data.msg_type === 'tick' && data.tick?.symbol) handleTick(data.tick.symbol, data.tick);
+  if (data.msg_type === 'history') handleHistory(data);
 }
 
 // === Authorize account ===
@@ -147,11 +143,9 @@ function authorizeUser(token) { connection.send(JSON.stringify({ authorize: toke
 function getBalance() { connection.send(JSON.stringify({ balance: 1, subscribe: 1 })); }
 
 // === Subscribe to all symbols ===
-function subscribeAllSymbols() {
-  volatilitySymbols.forEach(s => {
-    if (connection) connection.send(JSON.stringify({ ticks: s, subscribe: 1 }));
-  });
-  logHistory('Subscribed to all Volatility symbols');
+function subscribeAllSymbols() { 
+  volatilitySymbols.forEach(s => connection.send(JSON.stringify({ ticks: s, subscribe: 1 }))); 
+  logHistory('Subscribed to all Volatility symbols'); 
 }
 
 // === Handle incoming ticks ===
@@ -169,31 +163,46 @@ function handleTick(symbol, tick) {
 
   lastTick[symbol] = quote;
 
-  if (seriesMap[symbol]) {
-    const time = tick.epoch ? tick.epoch : Math.floor(Date.now()/1000);
-    seriesMap[symbol].update({ time, value: quote });
+  // update chart
+  if (selectedSymbol === symbol && series) {
+    series.update({ time: tick.epoch, value: quote });
   }
 
   if (automationActive && selectedSymbol === symbol) runAutomation(symbol, quote);
 }
 
-// === Simulation of ticks (for mode simulation) ===
-function startSimulation() {
-  if (simulationInterval) clearInterval(simulationInterval);
-  simulationInterval = setInterval(() => {
-    volatilitySymbols.forEach(sym => {
-      const prev = lastTick[sym] || 1000;
-      const change = (Math.random() - 0.5) * 10; // variation aléatoire
-      const quote = Math.max(0, prev + change);
-      handleTick(sym, { quote, epoch: Math.floor(Date.now()/1000) });
-    });
-  }, 1000);
+// === Handle historical data ===
+function handleHistory(data) {
+  const symbol = data.echo_req?.ticks_history;
+  if (!data.history || !symbol) return;
+
+  const points = data.history.times.map((t, i) => ({
+    time: Math.floor(Number(t)),
+    value: Number(data.history.prices[i])
+  }));
+
+  if (selectedSymbol === symbol && series) {
+    series.setData(points);
+    logHistory(`Loaded 300 ticks for ${symbol}`);
+  }
+}
+
+// === Load historical ticks for selected symbol ===
+function loadHistory(symbol) {
+  if (!connection) return;
+
+  connection.send(JSON.stringify({
+    ticks_history: symbol,
+    end: 'latest',
+    count: 300,
+    style: 'ticks'
+  }));
 }
 
 // === Automation logic ===
 function runAutomation(symbol, price) {
   logHistory(`Automation: checking symbol ${symbol} at price ${price}`);
-  // ici tu peux intégrer Money Management, TP/SL, Martingale, Buy/Sell Numbers séparés
+  // Ici tu peux intégrer Money Management, TP/SL, Martingale, Buy/Sell Numbers séparés
 }
 
 // === BUY/SELL/CLOSE & Automation Controls + Money/Risk Management ===
@@ -227,15 +236,29 @@ function createControls() {
     </div>
   `;
 
-  document.getElementById('btnBuy').onclick = () => logHistory('BUY clicked');
-  document.getElementById('btnSell').onclick = () => logHistory('SELL clicked');
-  document.getElementById('btnClose').onclick = () => logHistory('CLOSE clicked');
+  document.getElementById('btnBuy').onclick = () => { logHistory('BUY clicked'); };
+  document.getElementById('btnSell').onclick = () => { logHistory('SELL clicked'); };
+  document.getElementById('btnClose').onclick = () => { logHistory('CLOSE clicked'); };
   document.getElementById('btnLaunch').onclick = () => { automationActive = true; logHistory('Automation started'); };
   document.getElementById('btnStop').onclick = () => { automationActive = false; logHistory('Automation stopped'); };
+}
+
+// === Simulation mode for testing without token ===
+function startSimulation() {
+  setStatus('Simulation mode ✅');
+  selectedSymbol = volatilitySymbols[0];
+  createChart();
+
+  let tickValue = 1000;
+  setInterval(() => {
+    if (!selectedSymbol) return;
+    tickValue += (Math.random() - 0.5) * 2;
+    const tick = { quote: tickValue, epoch: Math.floor(Date.now()/1000) };
+    handleTick(selectedSymbol, tick);
+  }, 1000);
 }
 
 // === Init ===
 buildSymbolList();
 createControls();
-createChart();
 logHistory('Interface ready. Enter token or connect in simulation mode.');
