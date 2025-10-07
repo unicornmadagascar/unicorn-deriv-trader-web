@@ -1,5 +1,6 @@
-// app.js - Volatility Web frontend avec LightweightCharts et simulation
-const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=105747`;
+// app.js - Deriv Volatility Web frontend avec TradingView Chart Widget
+const APP_ID = 105747;
+const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
 
 // === UI Elements ===
 const tokenInput = document.getElementById('tokenInput');
@@ -17,8 +18,7 @@ let selectedSymbol = null;
 let lastTick = {};
 let token = null;
 let automationActive = false;
-let chart = null;
-let series = null;
+let widget = null;
 let simulationInterval = null;
 
 // === Volatility symbols ===
@@ -33,7 +33,7 @@ function logHistory(txt) {
 
 function setStatus(s) { statusEl.textContent = s; }
 
-// === Build Symbol List ===
+// === Build Symbol List (Price + Direction) ===
 function buildSymbolList() {
   symbolListEl.innerHTML = '';
   volatilitySymbols.forEach(sym => {
@@ -57,27 +57,31 @@ function selectSymbol(sym) {
   if (el) el.classList.add('active');
   selectedSymbol = sym;
   logHistory(`Selected symbol: ${sym}`);
-  createChart();
+
+  // Update TradingView widget
+  if (widget) {
+    widget.setSymbol(sym, "1");
+  } else {
+    createTradingViewWidget(sym);
+  }
 }
 
-// === Create LightweightCharts chart ===
-function createChart() {
+// === Create TradingView Widget ===
+function createTradingViewWidget(symbol) {
   chartContainer.innerHTML = '';
-  chart = LightweightCharts.createChart(chartContainer, {
-    width: chartContainer.clientWidth || 600,
-    height: 300,
-    layout: { textColor: '#e6edf3', background: { color: '#0d1117' } },
-    grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
-    timeScale: { timeVisible: true, secondsVisible: true }
-  });
-
-  series = chart.addLineSeries({ color: '#00ff9c', lineWidth: 2 });
-
-  window.addEventListener('resize', () => {
-    chart.applyOptions({
-      width: chartContainer.clientWidth || 600,
-      height: 300
-    });
+  widget = new TradingView.widget({
+    container_id: chartContainer.id,
+    width: "100%",
+    height: 400,
+    symbol: symbol,
+    interval: "1",
+    timezone: "Etc/UTC",
+    theme: "dark",
+    style: "1",
+    toolbar_bg: "#0d1117",
+    hide_side_toolbar: false,
+    allow_symbol_change: true,
+    watchlist: volatilitySymbols
   });
 }
 
@@ -87,7 +91,7 @@ connectBtn.addEventListener('click', () => {
   connectToDeriv();
 });
 
-// === Connect to Deriv or simulation ===
+// === Connect to Deriv ===
 function connectToDeriv() {
   setStatus('Connecting...');
   if (token) {
@@ -101,12 +105,13 @@ function connectToDeriv() {
     connection.onclose = () => { setStatus('Disconnected'); logHistory('WebSocket closed'); };
     connection.onerror = err => { console.error(err); setStatus('Connection error'); };
   } else {
+    // Simulation mode
     setStatus('Simulation mode');
     startSimulation();
   }
 }
 
-// === Handle WebSocket messages ===
+// === Handle messages ===
 function handleMessage(data) {
   if (!data) return;
 
@@ -130,15 +135,17 @@ function handleMessage(data) {
   if (data.msg_type === 'tick' && data.tick?.symbol) handleTick(data.tick.symbol, data.tick);
 }
 
-// === Authorize, Balance, Subscribe ===
+// === Authorize account ===
 function authorizeUser(token) { connection.send(JSON.stringify({ authorize: token })); }
+// === Subscribe to balance ===
 function getBalance() { connection.send(JSON.stringify({ balance: 1, subscribe: 1 })); }
-function subscribeAllSymbols() {
-  volatilitySymbols.forEach(s => connection.send(JSON.stringify({ ticks: s, subscribe: 1 })));
-  logHistory('Subscribed to all Volatility symbols');
+// === Subscribe to all symbols ===
+function subscribeAllSymbols() { 
+  volatilitySymbols.forEach(s => connection.send(JSON.stringify({ ticks: s, subscribe: 1 }))); 
+  logHistory('Subscribed to all Volatility symbols'); 
 }
 
-// === Handle tick update ===
+// === Handle incoming ticks ===
 function handleTick(symbol, tick) {
   const priceEl = document.getElementById('price-' + symbol);
   const dirEl = document.getElementById('dir-' + symbol);
@@ -153,10 +160,6 @@ function handleTick(symbol, tick) {
 
   lastTick[symbol] = quote;
 
-  if (selectedSymbol === symbol && series) {
-    series.update({ time: Math.floor(Date.now()/1000), value: quote });
-  }
-
   if (automationActive && selectedSymbol === symbol) runAutomation(symbol, quote);
 }
 
@@ -167,7 +170,7 @@ function startSimulation() {
   simulationInterval = setInterval(() => {
     volatilitySymbols.forEach(sym => {
       const price = (Math.random()*1000+100).toFixed(2);
-      handleTick(sym, { quote: Number(price) });
+      handleTick(sym, { quote: Number(price), epoch: Math.floor(Date.now()/1000) });
     });
   }, 1000);
 }
@@ -177,7 +180,7 @@ function runAutomation(symbol, price) {
   logHistory(`Automation: checking symbol ${symbol} at price ${price}`);
 }
 
-// === Controls ===
+// === BUY/SELL/CLOSE & Automation Controls + Money/Risk Management ===
 function createControls() {
   controlsEl.innerHTML = `
     <button id="btnBuy">BUY</button>
