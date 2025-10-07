@@ -1,4 +1,4 @@
-// app.js - Deriv Boom/Crash Web frontend using pure WebSocket API
+// app.js - Deriv Volatility Web frontend using pure WebSocket API
 // Supports: Simulation (no token) & Real (token authorize)
 
 const APP_ID = 105747;
@@ -21,11 +21,14 @@ let series = null;
 let lastTick = {};
 let token = null;
 
-// === Boom & Crash symbols ===
-const boomCrashSymbols = [
-  'BOOM1000', 'BOOM500', 'BOOM300',
-  'CRASH1000', 'CRASH500', 'CRASH300'
-];
+// === Volatility symbols ===
+const volatilitySymbols = ['R_100', 'R_75', 'R_50', 'R_25'];
+const symbolLabels = {
+  'R_100': 'Volatility 100',
+  'R_75':  'Volatility 75',
+  'R_50':  'Volatility 50',
+  'R_25':  'Volatility 25'
+};
 
 // === Helpers ===
 function logHistory(txt) {
@@ -60,12 +63,12 @@ function createChart() {
 // === Build Symbol List ===
 function buildSymbolList() {
   symbolListEl.innerHTML = '';
-  boomCrashSymbols.forEach(sym => {
+  volatilitySymbols.forEach(sym => {
     const div = document.createElement('div');
     div.className = 'symbolItem';
     div.id = 'sym-' + sym;
     div.innerHTML = `
-      <div class="symTitle">${sym}</div>
+      <div class="symTitle">${symbolLabels[sym]}</div>
       <div>Price: <span id="price-${sym}">--</span></div>
       <div>Tendance: <span id="dir-${sym}">--</span></div>
     `;
@@ -123,35 +126,35 @@ function connectToDeriv() {
 
 // === Handle incoming WebSocket messages ===
 function handleMessage(data) {
-  // Authorize response
-  if (data.authorize) {
+  // Authorization response
+  if (data.msg_type === 'authorize') {
+    if (data.error) {
+      logHistory('❌ Invalid token, switching to simulation mode');
+      setStatus('Simulation mode (no token)');
+      subscribeAllSymbols();
+      return;
+    }
     logHistory(`Authorized as ${data.authorize.loginid}`);
     setStatus(`Authorized: ${data.authorize.loginid}`);
     getBalance();
     subscribeAllSymbols();
-    return;
   }
 
-  // Handle balance updates
-  if (data.balance) {
-    const bal = data.balance.balance || data.balance;
+  // Balance updates
+  if (data.msg_type === 'balance') {
+    const bal = data.balance.balance;
     balanceEl.textContent = `Balance: ${parseFloat(bal).toFixed(2)} USD`;
   }
 
-  // Handle ticks
-  if (data.tick) {
+  // Tick updates
+  if (data.msg_type === 'tick') {
     const symbol = data.tick.symbol;
     handleTick(symbol, data.tick);
   }
 
-  // Handle historical data
-  if (data.history && data.history.times && data.history.prices) {
+  // Historical ticks
+  if (data.msg_type === 'history') {
     renderHistory(data);
-  }
-
-  // Handle errors
-  if (data.error) {
-    logHistory(`Error: ${data.error.message}`);
   }
 }
 
@@ -165,12 +168,12 @@ function getBalance() {
   connection.send(JSON.stringify({ balance: 1, subscribe: 1 }));
 }
 
-// === Subscribe to all Boom & Crash symbols ===
+// === Subscribe to all Volatility symbols ===
 function subscribeAllSymbols() {
-  boomCrashSymbols.forEach(symbol => {
+  volatilitySymbols.forEach(symbol => {
     connection.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
   });
-  logHistory('Subscribed to all Boom/Crash symbols');
+  logHistory('Subscribed to all Volatility symbols');
 }
 
 // === Handle incoming ticks ===
@@ -208,10 +211,11 @@ function loadHistory(symbol) {
 
 // === Render historical data ===
 function renderHistory(data) {
+  const { history } = data;
   const symbol = data.echo_req.ticks_history;
-  const points = data.history.times.map((t, i) => ({
+  const points = history.times.map((t, i) => ({
     time: Number(t),
-    value: Number(data.history.prices[i])
+    value: Number(history.prices[i])
   }));
   if (series && selectedSymbol === symbol) {
     series.setData(points);
