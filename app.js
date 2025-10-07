@@ -9,7 +9,7 @@ const statusEl = document.getElementById('status');
 const balanceEl = document.getElementById('userBalance');
 const symbolListEl = document.getElementById('symbolList');
 const historyList = document.getElementById('historyList');
-const controlsEl = document.getElementById('controls'); // conteneur des boutons et automation
+const controlsEl = document.getElementById('controls');
 
 // === Global state ===
 let connection = null;
@@ -19,7 +19,7 @@ let token = null;
 let automationActive = false;
 
 // === Volatility symbols ===
-const volatilitySymbols = ['R_100', 'R_75', 'R_50', 'R_25','R_10'];
+const volatilitySymbols = ['R_100', 'R_75', 'R_50', 'R_25','R_90','R_30','R_10','R_15'];
 
 // === Helpers ===
 function logHistory(txt) {
@@ -29,7 +29,7 @@ function logHistory(txt) {
 }
 function setStatus(s) { statusEl.textContent = s; }
 
-// === Build Symbol List (affiche seulement Symbol, Last Price, Change, Direction) ===
+// === Build Symbol List (Price, Change, Direction) ===
 function buildSymbolList() {
   symbolListEl.innerHTML = '';
   volatilitySymbols.forEach(sym => {
@@ -53,6 +53,7 @@ function selectSymbol(sym) {
   const el = document.getElementById('sym-' + sym);
   if (el) el.classList.add('active');
   selectedSymbol = sym;
+  logHistory(`Selected symbol: ${sym}`);
 }
 
 // === Connect button ===
@@ -111,7 +112,10 @@ function authorizeUser(token) { connection.send(JSON.stringify({ authorize: toke
 // === Subscribe to balance ===
 function getBalance() { connection.send(JSON.stringify({ balance: 1, subscribe: 1 })); }
 // === Subscribe to all symbols ===
-function subscribeAllSymbols() { volatilitySymbols.forEach(s => connection.send(JSON.stringify({ ticks: s, subscribe: 1 }))); logHistory('Subscribed to all Volatility symbols'); }
+function subscribeAllSymbols() { 
+  volatilitySymbols.forEach(s => connection.send(JSON.stringify({ ticks: s, subscribe: 1 }))); 
+  logHistory('Subscribed to all Volatility symbols'); 
+}
 
 // === Handle incoming ticks ===
 function handleTick(symbol, tick) {
@@ -136,12 +140,11 @@ function handleTick(symbol, tick) {
 
 // === Automation logic ===
 function runAutomation(symbol, price) {
-  // exemple basique : si automation activé, on peut lancer des ordres selon conditions
   logHistory(`Automation: checking symbol ${symbol} at price ${price}`);
-  // Ici tu peux intégrer Money Management, TP/SL, Martingale...
+  // Ici tu peux intégrer Money Management, TP/SL, Martingale, Buy/Sell Numbers séparés
 }
 
-// === BUY/SELL/CLOSE Buttons ===
+// === BUY/SELL/CLOSE & Automation Controls + Money/Risk Management ===
 function createControls() {
   controlsEl.innerHTML = `
     <button id="btnBuy">BUY</button>
@@ -149,21 +152,26 @@ function createControls() {
     <button id="btnClose">CLOSE</button>
     <button id="btnLaunch">AUTOMATION LAUNCHER</button>
     <button id="btnStop">STOP AUTOMATION</button>
+
     <div id="moneyManagement">
       <label>TF: <input type="text" id="tfInput" value="1m"></label>
       <label>Lot: <input type="number" id="lotInput" value="1" min="0.01" step="0.01"></label>
-      <label>Buy/Sell number: <input type="number" id="bsNumInput" value="1" min="1"></label>
+      <label>Buy Number: <input type="number" id="buyNumInput" value="1" min="1"></label>
+      <label>Sell Number: <input type="number" id="sellNumInput" value="1" min="1"></label>
     </div>
+
     <div id="riskManagement">
       <label>TP: <input type="number" id="tpInput" value="10"></label>
       <label>SL: <input type="number" id="slInput" value="10"></label>
       <label>Martingale: <input type="number" id="martInput" value="0"></label>
     </div>
+
     <div id="controlChecks">
       <label><input type="checkbox" id="enableTP"> Enable TP</label>
       <label><input type="checkbox" id="enableSL"> Enable SL</label>
       <label><input type="checkbox" id="enableMart"> Enable Martingale</label>
-      <label><input type="checkbox" id="enableBSNum"> Enable Buy/Sell number</label>
+      <label><input type="checkbox" id="enableBuyNum"> Enable Buy Number</label>
+      <label><input type="checkbox" id="enableSellNum"> Enable Sell Number</label>
     </div>
   `;
 
