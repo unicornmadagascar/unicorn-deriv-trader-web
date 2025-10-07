@@ -1,4 +1,4 @@
-// app.js - Deriv Volatility Web frontend
+// app.js - Deriv Volatility Web frontend (Simulation + Chart)
 const APP_ID = 105747;
 const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
 
@@ -22,7 +22,7 @@ let chart = null;
 let series = null;
 
 // === Volatility symbols ===
-const volatilitySymbols = ['R_100', 'R_75', 'R_50', 'R_25','R_10'];
+const volatilitySymbols = ['R_100', 'R_75', 'R_50', 'R_25', 'R_10'];
 
 // === Helpers ===
 function logHistory(txt) {
@@ -32,7 +32,7 @@ function logHistory(txt) {
 }
 function setStatus(s) { statusEl.textContent = s; }
 
-// === Build Symbol List (Price + Direction) ===
+// === Build Symbol List ===
 function buildSymbolList() {
   symbolListEl.innerHTML = '';
   volatilitySymbols.forEach(sym => {
@@ -69,7 +69,6 @@ function createChart() {
     grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
     timeScale: { timeVisible: true, secondsVisible: true }
   });
-
   series = chart.addLineSeries({ color: '#00ff9c', lineWidth: 2 });
 
   window.addEventListener('resize', () => {
@@ -135,10 +134,25 @@ function handleMessage(data) {
 function authorizeUser(token) { connection.send(JSON.stringify({ authorize: token })); }
 // === Subscribe to balance ===
 function getBalance() { connection.send(JSON.stringify({ balance: 1, subscribe: 1 })); }
-// === Subscribe to all symbols ===
+
+// === Subscribe to all symbols (Simulation or Live) ===
 function subscribeAllSymbols() { 
-  volatilitySymbols.forEach(s => connection.send(JSON.stringify({ ticks: s, subscribe: 1 }))); 
-  logHistory('Subscribed to all Volatility symbols'); 
+  if (!token) {
+    // Simulation: generate fake ticks
+    logHistory('Simulation mode: generating random ticks');
+    volatilitySymbols.forEach(sym => {
+      if (!(sym in lastTick)) lastTick[sym] = 1000; // initial price
+      setInterval(() => {
+        const delta = (Math.random() - 0.5) * 10;
+        const tick = { quote: lastTick[sym] + delta, epoch: Date.now() };
+        handleTick(sym, tick);
+      }, 1000);
+    });
+  } else {
+    // Live ticks
+    volatilitySymbols.forEach(s => connection.send(JSON.stringify({ ticks: s, subscribe: 1 }))); 
+    logHistory('Subscribed to all Volatility symbols'); 
+  }
 }
 
 // === Handle incoming ticks ===
@@ -156,8 +170,8 @@ function handleTick(symbol, tick) {
 
   lastTick[symbol] = quote;
 
-  if (selectedSymbol === symbol) {
-    if (series) series.update({ time: tick.epoch, value: quote });
+  if (selectedSymbol === symbol && series) {
+    series.update({ time: Math.floor(tick.epoch / 1000), value: quote });
   }
 
   if (automationActive && selectedSymbol === symbol) runAutomation(symbol, quote);
@@ -169,7 +183,7 @@ function runAutomation(symbol, price) {
   // Ici tu peux intégrer Money Management, TP/SL, Martingale, Buy/Sell Numbers séparés
 }
 
-// === BUY/SELL/CLOSE & Automation Controls + Money/Risk Management ===
+// === Controls ===
 function createControls() {
   controlsEl.innerHTML = `
     <button id="btnBuy">BUY</button>
