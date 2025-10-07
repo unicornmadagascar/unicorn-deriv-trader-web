@@ -1,61 +1,128 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Unicorn Deriv Trader (Web)</title>
-  <link rel="stylesheet" href="style.css" />
-  <!-- Lightweight Charts -->
-  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
-</head>
-<body>
-  <header>
-    <h1>🦄 Unicorn Deriv Trader (Web)</h1>
-    <div class="header-right">
-      <input id="tokenInput" placeholder="Enter Deriv API token (optional for simulation)" />
-      <button id="connectBtn">Connect</button>
-      <span id="status">Not connected</span>
-      <span id="userBalance">Balance: --</span>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Unicorn Deriv Trader Web</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family: "Inter", sans-serif;
+      }
+
+      body {
+        background: #111;
+        color: #fff;
+        display: flex;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      /* --- Left panel: Symbol list --- */
+      #symbols-panel {
+        width: 220px;
+        border-right: 1px solid #333;
+        background: #181818;
+        display: flex;
+        flex-direction: column;
+      }
+
+      #symbols-panel h3 {
+        padding: 15px;
+        font-size: 16px;
+        border-bottom: 1px solid #333;
+        text-align: center;
+      }
+
+      #symbols {
+        list-style: none;
+        flex: 1;
+        overflow-y: auto;
+      }
+
+      #symbols li {
+        padding: 10px 15px;
+        border-bottom: 1px solid #222;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: background 0.2s;
+      }
+
+      #symbols li:hover {
+        background: #262626;
+      }
+
+      #symbols li.active {
+        background: #333;
+        color: #00e6b8;
+        font-weight: 600;
+      }
+
+      .change-pos {
+        color: #00ff80;
+      }
+
+      .change-neg {
+        color: #ff4d4d;
+      }
+
+      /* --- Center: Chart --- */
+      #chart {
+        flex: 1;
+        background: #101010;
+      }
+
+      /* --- Right panel: Account info --- */
+      #account-panel {
+        width: 250px;
+        border-left: 1px solid #333;
+        background: #181818;
+        padding: 15px;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        gap: 10px;
+      }
+
+      #account-panel h2 {
+        font-size: 18px;
+        color: #00e6b8;
+      }
+
+      #account-panel h4 {
+        font-weight: 400;
+        font-size: 15px;
+        color: #ccc;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Left side: Boom & Crash list -->
+    <div id="symbols-panel">
+      <h3>📊 Boom & Crash</h3>
+      <ul id="symbols"></ul>
     </div>
-  </header>
 
-  <main>
-    <aside id="symbolList"></aside>
+    <!-- Center: Chart -->
+    <div id="chart"></div>
 
-    <section id="chartSection">
-      <div id="chartInner"></div>
+    <!-- Right side: Account details -->
+    <div id="account-panel">
+      <h2>Unicorn Trader</h2>
+      <h4 id="account">Account: ...</h4>
+      <h4 id="pnl">Balance: ...</h4>
+    </div>
 
-      <div id="controls">
-        <select id="modeSelect">
-          <option value="simulation">Simulation</option>
-          <option value="live">Live</option>
-        </select>
-
-        <label>Timeframe
-          <select id="timeframe">
-            <option value="M1">M1</option><option value="M5">M5</option><option value="M15">M15</option><option value="H1">H1</option>
-          </select>
-        </label>
-
-        <label>Lot: <input id="lot" type="number" step="0.01" min="0.01" value="1.00" /></label>
-        <label>Stake: <input id="stake" type="number" step="0.01" min="0.01" value="1.00" /></label>
-        <label>TP (%) <input id="tp" type="number" step="0.01" value="1.0" /></label>
-        <label>SL (%) <input id="sl" type="number" step="0.01" value="1.0" /></label>
-
-        <label><input id="martingale" type="checkbox"/> Martingale</label>
-        <label>Multiplier <input id="multiplier" type="number" step="0.1" value="2.0" /></label>
-
-        <button id="buyBtn">BUY</button>
-        <button id="sellBtn">SELL</button>
-        <button id="closeBtn">CLOSE</button>
-
-        <div id="pnl">PnL: --</div>
-      </div>
-
-      <div id="tradeHistory"><strong>Trade history</strong><div id="historyList"></div></div>
-    </section>
-  </main>
-
-  <script src="app.js" defer></script>
-</body>
+    <!-- Chart Library + Script -->
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="app.js"></script>
+  </body>
 </html>
