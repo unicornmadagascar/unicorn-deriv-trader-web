@@ -37,8 +37,8 @@ let keepAliveTimer = null;
 
 let selectedSymbol = null;
 const symbols = [
-  "boom_1000","boom_900","boom_600","boom_500","boom_300",
-  "crash_1000","crash_900","crash_600","crash_500","crash_300"
+  "Boom 1000","Boom 900","Boom 600","Boom 500","Boom 300",
+  "Crash 1000","Crash 900","Crash 600","Crash 500","Crash 300"
 ];
 
 // chart
