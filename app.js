@@ -34,18 +34,22 @@ let isAuthorized = false;
 let authorizeInfo = null;
 let keepAliveTimer = null;
 let selectedSymbol = null;
-
-// === Symbols list ===
-const symbols = [
-  "BOOM1000", "BOOM900", "BOOM600", "BOOM500", "BOOM300",
-  "CRASH1000", "CRASH900", "CRASH600", "CRASH500", "CRASH300"
-];
-
-// === Chart ===
+let lastTick = {};
 let chart = null;
 let series = null;
 let markers = [];
-let lastTick = {};
+
+// === Symbols with API codes and display labels ===
+const symbolLabels = {
+  "R_100": "Crash 1000",
+  "R_50":  "Crash 500",
+  "R_25":  "Crash 300",
+  "R_101": "Boom 1000",
+  "R_51":  "Boom 500",
+  "R_26":  "Boom 300"
+};
+
+const symbols = Object.keys(symbolLabels);
 
 // === Helpers ===
 function logHistory(txt) {
@@ -132,11 +136,12 @@ function subscribeAllSymbols() {
 function buildSymbolList() {
   symbolListEl.innerHTML = '';
   symbols.forEach(sym => {
+    const label = symbolLabels[sym] || sym;
     const div = document.createElement('div');
     div.className = 'symbolItem';
     div.id = 'sym-' + sym;
     div.innerHTML = `
-      <div class="symTitle">${sym}</div>
+      <div class="symTitle">${label}</div>
       <div>Bid: <span id="bid-${sym}">--</span></div>
       <div>Ask: <span id="ask-${sym}">--</span></div>
       <div>Δ: <span id="chg-${sym}">--</span></div>
@@ -156,7 +161,7 @@ function selectSymbol(sym) {
   selectedSymbol = sym;
   createChart();
   markers = [];
-  wsSendWhenOpen({ ticks_history: sym, end: 'latest', count: 300 });
+  wsSendWhenOpen({ ticks_history: sym, end: 'latest', count: 300, style: 'ticks' });
   wsSendWhenOpen({ ticks: sym, subscribe: 1 });
 }
 
