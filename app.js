@@ -26,7 +26,7 @@ let pnl = 0;
 // --- WebSocket connection to Deriv API ---
 let ws;
 function connectDeriv(token) {
-  ws = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=1089");
+  ws = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=105747");
   ws.onopen = () => {
     console.log("Connected to Deriv API");
     balanceEl.innerText = balance.toFixed(2) + " USD";
