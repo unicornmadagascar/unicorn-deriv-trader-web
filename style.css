@@ -32,3 +32,25 @@ aside#symbolList {
 #tradeHistory { background:#121318; padding:8px; border-radius:6px; margin-top:6px; border:1px solid #222; color:#cfd8e3; max-height:160px; overflow:auto; }
 #pnl { margin-left:auto; font-weight:700; color:#00e676; }
 button { cursor:pointer; }
+
+.symbolItem {
+  background: #161b22;
+  color: #ddd;
+  padding: 8px;
+  margin: 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+  font-size: 14px;
+}
+.symbolItem:hover {
+  background: #202833;
+  transform: scale(1.02);
+}
+.symbolItem.active {
+  background: #2ea043;
+  color: white;
+}
+.symbolItem span {
+  font-family: monospace;
+}
