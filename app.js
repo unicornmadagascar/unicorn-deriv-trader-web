@@ -1,10 +1,10 @@
-// app.js - Deriv Boom/Crash Web frontend using pure WebSocket API
+// app.js - Deriv Volatility Web frontend using pure WebSocket API
 // Supports: Simulation (no token) & Real (token authorize)
 
 const APP_ID = 105747;
 const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
 
-// === UI Elements ===
+// === UI elements ===
 const tokenInput = document.getElementById('tokenInput');
 const connectBtn = document.getElementById('connectBtn');
 const statusEl = document.getElementById('status');
@@ -22,7 +22,9 @@ let lastTick = {};
 let token = null;
 
 // === Volatility symbols ===
-const volatilitySymbols = ['R_100', 'R_75', 'R_50', 'R_25'];
+const volatilitySymbols = [
+  'R_100', 'R_75', 'R_50', 'R_25'
+];
 
 // === Helpers ===
 function logHistory(txt) {
@@ -39,26 +41,19 @@ function setStatus(s) {
 function createChart() {
   chartInner.innerHTML = '';
   chart = LightweightCharts.createChart(chartInner, {
-    width: chartInner.clientWidth || 600,
-    height: chartInner.clientHeight || 400,
+    width: chartInner.clientWidth,
+    height: chartInner.clientHeight,
     layout: { textColor: '#e6edf3', background: { color: '#0d1117' } },
     grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
     timeScale: { timeVisible: true, secondsVisible: true }
   });
-
-  if (chart && typeof chart.addLineSeries === 'function') {
-    series = chart.addLineSeries({ color: '#00ff9c', lineWidth: 2 });
-  } else {
-    console.error('Erreur: chart invalide, impossible d’ajouter une série');
-  }
+  series = chart.addLineSeries({ color: '#00ff9c', lineWidth: 2 });
 
   window.addEventListener('resize', () => {
-    if (chart) {
-      chart.applyOptions({
-        width: chartInner.clientWidth || 600,
-        height: chartInner.clientHeight || 400
-      });
-    }
+    chart.applyOptions({
+      width: chartInner.clientWidth,
+      height: chartInner.clientHeight
+    });
   });
 }
 
@@ -104,34 +99,37 @@ function connectToDeriv() {
     setStatus('Connected ✅');
     logHistory('Connected to Deriv WebSocket');
 
-    if (token) authorizeUser(token);
-    else {
-      setStatus('Simulation mode');
+    if (token) {
+      authorizeUser(token);
+    } else {
+      setStatus('Simulation mode (no token)');
+      logHistory('Simulation mode (no token)');
       subscribeAllSymbols();
     }
   };
 
-  connection.onmessage = msg => handleMessage(JSON.parse(msg.data));
+  connection.onmessage = (msg) => handleMessage(JSON.parse(msg.data));
 
   connection.onclose = () => {
     setStatus('Disconnected');
     logHistory('WebSocket closed');
   };
 
-  connection.onerror = err => {
+  connection.onerror = (err) => {
     console.error('WebSocket error:', err);
     setStatus('Connection error');
   };
 }
 
-// === Handle messages ===
+// === Handle incoming WebSocket messages ===
 function handleMessage(data) {
   if (!data) return;
 
+  // Handle authorization
   if (data.msg_type === 'authorize') {
     if (data.error) {
       logHistory('❌ Invalid token, switching to simulation mode');
-      setStatus('Simulation mode');
+      setStatus('Simulation mode (no token)');
       subscribeAllSymbols();
       return;
     }
@@ -139,21 +137,23 @@ function handleMessage(data) {
     setStatus(`Authorized: ${data.authorize.loginid}`);
     getBalance();
     subscribeAllSymbols();
+    return;
   }
 
-  if (data.msg_type === 'balance') {
-    if (data.balance && data.balance.balance != null) {
-      balanceEl.textContent = `Balance: ${parseFloat(data.balance.balance).toFixed(2)} USD`;
-    }
+  // Handle balance updates
+  if (data.msg_type === 'balance' && data.balance) {
+    const bal = data.balance.balance;
+    balanceEl.textContent = `Balance: ${parseFloat(bal).toFixed(2)} USD`;
   }
 
-  if (data.msg_type === 'tick') {
-    if (data.tick && data.tick.symbol) {
-      handleTick(data.tick.symbol, data.tick);
-    }
+  // Handle ticks
+  if (data.msg_type === 'tick' && data.tick) {
+    const symbol = data.tick.symbol;
+    if (symbol) handleTick(symbol, data.tick);
   }
 
-  if (data.msg_type === 'history') {
+  // Handle history
+  if (data.msg_type === 'history' && data.history) {
     renderHistory(data);
   }
 }
@@ -168,7 +168,7 @@ function getBalance() {
   connection.send(JSON.stringify({ balance: 1, subscribe: 1 }));
 }
 
-// === Subscribe to all symbols ===
+// === Subscribe to all Volatility symbols ===
 function subscribeAllSymbols() {
   volatilitySymbols.forEach(symbol => {
     connection.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
@@ -199,7 +199,7 @@ function handleTick(symbol, tick) {
   }
 }
 
-// === Load historical ticks ===
+// === Load historical ticks for chart ===
 function loadHistory(symbol) {
   connection.send(JSON.stringify({
     ticks_history: symbol,
@@ -209,10 +209,11 @@ function loadHistory(symbol) {
   }));
 }
 
+// === Render history ===
 function renderHistory(data) {
   const { history } = data;
-  const symbol = data.echo_req.ticks_history;
-  if (!history || !symbol) return;
+  const symbol = data.echo_req?.ticks_history;
+  if (!symbol || !history) return;
 
   const points = history.times.map((t, i) => ({
     time: Number(t),
