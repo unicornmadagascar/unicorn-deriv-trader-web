@@ -19,8 +19,6 @@ let selectedSymbol = null;
 let chart = null;
 let series = null;
 let lastTick = {};
-let balanceStreamId = null;
-let tickSubscriptions = {};
 let token = null;
 
 // === Boom & Crash symbols ===
@@ -87,7 +85,7 @@ function selectSymbol(sym) {
 }
 
 // === Connect button ===
-connectBtn.addEventListener('click', async () => {
+connectBtn.addEventListener('click', () => {
   token = tokenInput.value.trim() || null;
   connectToDeriv();
 });
@@ -125,35 +123,35 @@ function connectToDeriv() {
 
 // === Handle incoming WebSocket messages ===
 function handleMessage(data) {
-  // Handle authorization
-  if (data.msg_type === 'authorize') {
-    if (data.error) {
-      logHistory('❌ Invalid token, switching to simulation mode');
-      setStatus('Simulation mode (no token)');
-      subscribeAllSymbols();
-      return;
-    }
+  // Authorize response
+  if (data.authorize) {
     logHistory(`Authorized as ${data.authorize.loginid}`);
     setStatus(`Authorized: ${data.authorize.loginid}`);
     getBalance();
     subscribeAllSymbols();
+    return;
   }
 
   // Handle balance updates
-  if (data.msg_type === 'balance') {
-    const bal = data.balance.balance;
+  if (data.balance) {
+    const bal = data.balance.balance || data.balance;
     balanceEl.textContent = `Balance: ${parseFloat(bal).toFixed(2)} USD`;
   }
 
   // Handle ticks
-  if (data.msg_type === 'tick') {
+  if (data.tick) {
     const symbol = data.tick.symbol;
     handleTick(symbol, data.tick);
   }
 
-  // Handle history data
-  if (data.msg_type === 'history') {
+  // Handle historical data
+  if (data.history && data.history.times && data.history.prices) {
     renderHistory(data);
+  }
+
+  // Handle errors
+  if (data.error) {
+    logHistory(`Error: ${data.error.message}`);
   }
 }
 
@@ -171,7 +169,6 @@ function getBalance() {
 function subscribeAllSymbols() {
   boomCrashSymbols.forEach(symbol => {
     connection.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
-    tickSubscriptions[symbol] = true;
   });
   logHistory('Subscribed to all Boom/Crash symbols');
 }
@@ -209,12 +206,12 @@ function loadHistory(symbol) {
   }));
 }
 
+// === Render historical data ===
 function renderHistory(data) {
-  const { history } = data;
   const symbol = data.echo_req.ticks_history;
-  const points = history.times.map((t, i) => ({
+  const points = data.history.times.map((t, i) => ({
     time: Number(t),
-    value: Number(history.prices[i])
+    value: Number(data.history.prices[i])
   }));
   if (series && selectedSymbol === symbol) {
     series.setData(points);
