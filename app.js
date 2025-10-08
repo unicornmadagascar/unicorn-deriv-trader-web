@@ -22,7 +22,8 @@ let chart = null;
 let series = null;
 
 // === Volatility symbols ===
-const volatilitySymbols = ['R_100', 'R_75', 'R_50', 'R_25', 'R_10'];
+const volatilitySymbols = ['BOOM1000', 'BOOM900', 'BOOM600', 'BOOM500', 'BOOM300',
+                           'CRASH1000', 'CRASH900', 'CRASH600', 'CRASH500', 'CRASH300'];
 
 // === Helpers ===
 function logHistory(txt) {
