@@ -23,7 +23,7 @@ let series = null;
 
 // === Volatility symbols ===
 const volatilitySymbols = ['BOOM1000', 'BOOM900', 'BOOM600', 'BOOM500', 'BOOM300',
-                           'CRASH1000', 'CRASH900', 'CRASH600', 'CRASH500', 'CRASH300'];
+                           'CRASH1000', 'CRASH900', 'CRASH600', 'CRASH500'];
 
 // === Helpers ===
 function logHistory(txt) {
