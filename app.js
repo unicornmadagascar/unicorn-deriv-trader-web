@@ -145,7 +145,7 @@ function getBalance() { connection.send(JSON.stringify({ balance: 1, subscribe: 
 
 // === Subscribe to all symbols ===
 function subscribeAllSymbols() { 
-  volatilitySymbols.forEach(s => connection.send(JSON.stringify({ ticks: s, subscribe: 1 }))); 
+  volatilitySymbols.forEach(s => connection.send(JSON.stringify({ candles: s, subscribe: 1 }))); 
   logHistory('Subscribed to all Volatility symbols'); 
 }
 
