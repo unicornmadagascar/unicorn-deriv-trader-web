@@ -1,13 +1,8 @@
 // app.js - Unicorn Deriv Trader (Web)
 // Deriv WebSocket API + Lightweight Charts
 
-const APP_ID = 105747; // Example App ID
+const APP_ID = 105747;
 const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
-let ws = null;
-let currentSymbol = null;
-let chart = null;
-let lineSeries = null;
-let lastPrices = {}; // pour stocker la dernière valeur connue de chaque symbole
 
 // UI Elements
 const tokenInput = document.getElementById("tokenInput");
@@ -20,6 +15,13 @@ const pnlDisplay = document.getElementById("pnl");
 const buyBtn = document.getElementById("buyBtn");
 const sellBtn = document.getElementById("sellBtn");
 const closeBtn = document.getElementById("closeBtn");
+
+// Global state
+let ws = null;
+let currentSymbol = null;
+let chart = null;
+let lineSeries = null;
+let lastPrices = {}; // stocke la dernière valeur connue de chaque symbole
 
 // ==============================
 // Connexion à Deriv API
@@ -42,7 +44,9 @@ connectBtn.onclick = () => {
 
     switch (data.msg_type) {
       case "authorize":
-        userBalance.textContent = `Balance: ${data.authorize.balance} USD`;
+        if (data.authorize?.balance) {
+          userBalance.textContent = `Balance: ${parseFloat(data.authorize.balance).toFixed(2)} USD`;
+        }
         loadSymbols();
         break;
 
@@ -58,6 +62,15 @@ connectBtn.onclick = () => {
         handleTick(data.tick);
         break;
     }
+  };
+
+  ws.onerror = (err) => {
+    console.error(err);
+    statusSpan.textContent = "❌ Connection error";
+  };
+
+  ws.onclose = () => {
+    statusSpan.textContent = "❌ Disconnected";
   };
 };
 
@@ -86,11 +99,14 @@ function displaySymbols(symbols) {
     const div = document.createElement("div");
     div.className = "symbolItem";
     div.id = `symbol-${s.symbol}`;
-    div.textContent = `${s.display_name}  —  ...`;
+    div.innerHTML = `
+      <span class="symbolName">${s.display_name}</span> — 
+      <span class="symbolValue">--</span>
+    `;
     div.onclick = () => selectSymbol(s.symbol);
     symbolList.appendChild(div);
 
-    // On souscrit à chaque symbole pour afficher les ticks en direct
+    // Souscription aux ticks pour chaque symbole
     ws.send(JSON.stringify({ ticks_subscribe: s.symbol }));
   });
 }
@@ -106,7 +122,6 @@ function selectSymbol(symbol) {
 
   initChart();
   requestHistoricalData(symbol);
-  subscribeTicks(symbol);
 }
 
 // ==============================
@@ -127,9 +142,17 @@ function initChart() {
     rightPriceScale: { borderColor: "#ccc" },
     timeScale: { borderColor: "#ccc", timeVisible: true, secondsVisible: true },
   });
+
   lineSeries = chart.addLineSeries({
     color: "#007bff",
     lineWidth: 2,
+  });
+
+  window.addEventListener("resize", () => {
+    chart.applyOptions({
+      width: chartContainer.clientWidth,
+      height: chartContainer.clientHeight,
+    });
   });
 }
 
@@ -153,7 +176,7 @@ function drawHistoricalData(history) {
   if (!history || !history.prices || history.prices.length === 0) return;
 
   const data = history.prices.map((p, i) => ({
-    time: parseInt(history.times[i]), // correction ici !
+    time: parseInt(history.times[i]),
     value: p,
   }));
 
@@ -161,13 +184,8 @@ function drawHistoricalData(history) {
 }
 
 // ==============================
-// Souscription et mise à jour temps réel
+// Gestion des ticks en direct
 // ==============================
-function subscribeTicks(symbol) {
-  ws.send(JSON.stringify({ forget_all: "ticks" })); // nettoyer les anciennes souscriptions
-  ws.send(JSON.stringify({ ticks_subscribe: symbol }));
-}
-
 function handleTick(tick) {
   if (!tick || !tick.symbol) return;
 
@@ -182,21 +200,28 @@ function handleTick(tick) {
     });
   }
 
-  // === MAJ de la direction dans la liste ===
+  // === MAJ de la direction et prix dans la liste des symboles ===
   const el = document.getElementById(`symbol-${tick.symbol}`);
   if (el) {
-    let direction = "⬜";
-    let color = "#999";
-    if (prev !== undefined) {
-      if (tick.quote > prev) {
-        direction = "🔼";
-        color = "green";
-      } else if (tick.quote < prev) {
-        direction = "🔽";
-        color = "red";
+    const nameSpan = el.querySelector(".symbolName");
+    const valueSpan = el.querySelector(".symbolValue");
+    if (nameSpan && valueSpan) {
+      let direction = "➡";
+      let color = "#666";
+
+      if (prev !== undefined) {
+        if (tick.quote > prev) {
+          direction = "🔼";
+          color = "green";
+        } else if (tick.quote < prev) {
+          direction = "🔽";
+          color = "red";
+        }
       }
+
+      valueSpan.textContent = `${direction} ${tick.quote.toFixed(2)}`;
+      valueSpan.style.color = color;
     }
-    el.innerHTML = `<span>${tick.symbol}</span> — <span style="color:${color}">${direction} ${tick.quote.toFixed(2)}</span>`;
   }
 }
 
