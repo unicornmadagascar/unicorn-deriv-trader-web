@@ -1,4 +1,4 @@
-// app.js - Unicorn Deriv Trader (Web) simulation with chart, arrows, and trade history
+// app.js - Unicorn Deriv Trader (Web) with Canvas chart
 const tokenInput = document.getElementById("tokenInput");
 const connectBtn = document.getElementById("connectBtn");
 const statusSpan = document.getElementById("status");
@@ -13,8 +13,9 @@ const chartInner = document.getElementById("chartInner");
 // === Global State ===
 let currentSymbol = null;
 let lastPrices = {};
-let chart = null;
-let lineSeries = null;
+let canvas, ctx;
+let chartData = [];
+let tickInterval = null;
 
 // === Volatility symbols ===
 const volatilitySymbols = [
@@ -53,44 +54,56 @@ function selectSymbol(symbol) {
   const selected = document.getElementById(`symbol-${symbol}`);
   if (selected) selected.classList.add("active");
   logHistory(`Selected symbol: ${symbol}`);
-  initChart();
+  initCanvas();
   startTickSimulation();
 }
 
-// === Initialize chart ===
-function initChart() {
+// === Initialize canvas chart ===
+function initCanvas() {
   chartInner.innerHTML = "";
-  chart = LightweightCharts.createChart(chartInner, {
-    layout: { background: { color: "#ffffff" }, textColor: "#333" },
-    grid: { vertLines: { color: "#e0e0e0" }, horzLines: { color: "#e0e0e0" } },
-    rightPriceScale: { borderColor: "#ccc" },
-    timeScale: { borderColor: "#ccc", timeVisible: true, secondsVisible: true }
+  canvas = document.createElement("canvas");
+  canvas.width = chartInner.clientWidth;
+  canvas.height = chartInner.clientHeight;
+  chartInner.appendChild(canvas);
+  ctx = canvas.getContext("2d");
+  chartData = [];
+}
+
+// === Draw the canvas chart ===
+function drawChart() {
+  if (!ctx || chartData.length === 0) return;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const maxVal = Math.max(...chartData);
+  const minVal = Math.min(...chartData);
+  const range = maxVal - minVal || 1;
+
+  ctx.beginPath();
+  chartData.forEach((val, i) => {
+    const x = (i / (chartData.length - 1)) * canvas.width;
+    const y = canvas.height - ((val - minVal) / range) * canvas.height;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
   });
-  lineSeries = chart.addLineSeries({ color: "#007bff", lineWidth: 2 });
+  ctx.strokeStyle = "#007bff";
+  ctx.lineWidth = 2;
+  ctx.stroke();
 }
 
 // === Simulate live ticks for selected symbol ===
-let tickInterval = null;
 function startTickSimulation() {
-  if (!currentSymbol || !lineSeries) return;
+  if (!currentSymbol || !ctx) return;
   if (tickInterval) clearInterval(tickInterval);
 
   let value = 1000 + Math.random() * 50; // starting value
-  const points = [];
-  const now = Math.floor(Date.now() / 1000);
-
-  // initialize 50 past points
-  for (let i = 50; i > 0; i--) {
-    const t = now - i;
-    value += (Math.random() - 0.5) * 10;
-    points.push({ time: t, value });
-  }
-  lineSeries.setData(points);
+  chartData = Array.from({ length: 50 }, () => value + (Math.random() - 0.5) * 10);
 
   tickInterval = setInterval(() => {
-    const t = Math.floor(Date.now() / 1000);
     value += (Math.random() - 0.5) * 10;
-    lineSeries.update({ time: t, value });
+    chartData.push(value);
+    if (chartData.length > 50) chartData.shift(); // keep last 50 points
+    drawChart();
 
     // update arrow in symbol list
     const el = document.getElementById(`symbol-${currentSymbol}`);
