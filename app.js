@@ -1,4 +1,7 @@
-// app.js - Unicorn Deriv Trader (Web) with Canvas chart
+// app.js - Deriv Volatility Web frontend with Canvas
+const APP_ID = 105747;
+const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
+
 const tokenInput = document.getElementById("tokenInput");
 const connectBtn = document.getElementById("connectBtn");
 const statusSpan = document.getElementById("status");
@@ -10,12 +13,13 @@ const sellBtn = document.getElementById("sellBtn");
 const closeBtn = document.getElementById("closeBtn");
 const chartInner = document.getElementById("chartInner");
 
-// === Global State ===
+// === Global state ===
+let ws = null;
 let currentSymbol = null;
 let lastPrices = {};
-let canvas, ctx;
 let chartData = [];
-let tickInterval = null;
+let canvas, ctx;
+let authorized = false;
 
 // === Volatility symbols ===
 const volatilitySymbols = [
@@ -34,7 +38,7 @@ function setStatus(txt) {
   statusSpan.textContent = txt;
 }
 
-// === Initialize symbol list with arrows only ===
+// === Initialize symbol list with arrows ===
 function initSymbols() {
   symbolList.innerHTML = "";
   volatilitySymbols.forEach((sym) => {
@@ -55,7 +59,7 @@ function selectSymbol(symbol) {
   if (selected) selected.classList.add("active");
   logHistory(`Selected symbol: ${symbol}`);
   initCanvas();
-  startTickSimulation();
+  loadHistoricalTicks(symbol);
 }
 
 // === Initialize canvas chart ===
@@ -69,7 +73,7 @@ function initCanvas() {
   chartData = [];
 }
 
-// === Draw the canvas chart ===
+// === Draw chart ===
 function drawChart() {
   if (!ctx || chartData.length === 0) return;
 
@@ -91,35 +95,102 @@ function drawChart() {
   ctx.stroke();
 }
 
-// === Simulate live ticks for selected symbol ===
-function startTickSimulation() {
-  if (!currentSymbol || !ctx) return;
-  if (tickInterval) clearInterval(tickInterval);
+// === WebSocket connection ===
+connectBtn.onclick = () => {
+  const token = tokenInput.value.trim() || null;
+  ws = new WebSocket(WS_URL);
 
-  let value = 1000 + Math.random() * 50; // starting value
-  chartData = Array.from({ length: 50 }, () => value + (Math.random() - 0.5) * 10);
+  ws.onopen = () => {
+    setStatus("Connected to Deriv WebSocket");
+    logHistory("WebSocket connected");
+    if (token) authorize(token);
+    else {
+      setStatus("Simulation disabled: connecting to live symbols without token");
+      initSymbols();
+    }
+  };
 
-  tickInterval = setInterval(() => {
-    value += (Math.random() - 0.5) * 10;
-    chartData.push(value);
-    if (chartData.length > 50) chartData.shift(); // keep last 50 points
-    drawChart();
+  ws.onmessage = (msg) => {
+    const data = JSON.parse(msg.data);
+    handleMessage(data);
+  };
 
-    // update arrow in symbol list
-    const el = document.getElementById(`symbol-${currentSymbol}`);
+  ws.onclose = () => setStatus("WebSocket disconnected");
+  ws.onerror = (err) => setStatus("WebSocket error");
+};
+
+// === Handle messages ===
+function handleMessage(data) {
+  if (data.msg_type === "authorize") {
+    if (data.error) {
+      logHistory("❌ Invalid token");
+      setStatus("Simulation mode");
+      return;
+    }
+    authorized = true;
+    setStatus(`Authorized: ${data.authorize.loginid}`);
+    getBalance();
+  }
+
+  if (data.msg_type === "balance" && data.balance?.balance != null) {
+    userBalance.textContent = `Balance: ${parseFloat(data.balance.balance).toFixed(2)} USD`;
+  }
+
+  if (data.msg_type === "tick" && data.tick?.symbol) {
+    const tick = data.tick;
+    const symbol = tick.symbol;
+    const price = Number(tick.quote);
+
+    // update chart data
+    if (symbol === currentSymbol) {
+      chartData.push(price);
+      if (chartData.length > 300) chartData.shift();
+      drawChart();
+    }
+
+    // update arrow
+    const el = document.getElementById(`symbol-${symbol}`);
     if (el) {
       const span = el.querySelector(".symbolValue");
       let direction = "➡";
       let color = "#666";
-      if (lastPrices[currentSymbol] !== undefined) {
-        if (value > lastPrices[currentSymbol]) { direction = "🔼"; color = "green"; }
-        else if (value < lastPrices[currentSymbol]) { direction = "🔽"; color = "red"; }
+      if (lastPrices[symbol] !== undefined) {
+        if (price > lastPrices[symbol]) { direction = "🔼"; color = "green"; }
+        else if (price < lastPrices[symbol]) { direction = "🔽"; color = "red"; }
       }
       span.textContent = direction;
       span.style.color = color;
-      lastPrices[currentSymbol] = value;
+      lastPrices[symbol] = price;
     }
-  }, 1000);
+  }
+}
+
+// === Authorize ===
+function authorize(token) {
+  ws.send(JSON.stringify({ authorize: token }));
+}
+
+// === Get balance ===
+function getBalance() {
+  ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+}
+
+// === Subscribe ticks for symbol ===
+function subscribeTicks(symbol) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
+}
+
+// === Load historical ticks ===
+function loadHistoricalTicks(symbol) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({
+    ticks_history: symbol,
+    end: "latest",
+    count: 300,
+    style: "ticks",
+    subscribe: 1,
+  }));
 }
 
 // === Trade history buttons ===
@@ -128,33 +199,10 @@ sellBtn.onclick = () => logTrade("SELL");
 closeBtn.onclick = () => logTrade("CLOSE");
 
 function logTrade(type) {
-  if (!currentSymbol) {
-    alert("Please select a symbol first");
-    return;
-  }
+  if (!currentSymbol) return;
   logHistory(`${type} ${currentSymbol}`);
 }
 
-// === Connect button ===
-connectBtn.onclick = () => {
-  setStatus("Simulation mode ✅");
-  initSymbols();
-  // arrows update for all symbols
-  setInterval(() => {
-    volatilitySymbols.forEach((sym) => {
-      const el = document.getElementById(`symbol-${sym}`);
-      if (!el) return;
-      const span = el.querySelector(".symbolValue");
-      const rand = Math.random();
-      let direction = "➡";
-      let color = "#666";
-      if (rand > 0.6) { direction = "🔼"; color = "green"; }
-      else if (rand < 0.4) { direction = "🔽"; color = "red"; }
-      span.textContent = direction;
-      span.style.color = color;
-    });
-  }, 1000);
-};
-
-// === Init ===
-setStatus("Ready. Connect in simulation mode and select a symbol.");
+// === Init UI ===
+setStatus("Ready. Connect and select a symbol.");
+initSymbols();
