@@ -331,9 +331,6 @@ document.addEventListener("DOMContentLoaded", () => {
   closeBtn.onclick = () => logTrade("CLOSE");
   function logTrade(type) { if (!currentSymbol) return; logHistory(`${type} ${currentSymbol}`); }
 
-  function setStatus(txt) { status
-
-
-  function setStatus(txt){ statusSpan.textContent=txt; }
+  function setStatus(txt) { statusSpan.textContent = txt; }
   setStatus("Ready. Connect and select a symbol."); initSymbols();
-};
+});
