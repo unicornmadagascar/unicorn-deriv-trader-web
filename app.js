@@ -16,6 +16,11 @@ document.addEventListener("DOMContentLoaded", () => {
   let ws=null, currentSymbol=null, lastPrices={}, chartData=[], chartTimes=[];
   let canvas, ctx, authorized=false, gaugeDashboard;
 
+  // Pour le lissage des gauges
+  let smoothedVolatility = 0;
+  let smoothedATR = 0;
+  let smoothedEMA = 0;
+
   const volatilitySymbols = ["BOOM1000","BOOM900","BOOM600","BOOM500","BOOM300","CRASH1000","CRASH900","CRASH600","CRASH500"];
 
   // Tooltip
@@ -152,7 +157,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // === Gauges ===
   function initGauges(){
-    gaugeDashboard=document.getElementById("gaugeDashboard");
+    // Crée le container si inexistant
+    if(!gaugeDashboard){
+      gaugeDashboard = document.createElement("div");
+      gaugeDashboard.id = "gaugeDashboard";
+      gaugeDashboard.style.position = "absolute";
+      gaugeDashboard.style.right = "10px";
+      gaugeDashboard.style.top = "50px";
+      gaugeDashboard.style.display = "flex";
+      gaugeDashboard.style.flexDirection = "column";
+      gaugeDashboard.style.gap = "10px";
+      document.getElementById("chartSection").appendChild(gaugeDashboard);
+    }
     gaugeDashboard.innerHTML="";
     ["Volatility","ATR","EMA"].forEach(name=>{
       const c=document.createElement("canvas");
@@ -189,13 +205,44 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.fillText(value.toFixed(1)+"%",w/2,h/2+10);
   }
 
+  // --- Calcul Volatility, ATR, EMA avec lissage ---
   function calculateVolatility(){
     if(chartData.length<2) return 0;
-    const lastN=chartData.slice(-20); const max=Math.max(...lastN); const min=Math.min(...lastN);
-    return ((max-min)/chartData[chartData.length-1])*100;
+    const windowSize=50;
+    const lastN=chartData.slice(-windowSize);
+    const max=Math.max(...lastN);
+    const min=Math.min(...lastN);
+    const rawVol = ((max-min)/chartData[chartData.length-1])*100;
+    smoothedVolatility = smoothedVolatility*0.85 + rawVol*0.15;
+    return smoothedVolatility;
   }
-  function calculateATR(){ return Math.random()*100; } // placeholder
-  function calculateEMA(){ return Math.random()*100; } // placeholder
+
+  function calculateATR(){
+    if(chartData.length<2) return 0;
+    const windowSize=14;
+    let atr=0;
+    for(let i=Math.max(1,chartData.length-windowSize); i<chartData.length; i++){
+      atr+=Math.abs(chartData[i]-chartData[i-1]);
+    }
+    atr=atr/Math.min(windowSize,chartData.length-1);
+    const lastPrice = chartData[chartData.length-1];
+    const rawATR = (atr/lastPrice)*100;
+    smoothedATR = smoothedATR*0.85 + rawATR*0.15;
+    return smoothedATR;
+  }
+
+  function calculateEMA(period=14){
+    if(chartData.length<period) return 0;
+    let k = 2/(period+1);
+    let ema = chartData[chartData.length-period];
+    for(let i=chartData.length-period+1;i<chartData.length;i++){
+      ema = chartData[i]*k + ema*(1-k);
+    }
+    const lastPrice=chartData[chartData.length-1];
+    const rawEMA = Math.abs((ema-lastPrice)/lastPrice)*100;
+    smoothedEMA = smoothedEMA*0.85 + rawEMA*0.15;
+    return smoothedEMA;
+  }
 
   setInterval(()=>{
     if(chartData.length>0) drawGauges();
