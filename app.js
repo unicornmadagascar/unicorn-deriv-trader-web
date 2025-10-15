@@ -19,6 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let chartData = [];
   let chartTimes = [];
   let canvas, ctx;
+  let gaugeCanvas, gaugeCtx;
   let authorized = false;
 
   const volatilitySymbols = [
@@ -26,6 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
     "CRASH1000","CRASH900","CRASH600","CRASH500"
   ];
 
+  // Tooltip for chart
   let tooltip = document.createElement("div");
   tooltip.style.position = "absolute";
   tooltip.style.padding = "4px 8px";
@@ -37,14 +39,7 @@ document.addEventListener("DOMContentLoaded", () => {
   tooltip.style.display = "none";
   chartInner.appendChild(tooltip);
 
-  function logHistory(txt) {
-    const div = document.createElement("div");
-    div.textContent = `${new Date().toLocaleTimeString()} — ${txt}`;
-    historyList.prepend(div);
-  }
-
-  function setStatus(txt) { statusSpan.textContent = txt; }
-
+  // === Symbol list ===
   function initSymbols() {
     symbolList.innerHTML = "";
     volatilitySymbols.forEach(sym => {
@@ -64,14 +59,16 @@ document.addEventListener("DOMContentLoaded", () => {
     if (selected) selected.classList.add("active");
     logHistory(`Selected symbol: ${symbol}`);
     initCanvas();
+    initGauge();
     subscribeTicks(symbol);
     loadHistoricalTicks(symbol);
   }
 
+  // === Chart ===
   function initCanvas() {
     chartInner.innerHTML = "";
     canvas = document.createElement("canvas");
-    canvas.width = chartInner.clientWidth;
+    canvas.width = chartInner.clientWidth - 180; // leave space for gauge
     canvas.height = chartInner.clientHeight;
     chartInner.appendChild(canvas);
     ctx = canvas.getContext("2d");
@@ -81,18 +78,16 @@ document.addEventListener("DOMContentLoaded", () => {
     canvas.addEventListener("mousemove", handleMouseMove);
     canvas.addEventListener("mouseleave", () => tooltip.style.display = "none");
   }
-  
+
   function drawChart() {
     if (!ctx || chartData.length === 0) return;
-
     const padding = 50;
     const w = canvas.width - padding*2;
     const h = canvas.height - padding*2;
 
-    // === Clear canvas ===
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // === Background gradient ===
+    // Background gradient
     const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
     gradient.addColorStop(0, "#f9faff");
     gradient.addColorStop(1, "#e6f0ff");
@@ -103,100 +98,83 @@ document.addEventListener("DOMContentLoaded", () => {
     const minVal = Math.min(...chartData);
     const range = maxVal - minVal || 1;
 
-    // === Axes ===
+    // Axes
     ctx.strokeStyle = "#444";
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(padding, padding);
-    ctx.lineTo(padding, canvas.height - padding);
-    ctx.lineTo(canvas.width - padding, canvas.height - padding);
+    ctx.lineTo(padding, canvas.height-padding);
+    ctx.lineTo(canvas.width-padding, canvas.height-padding);
     ctx.stroke();
 
-    // === Grid lines & Y labels ===
+    // Grid lines & Y-axis labels
     ctx.strokeStyle = "#ddd";
     ctx.lineWidth = 0.8;
-    ctx.fillStyle = "#555";
-    ctx.font = "12px Arial";
-    ctx.textAlign = "right";
-    ctx.textBaseline = "middle";
-    for (let i = 0; i <= 5; i++) {
-        const y = canvas.height - padding - (i / 5) * h;
-        ctx.beginPath();
-        ctx.moveTo(padding, y);
-        ctx.lineTo(canvas.width - padding, y);
-        ctx.stroke();
-        ctx.fillText((minVal + (i/5)*range).toFixed(2), padding-10, y);
+    ctx.fillStyle="#555";
+    ctx.font="12px Arial";
+    ctx.textAlign="right";
+    ctx.textBaseline="middle";
+    for(let i=0;i<=5;i++){
+      const y = canvas.height-padding - (i/5)*h;
+      ctx.beginPath();
+      ctx.moveTo(padding, y);
+      ctx.lineTo(canvas.width-padding, y);
+      ctx.stroke();
+      ctx.fillText((minVal + (i/5)*range).toFixed(2), padding-10, y);
     }
 
-    // === X-axis labels & vertical grid ===
+    // X-axis labels
     const len = chartData.length;
-    const stepX = Math.ceil(len / 5);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    for (let i = 0; i < len; i += stepX) {
-        const x = padding + (i/(len-1))*w;
-        ctx.beginPath();
-        ctx.moveTo(x, padding);
-        ctx.lineTo(x, canvas.height - padding);
-        ctx.stroke();
-        ctx.fillText(chartTimes[i] ? new Date(chartTimes[i]*1000).toLocaleTimeString().slice(0,8) : "", x, canvas.height - padding + 5);
+    const stepX = Math.ceil(len/5);
+    ctx.textAlign="center";
+    ctx.textBaseline="top";
+    for(let i=0;i<len;i+=stepX){
+      const x = padding + (i/(len-1))*w;
+      ctx.beginPath();
+      ctx.moveTo(x, padding);
+      ctx.lineTo(x, canvas.height-padding);
+      ctx.stroke();
+      ctx.fillText(chartTimes[i] ? new Date(chartTimes[i]*1000).toLocaleTimeString().slice(0,8) : "", x, canvas.height-padding+5);
     }
 
-    // === Draw line chart ===
-    const maxPoints = 150; // nombre de points visibles
-    const startIndex = Math.max(0, chartData.length - maxPoints);
-    const visibleData = chartData.slice(startIndex);
-    const visibleTimes = chartTimes.slice(startIndex);
-    const wVisible = canvas.width - padding*2;
-    const lenVisible = visibleData.length;
-
+    // Line chart
     ctx.beginPath();
-    visibleData.forEach((val,i)=>{
-        const x = padding + (i/(lenVisible-1))*wVisible;
-        const y = canvas.height-padding - ((val-minVal)/range)*h;
-        if(i===0) ctx.moveTo(x,y);
-        else ctx.lineTo(x,y);
+    chartData.forEach((val,i)=>{
+      const x = padding + (i/(len-1))*w;
+      const y = canvas.height-padding - ((val-minVal)/range)*h;
+      if(i===0) ctx.moveTo(x,y);
+      else ctx.lineTo(x,y);
     });
-    ctx.strokeStyle = "#007bff"; // couleur de la courbe
-    ctx.lineWidth = 2;
+    ctx.strokeStyle="#007bff";
+    ctx.lineWidth=2;
     ctx.stroke();
 
-    // === Current price line ===
-    const lastPrice = visibleData[visibleData.length-1];
+    // Current price line
+    const lastPrice = chartData[chartData.length-1];
     const yPrice = canvas.height-padding - ((lastPrice-minVal)/range)*h;
-    ctx.strokeStyle = "red";
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle="red";
+    ctx.lineWidth=1.5;
     ctx.beginPath();
     ctx.moveTo(padding, yPrice);
     ctx.lineTo(canvas.width-padding, yPrice);
     ctx.stroke();
 
-    // === Circle on last price ===
-    ctx.fillStyle = "red";
+    // Circle & price label
+    ctx.fillStyle="red";
     ctx.beginPath();
-    const xLast = padding + ((lenVisible-1)/(lenVisible-1))*wVisible;
+    const xLast = padding + ((len-1)/(len-1))*w;
     ctx.arc(xLast, yPrice, 5, 0, 2*Math.PI);
     ctx.fill();
 
-    // === Price label ===
-    ctx.fillStyle = "red";
-    ctx.font = "14px Arial";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    const priceOffsetX = -50;
-    let textX = canvas.width-padding + priceOffsetX;
-    const textWidth = ctx.measureText(lastPrice.toFixed(2)).width;
-    if (textX - textWidth < padding) textX = padding + 5;
-    ctx.fillText(lastPrice.toFixed(2), textX, yPrice-5);
-
-    // === Legend ===
-    ctx.fillStyle="#007bff";
-    ctx.fillRect(canvas.width-130, padding-25, 15,15);
-    ctx.fillStyle="#333";
+    ctx.font="14px Arial";
     ctx.textAlign="left";
-    ctx.fillText(currentSymbol || "", canvas.width-110, padding-12);
-}
-
+    ctx.textBaseline="middle";
+    const priceOffsetX = -50;
+    let textX = canvas.width-padding+priceOffsetX;
+    const textWidth = ctx.measureText(lastPrice.toFixed(2)).width;
+    if(textX-textWidth < padding) textX = padding+5;
+    ctx.fillText(lastPrice.toFixed(2), textX, yPrice-5);
+  }
 
   function handleMouseMove(e){
     if(!canvas || chartData.length===0) return;
@@ -215,6 +193,63 @@ document.addEventListener("DOMContentLoaded", () => {
     tooltip.innerHTML = `${currentSymbol}<br>${price.toFixed(2)}<br>${time}`;
   }
 
+  // === Gauge ===
+  function initGauge() {
+    gaugeCanvas = document.createElement("canvas");
+    gaugeCanvas.width = 150;
+    gaugeCanvas.height = 150;
+    gaugeCanvas.style.position = "absolute";
+    gaugeCanvas.style.right = "10px";
+    gaugeCanvas.style.top = "50px";
+    document.getElementById("chartSection").appendChild(gaugeCanvas);
+    gaugeCtx = gaugeCanvas.getContext("2d");
+  }
+
+  function drawGauge(volatilityPercent) {
+    if (!gaugeCtx) return;
+    const ctx = gaugeCtx;
+    const w = gaugeCanvas.width;
+    const h = gaugeCanvas.height;
+    const radius = Math.min(w, h)/2 - 10;
+
+    ctx.clearRect(0, 0, w, h);
+
+    ctx.beginPath();
+    ctx.arc(w/2, h/2, radius, 0, 2*Math.PI);
+    ctx.strokeStyle = "#ddd";
+    ctx.lineWidth = 15;
+    ctx.stroke();
+
+    ctx.beginPath();
+    const endAngle = (volatilityPercent/100) * 2 * Math.PI;
+    ctx.arc(w/2, h/2, radius, -Math.PI/2, -Math.PI/2 + endAngle);
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 15;
+    ctx.stroke();
+
+    ctx.fillStyle = "#333";
+    ctx.font = "14px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`Volatility`, w/2, h/2 - 10);
+    ctx.fillText(`${volatilityPercent.toFixed(1)}%`, w/2, h/2 + 15);
+  }
+
+  function calculateVolatility() {
+    if(chartData.length < 2) return 0;
+    const lastN = chartData.slice(-20);
+    const max = Math.max(...lastN);
+    const min = Math.min(...lastN);
+    return ((max - min) / chartData[chartData.length-1]) * 100;
+  }
+
+  setInterval(() => {
+    if(chartData.length > 0){
+      drawGauge(calculateVolatility());
+    }
+  }, 500);
+
+  // === WebSocket ===
   connectBtn.onclick = () => {
     const token = tokenInput.value.trim() || null;
     ws = new WebSocket(WS_URL);
@@ -255,7 +290,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if(symbol===currentSymbol){
         chartData.push(price);
         chartTimes.push(tick.epoch);
-        if(chartData.length>500){ chartData.shift(); chartTimes.shift(); }
+        if(chartData.length>300){ chartData.shift(); chartTimes.shift(); }
         drawChart();
       }
 
@@ -280,12 +315,20 @@ document.addEventListener("DOMContentLoaded", () => {
   function subscribeTicks(symbol){ if(!ws||ws.readyState!==WebSocket.OPEN)return; ws.send(JSON.stringify({ticks:symbol,subscribe:1})); }
   function loadHistoricalTicks(symbol){ if(!ws||ws.readyState!==WebSocket.OPEN)return; ws.send(JSON.stringify({ticks_history:symbol,end:"latest",count:300,style:"ticks",subscribe:1})); }
 
+  // === Trades ===
+  function logHistory(txt) {
+    const div = document.createElement("div");
+    div.textContent = `${new Date().toLocaleTimeString()} — ${txt}`;
+    historyList.prepend(div);
+  }
+
   buyBtn.onclick=()=>logTrade("BUY");
   sellBtn.onclick=()=>logTrade("SELL");
   closeBtn.onclick=()=>logTrade("CLOSE");
   function logTrade(type){ if(!currentSymbol) return; logHistory(`${type} ${currentSymbol}`); }
 
+  // === Status & init ===
+  function setStatus(txt) { statusSpan.textContent = txt; }
   setStatus("Ready. Connect and select a symbol.");
   initSymbols();
-
 });
