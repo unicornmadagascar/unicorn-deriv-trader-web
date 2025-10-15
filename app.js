@@ -1,6 +1,4 @@
-// app.js - Deriv Volatility Web frontend with Canvas + current price + styles
 document.addEventListener("DOMContentLoaded", () => {
-
   const APP_ID = 105747;
   const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
 
@@ -15,7 +13,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const closeBtn = document.getElementById("closeBtn");
   const chartInner = document.getElementById("chartInner");
 
-  // === Global state ===
   let ws = null;
   let currentSymbol = null;
   let lastPrices = {};
@@ -28,6 +25,18 @@ document.addEventListener("DOMContentLoaded", () => {
     "BOOM1000","BOOM900","BOOM600","BOOM500","BOOM300",
     "CRASH1000","CRASH900","CRASH600","CRASH500"
   ];
+
+  // Tooltip
+  let tooltip = document.createElement("div");
+  tooltip.style.position = "absolute";
+  tooltip.style.padding = "4px 8px";
+  tooltip.style.background = "rgba(0,0,0,0.7)";
+  tooltip.style.color = "#fff";
+  tooltip.style.fontSize = "12px";
+  tooltip.style.borderRadius = "4px";
+  tooltip.style.pointerEvents = "none";
+  tooltip.style.display = "none";
+  chartInner.appendChild(tooltip);
 
   function logHistory(txt) {
     const div = document.createElement("div");
@@ -69,6 +78,9 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx = canvas.getContext("2d");
     chartData = [];
     chartTimes = [];
+
+    canvas.addEventListener("mousemove", handleMouseMove);
+    canvas.addEventListener("mouseleave", () => tooltip.style.display = "none");
   }
 
   function drawChart() {
@@ -80,9 +92,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Background
+    // Background gradient
     const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    gradient.addColorStop(0, "#f0f8ff");
+    gradient.addColorStop(0, "#f9faff");
     gradient.addColorStop(1, "#e6f0ff");
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -92,40 +104,46 @@ document.addEventListener("DOMContentLoaded", () => {
     const range = maxVal - minVal || 1;
 
     // Axes
-    ctx.strokeStyle = "#333";
-    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = "#444";
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(padding, padding);
     ctx.lineTo(padding, canvas.height-padding);
     ctx.lineTo(canvas.width-padding, canvas.height-padding);
     ctx.stroke();
 
-    // Y-axis labels/grid
-    ctx.fillStyle = "#555";
-    ctx.font = "12px Arial";
-    ctx.textAlign = "right";
-    ctx.textBaseline = "middle";
-    for(let i=0; i<=5; i++){
-      const val = minVal + (i/5)*range;
+    // Grid lines (horizontal & vertical)
+    ctx.strokeStyle = "#ddd";
+    ctx.lineWidth = 0.8;
+
+    for(let i=0;i<=5;i++){
       const y = canvas.height-padding - (i/5)*h;
-      ctx.fillText(val.toFixed(2), padding-10, y);
-      ctx.strokeStyle="#ddd";
       ctx.beginPath();
       ctx.moveTo(padding, y);
       ctx.lineTo(canvas.width-padding, y);
       ctx.stroke();
+      // Y-axis labels
+      ctx.fillStyle="#555";
+      ctx.font="12px Arial";
+      ctx.textAlign="right";
+      ctx.textBaseline="middle";
+      ctx.fillText((minVal + (i/5)*range).toFixed(2), padding-10, y);
     }
 
-    // X-axis labels
-    ctx.textAlign="center";
-    ctx.textBaseline="top";
     const len = chartData.length;
-    const step = Math.ceil(len/5);
-    for(let i=0; i<len; i+=step){
+    const stepX = Math.ceil(len/5);
+    for(let i=0;i<len;i+=stepX){
       const x = padding + (i/(len-1))*w;
-      const t = chartTimes[i];
-      const label = t ? new Date(t*1000).toLocaleTimeString().slice(0,8) : "";
-      ctx.fillText(label, x, canvas.height-padding+5);
+      ctx.beginPath();
+      ctx.moveTo(x, padding);
+      ctx.lineTo(x, canvas.height-padding);
+      ctx.stroke();
+      // X-axis labels
+      ctx.fillStyle="#555";
+      ctx.font="12px Arial";
+      ctx.textAlign="center";
+      ctx.textBaseline="top";
+      ctx.fillText(chartTimes[i] ? new Date(chartTimes[i]*1000).toLocaleTimeString().slice(0,8) : "", x, canvas.height-padding+5);
     }
 
     // Line chart
@@ -140,14 +158,33 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.lineWidth=2;
     ctx.stroke();
 
-    // Current price
+    // Current price line
     const lastPrice = chartData[chartData.length-1];
     const yPrice = canvas.height-padding - ((lastPrice-minVal)/range)*h;
+    ctx.strokeStyle="red";
+    ctx.lineWidth=1.5;
+    ctx.beginPath();
+    ctx.moveTo(padding, yPrice);
+    ctx.lineTo(canvas.width-padding, yPrice);
+    ctx.stroke();
+
+    // Circle on last price
+    ctx.fillStyle="red";
+    ctx.beginPath();
+    const xLast = padding + ((len-1)/(len-1))*w;
+    ctx.arc(xLast, yPrice, 5, 0, 2*Math.PI);
+    ctx.fill();
+
+    // Price label
     ctx.fillStyle="red";
     ctx.font="14px Arial";
     ctx.textAlign="left";
     ctx.textBaseline="middle";
-    ctx.fillText(lastPrice.toFixed(2), canvas.width-padding+10, yPrice);
+    const priceOffsetX = -50;
+    let textX = canvas.width-padding+priceOffsetX;
+    const textWidth = ctx.measureText(lastPrice.toFixed(2)).width;
+    if(textX-textWidth < padding) textX = padding+5;
+    ctx.fillText(lastPrice.toFixed(2), textX, yPrice-5);
 
     // Legend
     ctx.fillStyle="#007bff";
@@ -157,7 +194,23 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.fillText(currentSymbol || "", canvas.width-110, padding-12);
   }
 
-  // === WebSocket connection ===
+  function handleMouseMove(e){
+    if(!canvas || chartData.length===0) return;
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const padding = 50;
+    const w = canvas.width - padding*2;
+    const len = chartData.length;
+    let nearestIndex = Math.round((mouseX-padding)/(w)*(len-1));
+    nearestIndex = Math.max(0, Math.min(nearestIndex,len-1));
+    const price = chartData[nearestIndex];
+    const time = chartTimes[nearestIndex] ? new Date(chartTimes[nearestIndex]*1000).toLocaleTimeString().slice(0,8) : "";
+    tooltip.style.display="block";
+    tooltip.style.left = (e.clientX+15)+"px";
+    tooltip.style.top = (e.clientY-30)+"px";
+    tooltip.innerHTML = `${currentSymbol}<br>${price.toFixed(2)}<br>${time}`;
+  }
+
   connectBtn.onclick = () => {
     const token = tokenInput.value.trim() || null;
     ws = new WebSocket(WS_URL);
