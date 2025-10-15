@@ -146,86 +146,98 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // === Gauges ===
-  function initGauges() {
-    gaugeDashboard.innerHTML = "";
-    gaugeDashboard.style.display = "flex";
-    gaugeDashboard.style.flexDirection = "row";
-    gaugeDashboard.style.gap = "10px";
+function initGauges() {
+  gaugeDashboard.innerHTML = "";
+  gaugeDashboard.style.display = "flex";
+  gaugeDashboard.style.flexDirection = "row";
+  gaugeDashboard.style.gap = "10px";
 
-    ["Volatility","ATR","EMA"].forEach(name => {
-      const c = document.createElement("canvas");
-      c.width = 120; c.height = 120;
-      c.dataset.gaugeName = name;
-      c.dataset.currentValue = "0";
-      gaugeDashboard.appendChild(c);
-    });
+  ["Volatility","ATR","EMA"].forEach(name => {
+    const c = document.createElement("canvas");
+    c.width = 120;
+    c.height = 120;
+    c.dataset.gaugeName = name;
+    c.dataset.currentValue = "0"; // valeur initiale lissée
+    gaugeDashboard.appendChild(c);
+  });
+}
+
+function drawGauges() {
+  if(!gaugeDashboard) return;
+  gaugeDashboard.querySelectorAll("canvas").forEach(c=>{
+    let rawValue = 0;
+    if(c.dataset.gaugeName==="Volatility") rawValue = calculateVolatility();
+    else if(c.dataset.gaugeName==="ATR") rawValue = calculateATR();
+    else if(c.dataset.gaugeName==="EMA") rawValue = calculateEMA();
+
+    // lissage
+    const prev = parseFloat(c.dataset.currentValue || 0);
+    const smooth = prev*0.8 + rawValue*0.2;
+    c.dataset.currentValue = smooth;
+    drawGauge(c, smooth);
+  });
+}
+
+function drawGauge(canvas,value){
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width, h = canvas.height;
+  const radius = Math.min(w,h)/2-12;
+
+  ctx.clearRect(0,0,w,h);
+
+  // cercle de fond
+  ctx.beginPath();
+  ctx.arc(w/2,h/2,radius,0,2*Math.PI);
+  ctx.strokeStyle="#ddd"; ctx.lineWidth=12; ctx.stroke();
+
+  // progression
+  const endAngle = -Math.PI/2 + (value/100)*2*Math.PI;
+  ctx.beginPath();
+  ctx.arc(w/2,h/2,radius,-Math.PI/2,endAngle);
+  ctx.strokeStyle="#2563eb"; ctx.lineWidth=12; ctx.stroke();
+
+  // texte
+  ctx.fillStyle="#333"; ctx.font="12px Arial"; ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.fillText(canvas.dataset.gaugeName, w/2, h/2-10);
+  ctx.fillText(value.toFixed(1)+"%", w/2, h/2+10);
+}
+
+// Volatility corrigée
+function calculateVolatility() {
+  if(chartData.length<2) return 0;
+  const lastN = chartData.slice(-20);
+  const max = Math.max(...lastN);
+  const min = Math.min(...lastN);
+  const lastPrice = chartData[chartData.length-1];
+  return lastPrice>0 ? ((max-min)/lastPrice)*100 : 0;
+}
+
+// ATR simple
+function calculateATR(period=14) {
+  if(chartData.length<2) return 0;
+  let sum=0;
+  const start = Math.max(chartData.length-period-1,0);
+  for(let i=start+1;i<chartData.length;i++){
+    sum+=Math.abs(chartData[i]-chartData[i-1]);
   }
+  const lastPrice = chartData[chartData.length-1];
+  return lastPrice>0 ? (sum / Math.min(period,chartData.length-1))/lastPrice*100 : 0;
+}
 
-  function drawGauges() {
-    if(!gaugeDashboard) return;
-    gaugeDashboard.querySelectorAll("canvas").forEach(c=>{
-      let rawValue = 0;
-      if(c.dataset.gaugeName==="Volatility") rawValue = calculateVolatility();
-      else if(c.dataset.gaugeName==="ATR") rawValue = calculateATR();
-      else if(c.dataset.gaugeName==="EMA") rawValue = calculateEMA();
-
-      const prev = parseFloat(c.dataset.currentValue || 0);
-      const smooth = prev*0.8 + rawValue*0.2;  // smoothing
-      c.dataset.currentValue = smooth;
-      drawGauge(c, smooth);
-    });
+// EMA normalisée
+function calculateEMA(period=14){
+  if(chartData.length<period) return 0;
+  let k = 2/(period+1);
+  let ema = chartData[chartData.length-period];
+  for(let i = chartData.length-period+1; i<chartData.length; i++){
+    ema = chartData[i]*k + ema*(1-k);
   }
+  const lastPrice = chartData[chartData.length-1];
+  return lastPrice>0 ? Math.abs((ema-lastPrice)/lastPrice*100) : 0;
+}
 
-  function drawGauge(canvas,value){
-    const ctx = canvas.getContext("2d");
-    const w = canvas.width, h = canvas.height;
-    const radius = Math.min(w,h)/2 - 12;
-
-    ctx.clearRect(0,0,w,h);
-    ctx.beginPath();
-    ctx.arc(w/2,h/2,radius,0,2*Math.PI);
-    ctx.strokeStyle="#ddd"; ctx.lineWidth=12; ctx.stroke();
-
-    const endAngle = -Math.PI/2 + (value/100)*2*Math.PI;
-    ctx.beginPath();
-    ctx.arc(w/2,h/2,radius,-Math.PI/2,endAngle);
-    ctx.strokeStyle="#2563eb"; ctx.lineWidth=12; ctx.stroke();
-
-    ctx.fillStyle="#333"; ctx.font="12px Arial"; ctx.textAlign="center"; ctx.textBaseline="middle";
-    ctx.fillText(canvas.dataset.gaugeName, w/2, h/2-10);
-    ctx.fillText(value.toFixed(1)+"%", w/2, h/2+10);
-  }
-
-  function calculateVolatility() {
-    if(chartData.length<2) return 0;
-    const lastN = chartData.slice(-20);
-    const max = Math.max(...lastN);
-    const min = Math.min(...lastN);
-    return ((max-min)/chartData[chartData.length-1])*100;
-  }
-
-  function calculateATR(period=14) {
-    if(chartData.length<2) return 0;
-    let sum=0;
-    const start = Math.max(chartData.length-period-1,0);
-    for(let i=start+1;i<chartData.length;i++){
-      sum+=Math.abs(chartData[i]-chartData[i-1]);
-    }
-    return (sum / Math.min(period, chartData.length-1))/chartData[chartData.length-1]*100;
-  }
-
-  function calculateEMA(period=14){
-    if(chartData.length<period) return 0;
-    let k = 2/(period+1);
-    let ema = chartData[chartData.length-period];
-    for(let i = chartData.length-period+1; i<chartData.length; i++){
-      ema = chartData[i]*k + ema*(1-k);
-    }
-    const lastPrice = chartData[chartData.length-1];
-    return Math.abs((ema-lastPrice)/lastPrice*100);
-  }
-
-  setInterval(()=>{ if(chartData.length>0) drawGauges(); },500);
+// mise à jour toutes les 500ms
+setInterval(()=>{ if(chartData.length>0) drawGauges(); },500);
 
   // === WebSocket ===
   connectBtn.onclick = ()=>{
