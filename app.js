@@ -57,12 +57,12 @@ function createChart() {
   chart = LightweightCharts.createChart(chartInner, {
     width: chartInner.clientWidth || 600,
     height: chartInner.clientHeight || 300,
-    layout: { textColor: '#e6edf3', background: { color: '#0d1117' } },
-    grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
+    layout: { textColor: '#e6edf3', background: { color: '#f8f9fbff' } },
+    grid: { vertLines: { color: '#fcfcfcff' }, horzLines: { color: '#fefdfdff' } },
     timeScale: { timeVisible: true, secondsVisible: true }
   });
 
-  series = chart.addLineSeries({ color: '#00ff9c', lineWidth: 2 });
+  series = chart.addLineSeries({ color: '#046e91ff', lineWidth: 2 });
 
   window.addEventListener('resize', () => {
     chart.applyOptions({
