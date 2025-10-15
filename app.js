@@ -26,7 +26,6 @@ document.addEventListener("DOMContentLoaded", () => {
     "CRASH1000","CRASH900","CRASH600","CRASH500"
   ];
 
-  // Tooltip
   let tooltip = document.createElement("div");
   tooltip.style.position = "absolute";
   tooltip.style.padding = "4px 8px";
@@ -112,17 +111,15 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.lineTo(canvas.width-padding, canvas.height-padding);
     ctx.stroke();
 
-    // Grid lines (horizontal & vertical)
+    // Grid
     ctx.strokeStyle = "#ddd";
     ctx.lineWidth = 0.8;
-
     for(let i=0;i<=5;i++){
       const y = canvas.height-padding - (i/5)*h;
       ctx.beginPath();
       ctx.moveTo(padding, y);
       ctx.lineTo(canvas.width-padding, y);
       ctx.stroke();
-      // Y-axis labels
       ctx.fillStyle="#555";
       ctx.font="12px Arial";
       ctx.textAlign="right";
@@ -138,7 +135,6 @@ document.addEventListener("DOMContentLoaded", () => {
       ctx.moveTo(x, padding);
       ctx.lineTo(x, canvas.height-padding);
       ctx.stroke();
-      // X-axis labels
       ctx.fillStyle="#555";
       ctx.font="12px Arial";
       ctx.textAlign="center";
@@ -146,10 +142,17 @@ document.addEventListener("DOMContentLoaded", () => {
       ctx.fillText(chartTimes[i] ? new Date(chartTimes[i]*1000).toLocaleTimeString().slice(0,8) : "", x, canvas.height-padding+5);
     }
 
-    // Line chart
+    // Smooth scrolling effect
+    const maxPoints = 150; // points visible
+    const startIndex = Math.max(0, chartData.length - maxPoints);
+    const visibleData = chartData.slice(startIndex);
+    const visibleTimes = chartTimes.slice(startIndex);
+    const wVisible = canvas.width - padding*2;
+    const lenVisible = visibleData.length;
+
     ctx.beginPath();
-    chartData.forEach((val,i)=>{
-      const x = padding + (i/(len-1))*w;
+    visibleData.forEach((val,i)=>{
+      const x = padding + (i/(lenVisible-1))*wVisible;
       const y = canvas.height-padding - ((val-minVal)/range)*h;
       if(i===0) ctx.moveTo(x,y);
       else ctx.lineTo(x,y);
@@ -158,8 +161,8 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.lineWidth=2;
     ctx.stroke();
 
-    // Current price line
-    const lastPrice = chartData[chartData.length-1];
+    // Current price
+    const lastPrice = visibleData[visibleData.length-1];
     const yPrice = canvas.height-padding - ((lastPrice-minVal)/range)*h;
     ctx.strokeStyle="red";
     ctx.lineWidth=1.5;
@@ -168,14 +171,12 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.lineTo(canvas.width-padding, yPrice);
     ctx.stroke();
 
-    // Circle on last price
     ctx.fillStyle="red";
     ctx.beginPath();
-    const xLast = padding + ((len-1)/(len-1))*w;
+    const xLast = padding + ((lenVisible-1)/(lenVisible-1))*wVisible;
     ctx.arc(xLast, yPrice, 5, 0, 2*Math.PI);
     ctx.fill();
 
-    // Price label
     ctx.fillStyle="red";
     ctx.font="14px Arial";
     ctx.textAlign="left";
@@ -251,7 +252,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if(symbol===currentSymbol){
         chartData.push(price);
         chartTimes.push(tick.epoch);
-        if(chartData.length>300){ chartData.shift(); chartTimes.shift(); }
+        if(chartData.length>500){ chartData.shift(); chartTimes.shift(); }
         drawChart();
       }
 
