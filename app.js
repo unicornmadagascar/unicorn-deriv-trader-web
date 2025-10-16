@@ -42,7 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const div = document.createElement("div");
       div.className = "symbolItem";
       div.id = `symbol-${sym}`;
-      div.innerHTML = `<span class="symbolName">${sym}</span> — <span class="symbolValue">➡</span>`;
+      div.textContent = sym; // remove arrows
       div.onclick = () => selectSymbol(sym);
       symbolList.appendChild(div);
     });
@@ -79,6 +79,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const h = canvas.height - padding * 2;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    const maxVal = Math.max(...chartData);
+    const minVal = Math.min(...chartData);
+    const range = maxVal - minVal || 1;
+
     // Background
     const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
     bgGrad.addColorStop(0, "#f9faff");
@@ -86,53 +90,10 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const maxVal = Math.max(...chartData);
-    const minVal = Math.min(...chartData);
-    const range = maxVal - minVal || 1;
-
-    // Axes
-    ctx.strokeStyle = "#444";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(padding, padding);
-    ctx.lineTo(padding, canvas.height - padding);
-    ctx.lineTo(canvas.width - padding, canvas.height - padding);
-    ctx.stroke();
-
-    // Grid Y labels
-    ctx.strokeStyle = "#ddd";
-    ctx.lineWidth = 0.8;
-    ctx.fillStyle = "#555";
-    ctx.font = "12px Arial";
-    ctx.textAlign = "right";
-    ctx.textBaseline = "middle";
-    for (let i = 0; i <= 5; i++) {
-      const y = canvas.height - padding - (i / 5) * h;
-      ctx.beginPath();
-      ctx.moveTo(padding, y);
-      ctx.lineTo(canvas.width - padding, y);
-      ctx.stroke();
-      ctx.fillText((minVal + (i / 5) * range).toFixed(2), padding - 10, y);
-    }
-
-    // X labels
-    const len = chartData.length;
-    const stepX = Math.ceil(len / 5);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    for (let i = 0; i < len; i += stepX) {
-      const x = padding + (i / (len - 1)) * w;
-      ctx.beginPath();
-      ctx.moveTo(x, padding);
-      ctx.lineTo(x, canvas.height - padding);
-      ctx.stroke();
-      ctx.fillText(chartTimes[i] ? new Date(chartTimes[i] * 1000).toLocaleTimeString().slice(0, 8) : "", x, canvas.height - padding + 5);
-    }
-
     // Area chart (gradient)
     ctx.beginPath();
     chartData.forEach((val, i) => {
-      const x = padding + (i / (len - 1)) * w;
+      const x = padding + (i / (chartData.length - 1)) * w;
       const y = canvas.height - padding - ((val - minVal) / range) * h;
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
@@ -149,7 +110,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Line
     ctx.beginPath();
     chartData.forEach((val, i) => {
-      const x = padding + (i / (len - 1)) * w;
+      const x = padding + (i / (chartData.length - 1)) * w;
       const y = canvas.height - padding - ((val - minVal) / range) * h;
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
@@ -157,27 +118,6 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.strokeStyle = "#007bff";
     ctx.lineWidth = 2;
     ctx.stroke();
-
-    // Current price
-    const lastPrice = chartData[len - 1];
-    const yPrice = canvas.height - padding - ((lastPrice - minVal) / range) * h;
-    ctx.strokeStyle = "red";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(padding, yPrice);
-    ctx.lineTo(canvas.width - padding, yPrice);
-    ctx.stroke();
-    ctx.fillStyle = "red";
-    ctx.beginPath();
-    ctx.arc(canvas.width - padding, yPrice, 5, 0, 2 * Math.PI);
-    ctx.fill();
-    ctx.font = "14px Arial";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    let textX = canvas.width - padding - 50;
-    const textWidth = ctx.measureText(lastPrice.toFixed(2)).width;
-    if (textX - textWidth < padding) textX = padding + 5;
-    ctx.fillText(lastPrice.toFixed(2), textX, yPrice - 5);
   }
 
   function handleMouseMove(e) {
@@ -244,31 +184,27 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function calculateVolatility() {
-    if (chartData.length < 2) return 0;
-    const lastN = chartData.slice(-20);
-    const max = Math.max(...lastN);
-    const min = Math.min(...lastN);
-    return ((max - min) / chartData[chartData.length - 1]) * 100;
+    if(chartData.length<2)return 0;
+    const lastN=chartData.slice(-20);
+    const max=Math.max(...lastN), min=Math.min(...lastN);
+    return ((max-min)/chartData[chartData.length-1])*100;
   }
 
   function calculateATR() {
-    if (chartData.length < 2) return 0;
-    let trSum = 0;
-    for (let i=1;i<chartData.length;i++){ trSum+=Math.abs(chartData[i]-chartData[i-1]);}
+    if(chartData.length<2)return 0;
+    let trSum=0;
+    for(let i=1;i<chartData.length;i++) trSum+=Math.abs(chartData[i]-chartData[i-1]);
     return (trSum/(chartData.length-1))/Math.max(...chartData)*100;
   }
 
-  function calculateEMA(period=20) {
+  function calculateEMA(period=20){
     if(chartData.length<2)return 0;
-    let k=2/(period+1);
-    let ema=chartData[chartData.length-period]||chartData[0];
-    for(let i=chartData.length-period+1;i<chartData.length;i++){
-      ema=chartData[i]*k+ema*(1-k);
-    }
+    let k=2/(period+1), ema=chartData[chartData.length-period]||chartData[0];
+    for(let i=chartData.length-period+1;i<chartData.length;i++) ema=chartData[i]*k+ema*(1-k);
     return (ema/Math.max(...chartData))*100;
   }
 
-  // === Trades Simulation & Live ===
+  // === Trades Simulation & Live with API update ===
   function executeTrade(type){
     if(!currentSymbol) return;
     const lot=parseFloat(lotInput.value)||1;
@@ -280,16 +216,20 @@ document.addEventListener("DOMContentLoaded", () => {
     logHistory(`${type} ${currentSymbol} @ ${trade.entry.toFixed(2)} (lot:${lot}, stake:${stake})`);
 
     if(mode==="simulation"){
+      balance -= stake; // decrease simulated balance
       updatePnL();
+      updateBalanceUI();
     }else if(mode==="live" && ws && authorized){
-      const proposal={ 
-        buy: type==="BUY", 
-        amount: stake, 
-        basis: "stake", 
-        contract_type: type==="BUY"?"CALL":"PUT", 
-        currency: "USD", 
+      // buy proposal for Multiplier
+      const proposal = {
+        buy: type==="BUY",
+        amount: stake,
+        basis: "stake",
+        contract_type: type==="BUY"?"CALL":"PUT",
+        currency: "USD",
         symbol: currentSymbol,
-        duration: 1, duration_unit: "ticks",
+        duration: 1,
+        duration_unit: "ticks",
         subscribe: 1
       };
       ws.send(JSON.stringify({ buy: proposal }));
@@ -303,6 +243,10 @@ document.addEventListener("DOMContentLoaded", () => {
       pnl+=tr.type==="BUY"? (priceNow-tr.entry)*tr.lot : (tr.entry-priceNow)*tr.lot;
     });
     document.getElementById("pnl").textContent="PnL: "+pnl.toFixed(2);
+  }
+
+  function updateBalanceUI(){
+    userBalance.textContent="Balance: "+balance.toFixed(2)+" USD";
   }
 
   buyBtn.onclick=()=>executeTrade("BUY");
@@ -321,7 +265,16 @@ document.addEventListener("DOMContentLoaded", () => {
       setStatus("Connected to Deriv WebSocket"); 
       if(token) authorize(token); else initSymbols();
     };
-    ws.onmessage=msg=>handleMessage(JSON.parse(msg.data));
+    ws.onmessage=msg=>{
+      const data=JSON.parse(msg.data);
+      handleMessage(data);
+
+      // update balance if live order confirmed
+      if(data.msg_type==="proposal_open_contract" && data.proposal_open_contract?.contract_id){
+        balance = parseFloat(data.proposal_open_contract.buy_price) || balance;
+        updateBalanceUI();
+      }
+    };
     ws.onclose=()=>setStatus("WebSocket disconnected");
     ws.onerror=()=>setStatus("WebSocket error");
   };
@@ -338,19 +291,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if(symbol===currentSymbol){
         chartData.push(price); chartTimes.push(tick.epoch);
         if(chartData.length>300){ chartData.shift(); chartTimes.shift(); }
-        drawChart(); drawGauges();
-        updatePnL();
-      }
-      const el=document.getElementById(`symbol-${symbol}`);
-      if(el){
-        const span=el.querySelector(".symbolValue");
-        let direction="➡", color="#666";
-        if(lastPrices[symbol]!==undefined){
-          if(price>lastPrices[symbol]){ direction="🔼"; color="green"; }
-          else if(price<lastPrices[symbol]){ direction="🔽"; color="red"; }
-        }
-        span.textContent=direction; span.style.color=color;
-        lastPrices[symbol]=price;
       }
     }
   }
