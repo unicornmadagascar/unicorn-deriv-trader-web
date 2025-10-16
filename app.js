@@ -28,7 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let canvas, ctx;
 
   const volatilitySymbols = ["BOOM1000", "CRASH1000", "BOOM900", "CRASH900", "BOOM600", "CRASH600", "BOOM500", "CRASH500"];
-  
+
   // log history
   function logHistory(txt) {
     const d = document.createElement("div");
@@ -51,6 +51,13 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // subscribe ticks for a symbol
+  function subscribeTicks(symbol){
+    if(!ws || ws.readyState!==WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
+    logHistory(`Souscrit aux ticks: ${symbol}`);
+  }
+
   function selectSymbol(sym){
     currentSymbol = sym;
     document.querySelectorAll(".symbolItem").forEach(e=>e.classList.remove("active"));
@@ -58,6 +65,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if(el) el.classList.add("active");
     chartData=[]; chartTimes=[]; trades=[];
     initCanvas();
+    subscribeTicks(sym); // souscrire aux ticks pour le chart
   }
 
   function initCanvas(){
@@ -197,10 +205,14 @@ document.addEventListener("DOMContentLoaded", () => {
       const data=JSON.parse(msg.data);
       if(data.msg_type==="authorize"){
         if(data.error || !data.authorize?.loginid){ setStatus("Simulation Mode (token non autorisé)"); logHistory("Token invalide"); return; }
-        setStatus(`Connecté: ${data.authorize.loginid} (Live ticks Demo)`); 
+        setStatus(`Connecté: ${data.authorize.loginid} (Live ticks Demo)`);
         logHistory("Autorisation réussie: "+data.authorize.loginid);
-        // demander solde après autorisation
+
+        // demander solde
         ws.send(JSON.stringify({ balance:1, subscribe:1 }));
+
+        // souscrire à tous les symboles pour que la liste de symboles affiche prix
+        volatilitySymbols.forEach(sym => subscribeTicks(sym));
       }
       if(data.msg_type==="balance" && data.balance){
         const bal=parseFloat(data.balance.balance||0).toFixed(2);
