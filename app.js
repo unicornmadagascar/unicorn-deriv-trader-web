@@ -1,4 +1,4 @@
-// app.js - Unicorn Madagascar (demo live ticks) - Mis à jour avec toutes vos requêtes
+// app.js - Unicorn Madagascar (demo live ticks) - Mis à jour avec toutes vos requêtes et affichage du tick courant
 
 document.addEventListener("DOMContentLoaded", () => {
   const APP_ID = 105747;
@@ -20,6 +20,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const multiplierInput = document.getElementById("multiplier");
   const modeSelect = document.getElementById("modeSelect");
   const pnlDisplay = document.getElementById("pnl");
+
+  // Nouveau : affichage prix courant
+  const currentPriceDisplay = document.createElement("div");
+  currentPriceDisplay.id = "currentPrice";
+  currentPriceDisplay.style.fontWeight = "bold";
+  currentPriceDisplay.style.marginTop = "5px";
+  currentPriceDisplay.textContent = "Current Price: --";
+  userBalance.parentNode.insertBefore(currentPriceDisplay, userBalance.nextSibling);
 
   let ws = null;
   let authorized = false;
@@ -110,7 +118,7 @@ document.addEventListener("DOMContentLoaded", () => {
       else if(c.dataset.gaugeName==="RSI") value=computeRSI();
       else if(c.dataset.gaugeName==="EMA") value=computeEMAProb();
       const key = c.dataset.gaugeName==="Volatility"?"volatility":c.dataset.gaugeName==="RSI"?"rsi":"emaProb";
-      gaugeSmoothers[key] = gaugeSmoothers[key]*0.7 + value*0.3; // un peu plus sensible
+      gaugeSmoothers[key] = gaugeSmoothers[key]*0.7 + value*0.3;
       renderGauge(c, gaugeSmoothers[key]);
     });
   }
@@ -120,21 +128,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const w = canvas.width, h = canvas.height;
     const radius = Math.min(w,h)/2-10;
     gctx.clearRect(0,0,w,h);
-
     gctx.beginPath();
     gctx.arc(w/2,h/2,radius,0,2*Math.PI);
     gctx.strokeStyle="#eee"; gctx.lineWidth=12; gctx.stroke();
-
     const end=(-Math.PI/2)+(Math.max(0,Math.min(100,value))/100)*2*Math.PI;
     gctx.beginPath(); gctx.arc(w/2,h/2,radius,-Math.PI/2,end);
     gctx.strokeStyle="#2563eb"; gctx.lineWidth=12; gctx.stroke();
-
     gctx.fillStyle="#222"; gctx.font="12px Inter, Arial"; gctx.textAlign="center"; gctx.textBaseline="middle";
     gctx.fillText(canvas.dataset.gaugeName, w/2, h/2-12);
     gctx.fillText(value.toFixed(1)+"%", w/2, h/2+12);
   }
 
-  // compute volatility (sensible)
+  // compute volatility
   function computeVolatility(){
     if(chartData.length<2) return 0;
     const lastN = chartData.slice(-SMA_WINDOW);
@@ -181,7 +186,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const w=canvas.width-padding*2;
     const h=canvas.height-padding*2;
     ctx.clearRect(0,0,canvas.width,canvas.height);
-
     const maxVal=Math.max(...chartData);
     const minVal=Math.min(...chartData);
     const range=maxVal-minVal||1;
@@ -218,7 +222,8 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.lineTo(padding,canvas.height-padding);
     ctx.closePath();
     const fillGrad=ctx.createLinearGradient(0,padding,0,canvas.height-padding);
-    fillGrad.addColorStop(0,"rgba(0,123,255,0.35)"); fillGrad.addColorStop(1,"rgba(0,123,255,0.08)");
+    fillGrad.addColorStop(0,"rgba(0,123,255,0.35)");
+    fillGrad.addColorStop(1,"rgba(0,123,255,0.08)");
     ctx.fillStyle=fillGrad; ctx.fill();
 
     // line
@@ -315,6 +320,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const p=Number(tick.quote);
     const symbol=tick.symbol;
     lastPrices[symbol]=p;
+
+    // ✅ mise à jour du prix courant
+    if(symbol === currentSymbol && currentPriceDisplay){
+        currentPriceDisplay.textContent = `Current Price: ${formatNum(p)}`;
+    }
+
     if(symbol===currentSymbol){
       chartData.push(p);
       chartTimes.push(tick.epoch);
