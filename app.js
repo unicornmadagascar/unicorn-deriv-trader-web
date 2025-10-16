@@ -168,14 +168,16 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // chart
-  function drawChart(){
+function drawChart(){
     if(!ctx||chartData.length===0) return;
     const padding=50;
     const w=canvas.width-padding*2;
     const h=canvas.height-padding*2;
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    const maxVal=Math.max(...chartData, ...trades.map(t=>t.entry), ...trades.map(t=>t.tp||0), ...trades.map(t=>t.sl||0));
-    const minVal=Math.min(...chartData, ...trades.map(t=>t.entry), ...trades.map(t=>t.tp||Infinity), ...trades.map(t=>t.sl||Infinity));
+
+    const allValues = [...chartData, ...trades.flatMap(t => [t.entry, t.tp, t.sl].filter(v=>v!==null))];
+    const maxVal=Math.max(...allValues);
+    const minVal=Math.min(...allValues);
     const range=maxVal-minVal||1;
 
     // axes
@@ -192,7 +194,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // x labels
     ctx.textAlign="center"; ctx.textBaseline="top";
-    const len=chartData.length; const step=Math.max(1,Math.ceil(len/6));
+    const len=chartData.length; 
+    const step=Math.max(1,Math.ceil(len/6));
     for(let i=0;i<len;i+=step){
       const x=padding+(i/(len-1))*w;
       const t=chartTimes[i]?new Date(chartTimes[i]*1000).toLocaleTimeString().slice(0,8):"";
@@ -223,54 +226,63 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     ctx.strokeStyle="#007bff"; ctx.lineWidth=2; ctx.stroke();
 
-    // trades
+    // trades avec Entry, TP et SL
     trades.forEach(tr=>{
       if(tr.symbol!==currentSymbol) return;
       const x=padding+((len-1)/(len-1))*w;
-      const y=canvas.height-padding-((tr.entry-minVal)/range)*h;
+      const yEntry=canvas.height-padding-((tr.entry-minVal)/range)*h;
 
       // ligne pointillée rouge pour prix d'entrée
       ctx.setLineDash([6,4]);
       ctx.strokeStyle="rgba(220,38,38,0.9)";
-      ctx.lineWidth=1.2; ctx.beginPath(); ctx.moveTo(padding,y); ctx.lineTo(canvas.width-padding,y); ctx.stroke();
+      ctx.lineWidth=1.2; 
+      ctx.beginPath(); ctx.moveTo(padding,yEntry); ctx.lineTo(canvas.width-padding,yEntry); ctx.stroke();
       ctx.setLineDash([]);
 
       // triangle trade
       ctx.fillStyle=tr.type==="BUY"?"green":"red";
       ctx.beginPath();
-      if(tr.type==="BUY"){ ctx.moveTo(x,y-10); ctx.lineTo(x-8,y); ctx.lineTo(x+8,y); } 
-      else { ctx.moveTo(x,y+10); ctx.lineTo(x-8,y); ctx.lineTo(x+8,y); }
+      if(tr.type==="BUY"){ ctx.moveTo(x,yEntry-10); ctx.lineTo(x-8,yEntry); ctx.lineTo(x+8,yEntry); } 
+      else { ctx.moveTo(x,yEntry+10); ctx.lineTo(x-8,yEntry); ctx.lineTo(x+8,yEntry); }
       ctx.closePath(); ctx.fill();
 
-      // prix d'entrée attaché à la ligne
+      // texte prix d'entrée
       ctx.fillStyle="rgba(220,38,38,0.9)";
       ctx.font="12px Inter, Arial";
       ctx.textAlign="right";
       ctx.textBaseline="bottom";
-      ctx.fillText(tr.entry.toFixed(2), canvas.width-padding-4, y-2);
+      ctx.fillText(tr.entry.toFixed(2), canvas.width-padding-4, yEntry-2);
 
-      // TP line
+      // TP
       if(tr.tp!==null){
         const yTP = canvas.height-padding-((tr.tp-minVal)/range)*h;
-        ctx.setLineDash([4,4]);
-        ctx.strokeStyle="rgba(16,185,129,0.9)";  // vert
-        ctx.lineWidth=1.2;
-        ctx.beginPath(); ctx.moveTo(padding,yTP); ctx.lineTo(canvas.width-padding,yTP); ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle="rgba(16,185,129,0.9)";
-        ctx.fillText("TP "+tr.tp.toFixed(2), canvas.width-padding-4, yTP-2);
+        if(!isNaN(yTP)){
+          ctx.setLineDash([4,4]);
+          ctx.strokeStyle="rgba(16,185,129,0.9)";  // vert
+          ctx.lineWidth=1.2;
+          ctx.beginPath(); ctx.moveTo(padding,yTP); ctx.lineTo(canvas.width-padding,yTP); ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle="rgba(16,185,129,0.9)";
+          ctx.textAlign="right";
+          ctx.textBaseline="bottom";
+          ctx.fillText("TP "+tr.tp.toFixed(2), canvas.width-padding-4, yTP-2);
+        }
       }
 
-      // SL line
+      // SL
       if(tr.sl!==null){
         const ySL = canvas.height-padding-((tr.sl-minVal)/range)*h;
-        ctx.setLineDash([4,4]);
-        ctx.strokeStyle="rgba(239,68,68,0.9)";  // rouge
-        ctx.lineWidth=1.2;
-        ctx.beginPath(); ctx.moveTo(padding,ySL); ctx.lineTo(canvas.width-padding,ySL); ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle="rgba(239,68,68,0.9)";
-        ctx.fillText("SL "+tr.sl.toFixed(2), canvas.width-padding-4, ySL-2);
+        if(!isNaN(ySL)){
+          ctx.setLineDash([4,4]);
+          ctx.strokeStyle="rgba(239,68,68,0.9)";  // rouge
+          ctx.lineWidth=1.2;
+          ctx.beginPath(); ctx.moveTo(padding,ySL); ctx.lineTo(canvas.width-padding,ySL); ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle="rgba(239,68,68,0.9)";
+          ctx.textAlign="right";
+          ctx.textBaseline="bottom";
+          ctx.fillText("SL "+tr.sl.toFixed(2), canvas.width-padding-4, ySL-2);
+        }
       }
     });
 
@@ -285,11 +297,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const yCur=canvas.height-padding-((lastPrice-minVal)/range)*h;
       ctx.strokeStyle="#16a34a"; ctx.lineWidth=1.2;
       ctx.beginPath(); ctx.moveTo(padding,yCur); ctx.lineTo(canvas.width-padding,yCur); ctx.stroke();
+
       ctx.fillStyle="#16a34a";
       ctx.font="bold 14px Inter, Arial";
       ctx.textAlign="right";
       ctx.textBaseline="bottom";
       ctx.fillText("PNL: "+pnl.toFixed(2), canvas.width-padding-4, yCur-4);
+
       ctx.beginPath(); ctx.arc(canvas.width-padding,yCur,4,0,Math.PI*2); ctx.fill();
     }
   }
