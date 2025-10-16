@@ -1,4 +1,4 @@
-// app.js - Unicorn Madagascar (demo live ticks) - Version nettoyée
+// app.js - Unicorn Madagascar (demo live ticks) - Mis à jour avec TP/SL et affichage PNL sur chart
 
 document.addEventListener("DOMContentLoaded", () => {
   const APP_ID = 105747;
@@ -18,6 +18,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const historyList = document.getElementById("historyList");
   const stakeInput = document.getElementById("stake");
   const multiplierInput = document.getElementById("multiplier");
+  const tpInput = document.getElementById("tp"); // Take Profit
+  const slInput = document.getElementById("sl"); // Stop Loss
   const modeSelect = document.getElementById("modeSelect");
   const pnlDisplay = document.getElementById("pnl");
 
@@ -31,7 +33,6 @@ document.addEventListener("DOMContentLoaded", () => {
   let canvas, ctx;
   let gaugeSmoothers = { volatility: 0, rsi: 0, emaProb: 0 };
   const SMA_WINDOW = 20;
-
   const volatilitySymbols = ["BOOM1000","CRASH1000","BOOM900","CRASH900","BOOM600","CRASH600","BOOM500","CRASH500"];
 
   // tooltip
@@ -48,7 +49,6 @@ document.addEventListener("DOMContentLoaded", () => {
   function setStatus(txt){ statusSpan.textContent = txt; }
   function formatNum(n){ return Number(n).toFixed(2); }
 
-  // init symbols list
   function initSymbols(){
     symbolList.innerHTML = "";
     volatilitySymbols.forEach(sym => {
@@ -61,7 +61,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // select symbol
   function selectSymbol(sym){
     currentSymbol = sym;
     document.querySelectorAll(".symbolItem").forEach(e => e.classList.remove("active"));
@@ -76,7 +75,6 @@ document.addEventListener("DOMContentLoaded", () => {
     logHistory(`Selected ${sym}`);
   }
 
-  // canvas
   function initCanvas(){
     chartInner.innerHTML = "";
     canvas = document.createElement("canvas");
@@ -90,7 +88,6 @@ document.addEventListener("DOMContentLoaded", () => {
     canvas.addEventListener("mouseleave", ()=>{ tooltip.style.display="none"; });
   }
 
-  // gauges
   function initGauges(){
     gaugeDashboard.innerHTML = "";
     ["Volatility","RSI","EMA"].forEach(name=>{
@@ -131,7 +128,6 @@ document.addEventListener("DOMContentLoaded", () => {
     gctx.fillText(value.toFixed(1)+"%", w/2, h/2+12);
   }
 
-  // compute volatility
   function computeVolatility(){
     if(chartData.length<2) return 0;
     const lastN = chartData.slice(-SMA_WINDOW);
@@ -178,8 +174,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const w=canvas.width-padding*2;
     const h=canvas.height-padding*2;
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    const maxVal=Math.max(...chartData, ...trades.map(t=>t.entry));
-    const minVal=Math.min(...chartData, ...trades.map(t=>t.entry));
+    const maxVal=Math.max(...chartData, ...trades.map(t=>t.entry), ...trades.map(t=>t.tp||0), ...trades.map(t=>t.sl||0));
+    const minVal=Math.min(...chartData, ...trades.map(t=>t.entry), ...trades.map(t=>t.tp||Infinity), ...trades.map(t=>t.sl||Infinity));
     const range=maxVal-minVal||1;
 
     // axes
@@ -227,7 +223,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     ctx.strokeStyle="#007bff"; ctx.lineWidth=2; ctx.stroke();
 
-    // trades et PNL
+    // trades
     trades.forEach(tr=>{
       if(tr.symbol!==currentSymbol) return;
       const x=padding+((len-1)/(len-1))*w;
@@ -252,6 +248,30 @@ document.addEventListener("DOMContentLoaded", () => {
       ctx.textAlign="right";
       ctx.textBaseline="bottom";
       ctx.fillText(tr.entry.toFixed(2), canvas.width-padding-4, y-2);
+
+      // TP line
+      if(tr.tp!==null){
+        const yTP = canvas.height-padding-((tr.tp-minVal)/range)*h;
+        ctx.setLineDash([4,4]);
+        ctx.strokeStyle="rgba(16,185,129,0.9)";  // vert
+        ctx.lineWidth=1.2;
+        ctx.beginPath(); ctx.moveTo(padding,yTP); ctx.lineTo(canvas.width-padding,yTP); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle="rgba(16,185,129,0.9)";
+        ctx.fillText("TP "+tr.tp.toFixed(2), canvas.width-padding-4, yTP-2);
+      }
+
+      // SL line
+      if(tr.sl!==null){
+        const ySL = canvas.height-padding-((tr.sl-minVal)/range)*h;
+        ctx.setLineDash([4,4]);
+        ctx.strokeStyle="rgba(239,68,68,0.9)";  // rouge
+        ctx.lineWidth=1.2;
+        ctx.beginPath(); ctx.moveTo(padding,ySL); ctx.lineTo(canvas.width-padding,ySL); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle="rgba(239,68,68,0.9)";
+        ctx.fillText("SL "+tr.sl.toFixed(2), canvas.width-padding-4, ySL-2);
+      }
     });
 
     // current PNL
@@ -265,14 +285,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const yCur=canvas.height-padding-((lastPrice-minVal)/range)*h;
       ctx.strokeStyle="#16a34a"; ctx.lineWidth=1.2;
       ctx.beginPath(); ctx.moveTo(padding,yCur); ctx.lineTo(canvas.width-padding,yCur); ctx.stroke();
-
       ctx.fillStyle="#16a34a";
       ctx.font="bold 14px Inter, Arial";
       ctx.textAlign="right";
       ctx.textBaseline="bottom";
       ctx.fillText("PNL: "+pnl.toFixed(2), canvas.width-padding-4, yCur-4);
-
-      // point vert sur la ligne
       ctx.beginPath(); ctx.arc(canvas.width-padding,yCur,4,0,Math.PI*2); ctx.fill();
     }
   }
@@ -288,30 +305,39 @@ document.addEventListener("DOMContentLoaded", () => {
     const price=chartData[idx];
     const time=chartTimes[idx]?new Date(chartTimes[idx]*1000).toLocaleTimeString().slice(0,8):"";
     let tradesHtml="";
-    trades.forEach(tr=>{ if(tr.symbol!==currentSymbol) return; tradesHtml+=`<div style="color:${tr.type==="BUY"?"#0ea5a4":"#ef4444"}">${tr.type} @ ${formatNum(tr.entry)} stake:${tr.stake} mult:${tr.multiplier}</div>`; });
+    trades.forEach(tr=>{ if(tr.symbol!==currentSymbol) return; tradesHtml+=`<div style="color:${tr.type==="BUY"?"#0ea5a4":"#ef4444"}">${tr.type} @ ${formatNum(tr.entry)} TP:${tr.tp||"-"} SL:${tr.sl||"-"} stake:${tr.stake} mult:${tr.multiplier}</div>`; });
     tooltip.style.display="block"; tooltip.style.left=(e.clientX+12)+"px"; tooltip.style.top=(e.clientY-36)+"px";
     tooltip.innerHTML=`<div><strong>${currentSymbol}</strong></div><div>Price: ${formatNum(price)}</div><div>Time: ${time}</div>${tradesHtml}`;
   }
 
-  // trades
   function executeTrade(type){
     if(!currentSymbol||chartData.length===0) return;
     const stake=parseFloat(stakeInput.value)||1;
     const multiplier=parseInt(multiplierInput.value)||100;
     const entry=chartData[chartData.length-1];
-    const trade={symbol:currentSymbol,type,stake,multiplier,entry,timestamp:Date.now(),id:`sim-${Date.now()}-${Math.random().toString(36).slice(2,8)}`};
+    const tp=parseFloat(tpInput.value)||null;
+    const sl=parseFloat(slInput.value)||null;
+
+    const trade={
+        symbol:currentSymbol,
+        type,
+        stake,
+        multiplier,
+        entry,
+        tp,
+        sl,
+        timestamp:Date.now(),
+        id:`sim-${Date.now()}-${Math.random().toString(36).slice(2,8)}`
+    };
     trades.push(trade);
-    logHistory(`${type} ${currentSymbol} @ ${formatNum(entry)} stake:${stake} mult:${multiplier}`);
+    logHistory(`${type} ${currentSymbol} @ ${formatNum(entry)} stake:${stake} mult:${multiplier} TP:${tp||"-"} SL:${sl||"-"}`);
     drawChart(); updatePnL();
   }
   buyBtn.onclick=()=>executeTrade("BUY");
   sellBtn.onclick=()=>executeTrade("SELL");
 
   closeBtn.onclick=()=>{
-    trades=[];
-    updatePnL();
-    drawChart();
-    logHistory("Toutes les positions fermées (local)");
+    trades=[]; updatePnL(); drawChart(); logHistory("Toutes les positions fermées (local)");
   };
 
   function updatePnL(){
@@ -325,7 +351,6 @@ document.addEventListener("DOMContentLoaded", () => {
     pnlDisplay.textContent=pnl.toFixed(2);
   }
 
-  // websocket
   function subscribeTicks(symbol){
     if(!ws||ws.readyState!==WebSocket.OPEN) return;
     ws.send(JSON.stringify({ ticks: symbol, subscribe:1 }));
@@ -336,7 +361,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const p=Number(tick.quote);
     const symbol=tick.symbol;
     lastPrices[symbol]=p;
-
     if(symbol===currentSymbol){
       chartData.push(p);
       chartTimes.push(tick.epoch);
@@ -353,10 +377,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   connectBtn.onclick=()=>{
     if(ws&&ws.readyState===WebSocket.OPEN){ ws.close(); ws=null; setStatus("Disconnected"); connectBtn.textContent="Connect"; return; }
-
     const token=tokenInput.value.trim();
     if(!token){ setStatus("Simulation Mode"); logHistory("Running without token (simulation)"); return; }
-
     ws=new WebSocket(WS_URL);
     setStatus("Connecting...");
     ws.onopen=()=>{ setStatus("Connected, authorizing..."); ws.send(JSON.stringify({ authorize: token })); };
@@ -369,11 +391,7 @@ document.addEventListener("DOMContentLoaded", () => {
         authorized=true;
         setStatus(`Connected: ${data.authorize.loginid} (Live ticks Demo)`);
         logHistory("Authorized: "+data.authorize.loginid);
-
-        // demander solde
         ws.send(JSON.stringify({ balance:1, subscribe:1 }));
-
-        // souscrire à tous les symboles pour afficher prix
         volatilitySymbols.forEach(sym => subscribeTicks(sym));
       }
       if(data.msg_type==="balance" && data.balance){
