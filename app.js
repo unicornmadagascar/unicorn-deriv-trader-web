@@ -1,10 +1,10 @@
-// app.js - Unicorn Madagascar (demo live ticks) - Mis à jour avec TP/SL et affichage PNL sur chart
+// app.js - Unicorn Madagascar (demo live ticks) - TP/SL affichés sur chart, PNL calculé
 
 document.addEventListener("DOMContentLoaded", () => {
   const APP_ID = 105747;
   const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
 
-  // UI
+  // UI elements
   const tokenInput = document.getElementById("tokenInput");
   const connectBtn = document.getElementById("connectBtn");
   const statusSpan = document.getElementById("status");
@@ -18,9 +18,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const historyList = document.getElementById("historyList");
   const stakeInput = document.getElementById("stake");
   const multiplierInput = document.getElementById("multiplier");
-  const tpInput = document.getElementById("tp"); // Take Profit
-  const slInput = document.getElementById("sl"); // Stop Loss
-  const modeSelect = document.getElementById("modeSelect");
+  const tpInput = document.getElementById("tp");
+  const slInput = document.getElementById("sl");
   const pnlDisplay = document.getElementById("pnl");
 
   let ws = null;
@@ -167,8 +166,8 @@ document.addEventListener("DOMContentLoaded", () => {
     return res;
   }
 
-  // chart
-function drawChart(){
+  // chart drawing with Entry, TP, SL
+  function drawChart(){
     if(!ctx||chartData.length===0) return;
     const padding=50;
     const w=canvas.width-padding*2;
@@ -226,27 +225,28 @@ function drawChart(){
     }
     ctx.strokeStyle="#007bff"; ctx.lineWidth=2; ctx.stroke();
 
-    // trades avec Entry, TP et SL
+    // trades: Entry, TP, SL with vertical offset to avoid overlap
     trades.forEach(tr=>{
       if(tr.symbol!==currentSymbol) return;
       const x=padding+((len-1)/(len-1))*w;
-      const yEntry=canvas.height-padding-((tr.entry-minVal)/range)*h;
+      const offsets = { entry: 0, tp: -6, sl: 6 }; // décalage vertical pour TP/SL
+      const yEntry=canvas.height-padding-((tr.entry-minVal)/range)*h + offsets.entry;
 
-      // ligne pointillée rouge pour prix d'entrée
+      // Entry line
       ctx.setLineDash([6,4]);
       ctx.strokeStyle="rgba(220,38,38,0.9)";
-      ctx.lineWidth=1.2; 
+      ctx.lineWidth=1.2;
       ctx.beginPath(); ctx.moveTo(padding,yEntry); ctx.lineTo(canvas.width-padding,yEntry); ctx.stroke();
       ctx.setLineDash([]);
 
-      // triangle trade
+      // triangle
       ctx.fillStyle=tr.type==="BUY"?"green":"red";
       ctx.beginPath();
       if(tr.type==="BUY"){ ctx.moveTo(x,yEntry-10); ctx.lineTo(x-8,yEntry); ctx.lineTo(x+8,yEntry); } 
       else { ctx.moveTo(x,yEntry+10); ctx.lineTo(x-8,yEntry); ctx.lineTo(x+8,yEntry); }
       ctx.closePath(); ctx.fill();
 
-      // texte prix d'entrée
+      // Entry label
       ctx.fillStyle="rgba(220,38,38,0.9)";
       ctx.font="12px Inter, Arial";
       ctx.textAlign="right";
@@ -255,38 +255,30 @@ function drawChart(){
 
       // TP
       if(tr.tp!==null){
-        const yTP = canvas.height-padding-((tr.tp-minVal)/range)*h;
-        if(!isNaN(yTP)){
-          ctx.setLineDash([4,4]);
-          ctx.strokeStyle="rgba(16,185,129,0.9)";  // vert
-          ctx.lineWidth=1.2;
-          ctx.beginPath(); ctx.moveTo(padding,yTP); ctx.lineTo(canvas.width-padding,yTP); ctx.stroke();
-          ctx.setLineDash([]);
-          ctx.fillStyle="rgba(16,185,129,0.9)";
-          ctx.textAlign="right";
-          ctx.textBaseline="bottom";
-          ctx.fillText("TP "+tr.tp.toFixed(2), canvas.width-padding-4, yTP-2);
-        }
+        const yTP = canvas.height-padding-((tr.tp-minVal)/range)*h + offsets.tp;
+        ctx.setLineDash([4,4]);
+        ctx.strokeStyle="rgba(16,185,129,0.9)";
+        ctx.lineWidth=1.2;
+        ctx.beginPath(); ctx.moveTo(padding,yTP); ctx.lineTo(canvas.width-padding,yTP); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle="rgba(16,185,129,0.9)";
+        ctx.fillText("TP "+tr.tp.toFixed(2), canvas.width-padding-4, yTP-2);
       }
 
       // SL
       if(tr.sl!==null){
-        const ySL = canvas.height-padding-((tr.sl-minVal)/range)*h;
-        if(!isNaN(ySL)){
-          ctx.setLineDash([4,4]);
-          ctx.strokeStyle="rgba(239,68,68,0.9)";  // rouge
-          ctx.lineWidth=1.2;
-          ctx.beginPath(); ctx.moveTo(padding,ySL); ctx.lineTo(canvas.width-padding,ySL); ctx.stroke();
-          ctx.setLineDash([]);
-          ctx.fillStyle="rgba(239,68,68,0.9)";
-          ctx.textAlign="right";
-          ctx.textBaseline="bottom";
-          ctx.fillText("SL "+tr.sl.toFixed(2), canvas.width-padding-4, ySL-2);
-        }
+        const ySL = canvas.height-padding-((tr.sl-minVal)/range)*h + offsets.sl;
+        ctx.setLineDash([4,4]);
+        ctx.strokeStyle="rgba(239,68,68,0.9)";
+        ctx.lineWidth=1.2;
+        ctx.beginPath(); ctx.moveTo(padding,ySL); ctx.lineTo(canvas.width-padding,ySL); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle="rgba(239,68,68,0.9)";
+        ctx.fillText("SL "+tr.sl.toFixed(2), canvas.width-padding-4, ySL-2);
       }
     });
 
-    // current PNL
+    // PNL
     if(chartData.length>0){
       const lastPrice=chartData[len-1];
       let pnl=0;
