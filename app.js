@@ -22,12 +22,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const pnlDisplay = document.getElementById("pnl");
 
   // Nouveau : affichage prix courant
-  /*const currentPriceDisplay = document.createElement("div");
+  const currentPriceDisplay = document.createElement("div");
   currentPriceDisplay.id = "currentPrice";
   currentPriceDisplay.style.fontWeight = "bold";
   currentPriceDisplay.style.marginTop = "5px";
   currentPriceDisplay.textContent = "Current Price: --";
-  userBalance.parentNode.insertBefore(currentPriceDisplay, userBalance.nextSibling);*/
+  userBalance.parentNode.insertBefore(currentPriceDisplay, userBalance.nextSibling);
 
   let ws = null;
   let authorized = false;
