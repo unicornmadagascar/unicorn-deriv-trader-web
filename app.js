@@ -233,7 +233,7 @@ document.addEventListener("DOMContentLoaded", () => {
           basis: "stake",
           amount: stake.toFixed(2),
           multiplier: multiplier,
-          limit_order: { "stop_loss": sl.toFixed(2), "take_profit": tp.ToFixed(2) } 
+          limit_order: { "stop_loss": sl, "take_profit": tp } 
         }
       };
       ws.send(JSON.stringify(payload));
