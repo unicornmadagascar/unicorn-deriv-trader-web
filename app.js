@@ -22,10 +22,10 @@ document.addEventListener("DOMContentLoaded", () => {
     "CRASH1000","CRASH900","CRASH600","CRASH500"
   ];
 
-  // Ensure chartInner is positioned so tooltip absolute coords are relative to it
+  // Ensure chartInner is relative for tooltip positioning
   chartInner.style.position = chartInner.style.position || "relative";
 
-  // === Tooltip (styled + clamp logic) ===
+  // Tooltip
   const tooltip = document.createElement("div");
   tooltip.style.position = "absolute";
   tooltip.style.padding = "6px 10px";
@@ -37,10 +37,9 @@ document.addEventListener("DOMContentLoaded", () => {
   tooltip.style.display = "none";
   tooltip.style.boxShadow = "0 6px 18px rgba(0,0,0,0.35)";
   tooltip.style.zIndex = "9999";
-  tooltip.innerHTML = ""; // initial
   chartInner.appendChild(tooltip);
 
-  // === Helpers ===
+  // Helper logging/status
   function logHistory(txt) {
     const div = document.createElement("div");
     div.textContent = `${new Date().toLocaleTimeString()} — ${txt}`;
@@ -48,7 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   function setStatus(txt) { statusSpan.textContent = txt; }
 
-  // === Symbols ===
+  // Symbols UI
   function initSymbols() {
     symbolList.innerHTML = "";
     volatilitySymbols.forEach(sym => {
@@ -73,42 +72,36 @@ document.addEventListener("DOMContentLoaded", () => {
     loadHistoricalTicks(symbol);
   }
 
-  // === Canvas chart init + resize handling ===
+  // Canvas init/resizing
   function initCanvas() {
     chartInner.innerHTML = "";
-    // re-append tooltip (because we cleared chartInner)
-    chartInner.appendChild(tooltip);
-
+    chartInner.appendChild(tooltip); // reattach
     canvas = document.createElement("canvas");
-    // reserve space for gauges to the right if dashboard exists
-    const gaugeWidth = (gaugeDashboard && gaugeDashboard.clientWidth) ? gaugeDashboard.clientWidth : 0;
-    // fill available width
-    canvas.width = chartInner.clientWidth - (gaugeWidth > 0 ? gaugeWidth + 16 : 0);
-    canvas.height = chartInner.clientHeight;
+
+    // Reserve some width for gauges to the right if present
+    const gaugeW = (gaugeDashboard && gaugeDashboard.clientWidth) ? gaugeDashboard.clientWidth : 0;
+    canvas.width = Math.max(300, chartInner.clientWidth - (gaugeW + 24));
+    canvas.height = Math.max(200, chartInner.clientHeight);
     canvas.style.display = "block";
     chartInner.appendChild(canvas);
     ctx = canvas.getContext("2d");
     chartData = []; chartTimes = [];
 
-    // events
     canvas.addEventListener("mousemove", handleMouseMove);
-    canvas.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
+    canvas.addEventListener("mouseleave", () => tooltip.style.display = "none");
 
-    // handle window resize – resize canvas and redraw
+    // handle resize: recalc width and redraw
     window.addEventListener("resize", () => {
-      // recompute width each resize (keep gauge space)
-      const gaugeWidth2 = (gaugeDashboard && gaugeDashboard.clientWidth) ? gaugeDashboard.clientWidth : 0;
-      canvas.width = chartInner.clientWidth - (gaugeWidth2 > 0 ? gaugeWidth2 + 16 : 0);
-      canvas.height = chartInner.clientHeight;
-      // reattach tooltip (still child)
+      const gaugeW2 = (gaugeDashboard && gaugeDashboard.clientWidth) ? gaugeDashboard.clientWidth : 0;
+      canvas.width = Math.max(300, chartInner.clientWidth - (gaugeW2 + 24));
+      canvas.height = Math.max(200, chartInner.clientHeight);
       if (!chartInner.contains(tooltip)) chartInner.appendChild(tooltip);
-      // redraw immediately
       drawChart();
       drawGauges();
     });
   }
 
-  // === Drawing functions ===
+  // Chart drawing (area with blue gradient; no smoothing)
   function drawChart() {
     if (!ctx || chartData.length === 0) return;
     const padding = 50;
@@ -116,7 +109,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const h = canvas.height - padding * 2;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Background gradient
+    // Background
     const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
     bgGrad.addColorStop(0, "#f5f9ff");
     bgGrad.addColorStop(1, "#eaf2ff");
@@ -125,17 +118,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const maxVal = Math.max(...chartData);
     const minVal = Math.min(...chartData);
-    const range = maxVal - minVal || 1;
+    const range = Math.max(1e-8, maxVal - minVal);
 
     // Axes
     ctx.strokeStyle = "#444"; ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(padding, padding);
-    ctx.lineTo(padding, canvas.height - padding);
-    ctx.lineTo(canvas.width - padding, canvas.height - padding);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(padding, padding); ctx.lineTo(padding, canvas.height - padding); ctx.lineTo(canvas.width - padding, canvas.height - padding); ctx.stroke();
 
-    // Grid & labels
+    // Grid and Y labels
     ctx.strokeStyle = "#ddd"; ctx.lineWidth = 0.5;
     ctx.font = "11px Arial"; ctx.fillStyle = "#333"; ctx.textAlign = "right"; ctx.textBaseline = "middle";
     for (let i = 0; i <= 5; i++) {
@@ -144,9 +133,9 @@ document.addEventListener("DOMContentLoaded", () => {
       ctx.fillText((minVal + (i / 5) * range).toFixed(2), padding - 8, y);
     }
 
-    // Area chart (no smoothing)
+    // Area path
     const len = chartData.length;
-    if (len < 1) return;
+    if (len === 0) return;
     ctx.beginPath();
     for (let i = 0; i < len; i++) {
       const x = padding + (i / (len - 1 || 1)) * w;
@@ -158,14 +147,14 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.lineTo(padding, canvas.height - padding);
     ctx.closePath();
 
-    // fill with blue gradient
+    // Fill area with gradient
     const areaGrad = ctx.createLinearGradient(0, padding, 0, canvas.height - padding);
-    areaGrad.addColorStop(0, "rgba(0, 123, 255, 0.45)");
-    areaGrad.addColorStop(1, "rgba(0, 123, 255, 0.1)");
+    areaGrad.addColorStop(0, "rgba(0,123,255,0.45)");
+    areaGrad.addColorStop(1, "rgba(0,123,255,0.08)");
     ctx.fillStyle = areaGrad;
     ctx.fill();
 
-    // border line
+    // Border line
     ctx.beginPath();
     for (let i = 0; i < len; i++) {
       const x = padding + (i / (len - 1 || 1)) * w;
@@ -175,7 +164,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     ctx.strokeStyle = "#007bff"; ctx.lineWidth = 2; ctx.stroke();
 
-    // current price
+    // Current price line & label
     const lastPrice = chartData[len - 1];
     const yPrice = canvas.height - padding - ((lastPrice - minVal) / range) * h;
     ctx.strokeStyle = "red"; ctx.lineWidth = 1.5;
@@ -183,12 +172,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     ctx.fillStyle = "red"; ctx.beginPath();
     ctx.arc(canvas.width - padding - 10, yPrice, 5, 0, 2 * Math.PI); ctx.fill();
-
     ctx.font = "14px Arial"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
-    ctx.fillText(lastPrice.toFixed(2), canvas.width - padding - 70, yPrice - 5);
+    const labelX = Math.max(padding + 6, canvas.width - padding - 70);
+    ctx.fillText(lastPrice.toFixed(2), labelX, yPrice - 5);
   }
 
-  // === Tooltip: compute index and clamp within chartInner bounds ===
+  // Tooltip positioning & content (clamped within chartInner)
   function handleMouseMove(e) {
     if (!canvas || chartData.length === 0) return;
     const rect = canvas.getBoundingClientRect();
@@ -199,30 +188,24 @@ document.addEventListener("DOMContentLoaded", () => {
     const len = chartData.length;
     if (len === 0) return;
 
-    // map mouseX to index
     let idx = Math.round((mouseX - padding) / (w || 1) * (len - 1));
     idx = Math.max(0, Math.min(idx, len - 1));
-
     const price = chartData[idx];
     const time = chartTimes[idx] ? new Date(chartTimes[idx] * 1000).toLocaleTimeString().slice(0, 8) : "";
 
-    // tooltip content
     tooltip.innerHTML = `<strong style="display:block;margin-bottom:4px">${currentSymbol || ""}</strong>
                          <div>Price: <b>${price.toFixed(2)}</b></div>
                          <div style="opacity:0.85;font-size:11px">${time}</div>`;
 
-    // position tooltip relative to chartInner, try to show on right of cursor but clamp inside chartInner
-    const offsetX = 12;
-    const offsetY = -28;
-    // client coords for tooltip top-left
+    // compute tooltip pos relative to chartInner
+    const offsetX = 12, offsetY = -28;
     let tLeft = e.clientX - chartRect.left + offsetX;
     let tTop = e.clientY - chartRect.top + offsetY;
 
-    // clamp horizontally inside chartInner
+    // clamp inside chartInner
     const maxLeft = chartInner.clientWidth - tooltip.offsetWidth - 8;
     if (tLeft > maxLeft) tLeft = maxLeft;
     if (tLeft < 6) tLeft = 6;
-    // clamp vertically
     const maxTop = chartInner.clientHeight - tooltip.offsetHeight - 6;
     if (tTop > maxTop) tTop = maxTop;
     if (tTop < 6) tTop = 6;
@@ -232,7 +215,9 @@ document.addEventListener("DOMContentLoaded", () => {
     tooltip.style.display = "block";
   }
 
-  // === Gauges ===
+  // === Gauges setup + smoothing ===
+  const GAUGE_SMOOTH_ALPHA = 0.20; // 0 = no update, 1 = raw value; 0.2 smooths a bit
+
   function initGauges() {
     if (!gaugeDashboard) return;
     gaugeDashboard.innerHTML = "";
@@ -244,6 +229,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const c = document.createElement("canvas");
       c.width = 120; c.height = 120;
       c.dataset.gaugeName = name;
+      c.dataset.smoothed = "0"; // stored smoothed value
       c.style.marginRight = "6px";
       gaugeDashboard.appendChild(c);
     });
@@ -252,11 +238,21 @@ document.addEventListener("DOMContentLoaded", () => {
   function drawGauges() {
     if (!gaugeDashboard) return;
     gaugeDashboard.querySelectorAll("canvas").forEach(c => {
-      let value = 0;
-      if (c.dataset.gaugeName === "Volatility") value = calculateVolatility();
-      else if (c.dataset.gaugeName === "ATR") value = calculateATR();
-      else if (c.dataset.gaugeName === "EMA") value = calculateEMA();
-      drawGauge(c, value);
+      let raw = 0;
+      if (c.dataset.gaugeName === "Volatility") raw = calculateVolatility();
+      else if (c.dataset.gaugeName === "ATR") raw = calculateATR();
+      else if (c.dataset.gaugeName === "EMA") raw = calculateEMA();
+
+      // clamp raw
+      if (!isFinite(raw) || raw < 0) raw = 0;
+      raw = Math.min(raw, 100);
+
+      // smoothing (exponential)
+      const prev = parseFloat(c.dataset.smoothed || "0");
+      const smooth = prev * (1 - GAUGE_SMOOTH_ALPHA) + raw * GAUGE_SMOOTH_ALPHA;
+      c.dataset.smoothed = String(smooth);
+
+      drawGauge(c, smooth);
     });
   }
 
@@ -294,56 +290,61 @@ document.addEventListener("DOMContentLoaded", () => {
     gctx.fillText(value.toFixed(1) + "%", w / 2, h / 2 + 10);
   }
 
-  // === Gauge calculations (real ticks) ===
-  function calculateVolatility() {
+  // === Gauge calculations on real ticks ===
+  // Volatility: use stddev / mean * 100 (%) on last N
+  function calculateVolatility(windowSize = 50) {
     if (chartData.length < 2) return 0;
-    const lastN = chartData.slice(-50);
-    const max = Math.max(...lastN);
-    const min = Math.min(...lastN);
-    const last = chartData[chartData.length - 1] || 1;
-    return Math.min(((max - min) / Math.abs(last)) * 100, 100);
+    const N = Math.min(windowSize, chartData.length);
+    const arr = chartData.slice(-N);
+    const mean = arr.reduce((s, v) => s + v, 0) / N;
+    if (!isFinite(mean) || mean === 0) return 0;
+    const variance = arr.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / N;
+    const stddev = Math.sqrt(variance);
+    return Math.min((stddev / Math.abs(mean)) * 100, 100);
   }
 
-  function calculateATR() {
+  // ATR: average true range approximated by avg(|diff|) normalized by mean price
+  function calculateATR(windowSize = 50) {
     if (chartData.length < 2) return 0;
-    const look = Math.min(50, chartData.length - 1);
+    const N = Math.min(windowSize, chartData.length - 1);
+    if (N <= 0) return 0;
+    const start = chartData.length - 1 - N;
     let sum = 0;
-    for (let i = chartData.length - look; i < chartData.length - 1; i++) {
-      sum += Math.abs(chartData[i + 1] - chartData[i]);
-    }
-    const denom = Math.max(...chartData) || 1;
-    return Math.min((sum / Math.max(1, look)) / denom * 100, 100);
+    for (let i = start; i < chartData.length - 1; i++) sum += Math.abs(chartData[i + 1] - chartData[i]);
+    const avgTR = sum / Math.max(1, N);
+    const denom = Math.max(1e-8, chartData.slice(-N).reduce((s, v) => s + v, 0) / Math.max(1, N));
+    return Math.min((avgTR / Math.abs(denom)) * 100, 100);
   }
 
+  // EMA: return absolute difference (EMA vs last price) in percent
   function calculateEMA(period = 20) {
     if (chartData.length < 2) return 0;
-    const actualPeriod = Math.min(period, chartData.length);
-    let ema = chartData[chartData.length - actualPeriod];
-    const k = 2 / (actualPeriod + 1);
-    for (let i = chartData.length - actualPeriod + 1; i < chartData.length; i++) {
+    const P = Math.min(period, chartData.length);
+    let ema = chartData[chartData.length - P];
+    const k = 2 / (P + 1);
+    for (let i = chartData.length - P + 1; i < chartData.length; i++) {
       ema = chartData[i] * k + ema * (1 - k);
     }
-    const denom = Math.max(...chartData) || 1;
-    return Math.min(Math.abs((ema / denom) * 100), 100);
+    const last = chartData[chartData.length - 1] || 1;
+    return Math.min(Math.abs((ema - last) / Math.abs(last)) * 100, 100);
   }
 
-  // update loop (faster if you want real-time)
+  // Update loop
   setInterval(() => {
     if (chartData.length > 0) {
       drawChart();
       drawGauges();
     }
-  }, 500);
+  }, 400);
 
-  // === WebSocket ===
+  // WebSocket handling
   connectBtn.onclick = () => {
     const token = tokenInput.value.trim() || null;
     ws = new WebSocket(WS_URL);
     ws.onopen = () => {
       setStatus("Connected to Deriv WebSocket");
       logHistory("WebSocket connected");
-      if (token) authorize(token);
-      else initSymbols();
+      if (token) authorize(token); else initSymbols();
     };
     ws.onmessage = msg => handleMessage(JSON.parse(msg.data));
     ws.onclose = () => setStatus("WebSocket disconnected");
@@ -380,16 +381,13 @@ document.addEventListener("DOMContentLoaded", () => {
   function subscribeTicks(symbol) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ ticks: symbol, subscribe: 1 })); }
   function loadHistoricalTicks(symbol) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ ticks_history: symbol, end: "latest", count: 300, style: "ticks", subscribe: 1 })); }
 
-  // === Trades ===
-  function logHistory(txt) { const div = document.createElement("div"); div.textContent = `${new Date().toLocaleTimeString()} — ${txt}`; historyList.prepend(div); }
-  buyBtn.onclick = () => logTrade("BUY");
-  sellBtn.onclick = () => logTrade("SELL");
-  closeBtn.onclick = () => logTrade("CLOSE");
-  function logTrade(type) { if (!currentSymbol) return; logHistory(`${type} ${currentSymbol}`); }
+  // Trades UI
+  function logHistoryEntry(txt) { const div = document.createElement("div"); div.textContent = `${new Date().toLocaleTimeString()} — ${txt}`; historyList.prepend(div); }
+  buyBtn.onclick = () => logHistoryEntry("BUY " + (currentSymbol || ""));
+  sellBtn.onclick = () => logHistoryEntry("SELL " + (currentSymbol || ""));
+  closeBtn.onclick = () => logHistoryEntry("CLOSE " + (currentSymbol || ""));
 
-  function setStatus(txt) { statusSpan.textContent = txt; }
-
-  // init
+  // Init
   setStatus("Ready. Connect and select a symbol.");
   initSymbols();
 });
