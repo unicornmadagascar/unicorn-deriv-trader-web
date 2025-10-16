@@ -213,7 +213,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function executeTrade(type){
-    //const stake=parseFloat(stakeInput.value)||1;
+    const stake=parseFloat(stakeInput.value)||1;
     const multiplier=parseInt(multiplierInput.value)||300;
 
     const trade={ symbol:currentSymbol,type,stake,multiplier,entry:null,tp:null,sl:null,timestamp:Date.now(),id:`sim-${Date.now()}-${Math.random().toString(36).slice(2,8)}` };
@@ -229,7 +229,7 @@ document.addEventListener("DOMContentLoaded", () => {
           symbol: currentSymbol,
           currency: "USD",
           basis: "stake",
-          amount: stake.ToFixed(2),
+          amount: stake,
           multiplier: multiplier,
           limit_order: { "stop_loss": sl.toFixed(2), "take_profit": tp.ToFixed(2) } 
         }
