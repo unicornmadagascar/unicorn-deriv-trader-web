@@ -1,4 +1,4 @@
-// app.js - Unicorn Madagascar (demo live ticks) - Mis à jour avec toutes vos requêtes
+// app.js - Unicorn Madagascar (demo live ticks) - Mis à jour avec MULTIPLIER contract
 
 document.addEventListener("DOMContentLoaded", () => {
   const APP_ID = 105747;
@@ -72,7 +72,7 @@ document.addEventListener("DOMContentLoaded", () => {
     trades = [];
     initCanvas();
     initGauges();
-    subscribeTicks(sym); // Souscrire aux ticks dès sélection
+    subscribeTicks(sym);
     logHistory(`Selected ${sym}`);
   }
 
@@ -110,7 +110,7 @@ document.addEventListener("DOMContentLoaded", () => {
       else if(c.dataset.gaugeName==="RSI") value=computeRSI();
       else if(c.dataset.gaugeName==="EMA") value=computeEMAProb();
       const key = c.dataset.gaugeName==="Volatility"?"volatility":c.dataset.gaugeName==="RSI"?"rsi":"emaProb";
-      gaugeSmoothers[key] = gaugeSmoothers[key]*0.7 + value*0.3; // un peu plus sensible
+      gaugeSmoothers[key] = gaugeSmoothers[key]*0.7 + value*0.3;
       renderGauge(c, gaugeSmoothers[key]);
     });
   }
@@ -120,21 +120,19 @@ document.addEventListener("DOMContentLoaded", () => {
     const w = canvas.width, h = canvas.height;
     const radius = Math.min(w,h)/2-10;
     gctx.clearRect(0,0,w,h);
-
     gctx.beginPath();
     gctx.arc(w/2,h/2,radius,0,2*Math.PI);
     gctx.strokeStyle="#eee"; gctx.lineWidth=12; gctx.stroke();
-
     const end=(-Math.PI/2)+(Math.max(0,Math.min(100,value))/100)*2*Math.PI;
-    gctx.beginPath(); gctx.arc(w/2,h/2,radius,-Math.PI/2,end);
+    gctx.beginPath();
+    gctx.arc(w/2,h/2,radius,-Math.PI/2,end);
     gctx.strokeStyle="#2563eb"; gctx.lineWidth=12; gctx.stroke();
-
     gctx.fillStyle="#222"; gctx.font="12px Inter, Arial"; gctx.textAlign="center"; gctx.textBaseline="middle";
     gctx.fillText(canvas.dataset.gaugeName, w/2, h/2-12);
     gctx.fillText(value.toFixed(1)+"%", w/2, h/2+12);
   }
 
-  // compute volatility (sensible)
+  // compute volatility
   function computeVolatility(){
     if(chartData.length<2) return 0;
     const lastN = chartData.slice(-SMA_WINDOW);
@@ -181,7 +179,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const w=canvas.width-padding*2;
     const h=canvas.height-padding*2;
     ctx.clearRect(0,0,canvas.width,canvas.height);
-
     const maxVal=Math.max(...chartData);
     const minVal=Math.min(...chartData);
     const range=maxVal-minVal||1;
@@ -235,12 +232,10 @@ document.addEventListener("DOMContentLoaded", () => {
       if(tr.symbol!==currentSymbol) return;
       const x=padding+((len-1)/(len-1))*w;
       const y=canvas.height-padding-((tr.entry-minVal)/range)*h;
-
       ctx.setLineDash([6,4]);
       ctx.strokeStyle="rgba(220,38,38,0.9)";
       ctx.lineWidth=1.2; ctx.beginPath(); ctx.moveTo(padding,y); ctx.lineTo(canvas.width-padding,y); ctx.stroke();
       ctx.setLineDash([]);
-
       ctx.fillStyle=tr.type==="BUY"?"green":"red";
       ctx.beginPath();
       if(tr.type==="BUY"){ ctx.moveTo(x,y-10); ctx.lineTo(x-8,y); ctx.lineTo(x+8,y); } 
@@ -265,24 +260,50 @@ document.addEventListener("DOMContentLoaded", () => {
     let idx=Math.round((mouseX-padding)/w*(len-1));
     idx=Math.max(0,Math.min(idx,len-1));
     const price=chartData[idx];
-    const time=chartTimes[idx]?new Date(chartTimes[idx]*1000).toLocaleTimeString().slice(0,8):"";
     let tradesHtml="";
     trades.forEach(tr=>{ if(tr.symbol!==currentSymbol) return; tradesHtml+=`<div style="color:${tr.type==="BUY"?"#0ea5a4":"#ef4444"}">${tr.type} @ ${formatNum(tr.entry)} stake:${tr.stake} mult:${tr.multiplier}</div>`; });
     tooltip.style.display="block"; tooltip.style.left=(e.clientX+12)+"px"; tooltip.style.top=(e.clientY-36)+"px";
-    tooltip.innerHTML=`<div><strong>${currentSymbol}</strong></div><div>Price: ${formatNum(price)}</div><div>Time: ${time}</div>${tradesHtml}`;
+    tooltip.innerHTML=`<div><strong>${currentSymbol}</strong></div><div>Price: ${formatNum(price)}</div>${tradesHtml}`;
   }
 
-  // trades
+  // trades avec MULTIPLIER
   function executeTrade(type){
     if(!currentSymbol||chartData.length===0) return;
     const stake=parseFloat(stakeInput.value)||1;
     const multiplier=parseInt(multiplierInput.value)||100;
     const entry=chartData[chartData.length-1];
-    const trade={symbol:currentSymbol,type,stake,multiplier,entry,timestamp:Date.now(),id:`sim-${Date.now()}-${Math.random().toString(36).slice(2,8)}`};
-    trades.push(trade);
-    logHistory(`${type} ${currentSymbol} @ ${formatNum(entry)} stake:${stake} mult:${multiplier}`);
-    drawChart(); updatePnL();
+    const tradeId=`sim-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+
+    if(!authorized){
+      // simulation
+      const trade={symbol:currentSymbol,type,stake,multiplier,entry,timestamp:Date.now(),id:tradeId};
+      trades.push(trade);
+      logHistory(`${type} ${currentSymbol} @ ${formatNum(entry)} stake:${stake} mult:${multiplier} (simulation)`);
+      drawChart(); updatePnL();
+      return;
+    }
+
+    // contrat MULTIPLIER réel
+    const contractType = type==="BUY" ? "MULTUP" : "MULTDOWN";
+    ws.send(JSON.stringify({
+      buy: 1,
+      price: stake,
+      parameters: {
+        amount: stake,
+        basis: "stake",
+        contract_type: contractType,
+        currency: "USD",
+        duration: 1,
+        duration_unit: "t",
+        symbol: currentSymbol,
+        multiplier: multiplier
+      },
+      subscribe: 1,
+      req_id: tradeId
+    }));
+    logHistory(`Sent ${contractType} contract request for ${currentSymbol} @ stake:${stake} mult:${multiplier}`);
   }
+
   buyBtn.onclick=()=>executeTrade("BUY");
   sellBtn.onclick=()=>executeTrade("SELL");
 
@@ -347,11 +368,7 @@ document.addEventListener("DOMContentLoaded", () => {
         authorized=true;
         setStatus(`Connected: ${data.authorize.loginid} (Live ticks Demo)`);
         logHistory("Authorized: "+data.authorize.loginid);
-
-        // demander solde
         ws.send(JSON.stringify({ balance:1, subscribe:1 }));
-
-        // souscrire à tous les symboles pour que la liste de symboles affiche prix
         volatilitySymbols.forEach(sym => subscribeTicks(sym));
       }
       if(data.msg_type==="balance" && data.balance){
@@ -361,6 +378,22 @@ document.addEventListener("DOMContentLoaded", () => {
         logHistory(`Balance updated: ${bal} ${cur}`);
       }
       if(data.msg_type==="tick" && data.tick) handleTick(data.tick);
+
+      // réception contrat MULTIPLIER ouvert
+      if(data.msg_type==="buy" && data.buy){
+        const t = {
+          symbol:currentSymbol,
+          type:data.buy.contract_type==="MULTUP"?"BUY":"SELL",
+          stake:data.buy.buy_price,
+          multiplier:data.buy.multiplier,
+          entry:data.buy.contract_info.entry_tick,
+          timestamp:Date.now(),
+          id:data.buy.req_id
+        };
+        trades.push(t);
+        logHistory(`Contract opened: ${t.type} ${t.symbol} @ ${formatNum(t.entry)} stake:${t.stake} mult:${t.multiplier}`);
+        drawChart(); updatePnL();
+      }
     };
     connectBtn.textContent="Disconnect";
   };
