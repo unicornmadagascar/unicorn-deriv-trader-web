@@ -31,7 +31,6 @@ document.addEventListener("DOMContentLoaded", () => {
   tooltip.style.cssText = "position:fixed;padding:6px 10px;background:rgba(0,0,0,0.85);color:#fff;font-size:12px;border-radius:6px;pointer-events:none;display:none;z-index:9999";
   document.body.appendChild(tooltip);
 
-  // helpers
   function logHistory(txt){
     const d=document.createElement("div");
     d.textContent = `${new Date().toLocaleTimeString()} — ${txt}`;
@@ -183,9 +182,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // trades
     trades.forEach(tr=>{
-      if(tr.symbol!==currentSymbol) return;
+      if(tr.symbol!==currentSymbol||tr.entry===null) return;
       const x=padding+((len-1)/(len-1))*w;
-      const yEntry=canvas.height-padding-((tr.entry||0-minVal)/range)*h;
+      const yEntry=canvas.height-padding-((tr.entry-minVal)/range)*h;
 
       ctx.setLineDash([6,4]); ctx.strokeStyle="rgba(220,38,38,0.9)"; ctx.lineWidth=1.2;
       ctx.beginPath(); ctx.moveTo(padding,yEntry); ctx.lineTo(canvas.width-padding,yEntry); ctx.stroke(); ctx.setLineDash([]);
@@ -194,6 +193,18 @@ document.addEventListener("DOMContentLoaded", () => {
       if(tr.type==="BUY"){ ctx.moveTo(x,yEntry-10); ctx.lineTo(x-8,yEntry); ctx.lineTo(x+8,yEntry);}
       else { ctx.moveTo(x,yEntry+10); ctx.lineTo(x-8,yEntry); ctx.lineTo(x+8,yEntry);}
       ctx.closePath(); ctx.fill();
+
+      // affiche TP et SL seulement si présents
+      if(tr.tp!==null){
+        const yTP = canvas.height-padding-((tr.tp-minVal)/range)*h;
+        ctx.strokeStyle="rgba(0,200,0,0.7)";
+        ctx.beginPath(); ctx.moveTo(padding,yTP); ctx.lineTo(canvas.width-padding,yTP); ctx.stroke();
+      }
+      if(tr.sl!==null){
+        const ySL = canvas.height-padding-((tr.sl-minVal)/range)*h;
+        ctx.strokeStyle="rgba(200,0,0,0.7)";
+        ctx.beginPath(); ctx.moveTo(padding,ySL); ctx.lineTo(canvas.width-padding,ySL); ctx.stroke();
+      }
     });
 
     updatePnL();
@@ -206,7 +217,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const padding=50; const w=canvas.width-padding*2; const len=chartData.length;
     let idx=Math.round((mouseX-padding)/w*(len-1)); idx=Math.max(0,Math.min(idx,len-1));
     const price=chartData[idx]; const time=chartTimes[idx]?new Date(chartTimes[idx]*1000).toLocaleTimeString().slice(0,8):"";
-    let tradesHtml=""; trades.forEach(tr=>{ if(tr.symbol!==currentSymbol) return; tradesHtml+=`<div style="color:${tr.type==="BUY"?"#0ea5a4":"#ef4444"}">${tr.type} @ ${formatNum(tr.entry||0)} stake:${tr.stake} mult:${tr.multiplier}</div>`; });
+    let tradesHtml="";
+    trades.forEach(tr=>{ if(tr.symbol!==currentSymbol||tr.entry===null) return; tradesHtml+=`<div style="color:${tr.type==="BUY"?"#0ea5a4":"#ef4444"}">${tr.type} @ ${formatNum(tr.entry)} stake:${tr.stake} mult:${tr.multiplier} TP:${tr.tp||"-"} SL:${tr.sl||"-"}</div>`; });
     tooltip.style.display="block"; tooltip.style.left=(e.clientX+12)+"px"; tooltip.style.top=(e.clientY-36)+"px"; tooltip.innerHTML=`<div><strong>${currentSymbol}</strong></div><div>Price: ${formatNum(price)}</div><div>Time: ${time}</div>${tradesHtml}`;
   }
 
@@ -229,6 +241,7 @@ document.addEventListener("DOMContentLoaded", () => {
           basis: "stake",
           amount: stake.toFixed(2),
           multiplier: multiplier
+          // TP/SL ne sont plus définis ici
         }
       };
       ws.send(JSON.stringify(payload));
@@ -269,15 +282,9 @@ document.addEventListener("DOMContentLoaded", () => {
     ws.onopen=()=>{ setStatus("Connected, authorizing..."); ws.send(JSON.stringify({ authorize: token })); };
     ws.onclose=()=>{ setStatus("Disconnected"); logHistory("WS closed"); };
     ws.onerror=e=>{ logHistory("WS error "+JSON.stringify(e)); };
-
     ws.onmessage=msg=>{
       const data=JSON.parse(msg.data);
 
-      // Log complet pour voir toutes les réponses du serveur
-      console.log("WS message:", data);
-      logHistory("WS msg: " + JSON.stringify(data));
-
-      // Autorisation
       if(data.msg_type==="authorize"){
         if(!data.authorize?.loginid){ setStatus("Simulation Mode (Token invalid)"); logHistory("Token not authorized"); return; }
         authorized=true; setStatus(`Connected: ${data.authorize.loginid}`); logHistory("Authorized: "+data.authorize.loginid);
@@ -285,18 +292,11 @@ document.addEventListener("DOMContentLoaded", () => {
         volatilitySymbols.forEach(sym=>subscribeTicks(sym));
       }
 
-      // Balance
-      if(data.msg_type==="balance" && data.balance){
-        const bal=parseFloat(data.balance.balance||0).toFixed(2); 
-        const cur=data.balance.currency||"USD"; 
-        userBalance.textContent=`Balance: ${bal} ${cur}`; 
-        logHistory(`Balance updated: ${bal} ${cur}`);
-      }
+      if(data.msg_type==="balance"&&data.balance){ const bal=parseFloat(data.balance.balance||0).toFixed(2); const cur=data.balance.currency||"USD"; userBalance.textContent=`Balance: ${bal} ${cur}`; logHistory(`Balance updated: ${bal} ${cur}`); }
 
-      // Tick
-      if(data.msg_type==="tick" && data.tick) handleTick(data.tick);
+      if(data.msg_type==="tick"&&data.tick) handleTick(data.tick);
 
-      // Trade confirmation
+      // réception TP/SL et entry depuis serveur
       if(data.msg_type==="proposal_open_contract" && data.proposal_open_contract){
         const poc=data.proposal_open_contract;
         const trade=trades.find(t=>t.id.startsWith("sim") && t.entry===null);
