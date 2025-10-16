@@ -15,6 +15,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const closeBtn = document.getElementById("closeBtn");
   const historyList = document.getElementById("historyList");
   const stakeInput = document.getElementById("stake");
+  const tp = document.getElementById("tp");
+  const sl = document.getElementById("sl");
   const multiplierInput = document.getElementById("multiplier");
   const pnlDisplay = document.getElementById("pnl");
 
@@ -226,9 +228,9 @@ document.addEventListener("DOMContentLoaded", () => {
           symbol: currentSymbol,
           currency: "USD",
           basis: "stake",
-          amount: stake.toFixed(2),
+          amount: stake.ToFixed(2),
           multiplier: multiplier,
-          limit_order: { "stop_loss": sl.toFixed(2), "take_profit": tp.toFixed(2) } 
+          limit_order: { "stop_loss": sl.toFixed(2), "take_profit": tp.ToFixed(2) } 
         }
       };
       ws.send(JSON.stringify(payload));
