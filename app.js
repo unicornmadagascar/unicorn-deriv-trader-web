@@ -1,6 +1,4 @@
-// app.js - Unicorn Madagascar (corrected)
-// Requires your index.html with gaugeDashboard, chartInner, etc.
-
+// app.js - Unicorn Madagascar (Connect rectifié / simulation fallback)
 document.addEventListener("DOMContentLoaded", () => {
   const APP_ID = 105747;
   const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
@@ -25,6 +23,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // state
   let ws = null;
   let authorized = false;
+  let simulationMode = false;
   let currentSymbol = null;
   const lastPrices = {};
   let chartData = [];
@@ -34,6 +33,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let gaugeSmoothers = { volatility: 0, rsi: 0, emaProb: 0 };
   const SMA_WINDOW = 20;
   const volatilitySymbols = ["BOOM1000","CRASH1000","BOOM900","CRASH900","BOOM600","CRASH600","BOOM500","CRASH500"];
+
+  // simulation interval
+  let simInterval = null;
 
   // tooltip
   const tooltip = document.createElement("div");
@@ -73,7 +75,8 @@ document.addEventListener("DOMContentLoaded", () => {
     trades = [];
     initCanvas();
     initGauges();
-    subscribeTicks(sym);
+    drawGauges();
+    if(!simulationMode) subscribeTicks(sym);
     logHistory(`Selected ${sym}`);
   }
 
@@ -111,7 +114,7 @@ document.addEventListener("DOMContentLoaded", () => {
       else if(c.dataset.gaugeName==="RSI") value=computeRSI();
       else if(c.dataset.gaugeName==="EMA") value=computeEMAProb();
       const key = (c.dataset.gaugeName==="Volatility")?"volatility":(c.dataset.gaugeName==="RSI"?"rsi":"emaProb");
-      gaugeSmoothers[key] = gaugeSmoothers[key]*0.6 + value*0.4; // plus sensible
+      gaugeSmoothers[key] = gaugeSmoothers[key]*0.6 + value*0.4;
       renderGauge(c,gaugeSmoothers[key]);
     });
   }
@@ -142,14 +145,14 @@ document.addEventListener("DOMContentLoaded", () => {
     gctx.fillText(value.toFixed(1)+"%",w/2,h/2+12);
   }
 
-  // compute volatility (plus sensible)
+  // compute indicators
   function computeVolatility(){
     if(chartData.length<2) return 0;
     const lastN = chartData.slice(-SMA_WINDOW);
     const mean = lastN.reduce((a,b)=>a+b,0)/lastN.length;
     const variance = lastN.reduce((a,b)=>a+Math.pow(b-mean,2),0)/lastN.length;
     const relative = (Math.sqrt(variance)/(chartData[chartData.length-1]||1))*100;
-    return Math.min(100,relative*2.5); // plus sensible
+    return Math.min(100,relative*2.5);
   }
 
   function computeRSI(period=14){
@@ -192,15 +195,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const padding=50,w=canvas.width-padding*2,h=canvas.height-padding*2;
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
+    const maxVal=Math.max(...chartData);
+    const minVal=Math.min(...chartData);
+    const range=maxVal-minVal||1;
+
+    // background
     const bg=ctx.createLinearGradient(0,0,0,canvas.height);
     bg.addColorStop(0,"#f9fbff");
     bg.addColorStop(1,"#e9f2ff");
     ctx.fillStyle=bg;
     ctx.fillRect(0,0,canvas.width,canvas.height);
-
-    const maxVal=Math.max(...chartData);
-    const minVal=Math.min(...chartData);
-    const range=maxVal-minVal||1;
 
     // axes
     ctx.strokeStyle="#666"; ctx.lineWidth=1;
@@ -262,7 +266,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const x=padding+(tradeIdx/(len-1))*w;
       const y=canvas.height-padding-((tr.entry-minVal)/range)*h;
 
-      // dotted line
       ctx.setLineDash([6,4]);
       ctx.strokeStyle=tr.type==="BUY"?"rgba(16,185,129,0.9)":"rgba(220,38,38,0.9)";
       ctx.lineWidth=1.2;
@@ -272,7 +275,6 @@ document.addEventListener("DOMContentLoaded", () => {
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // arrow
       ctx.fillStyle=tr.type==="BUY"?"green":"red";
       ctx.beginPath();
       if(tr.type==="BUY"){
@@ -282,14 +284,13 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       ctx.closePath(); ctx.fill();
 
-      // price label
       ctx.fillStyle=tr.type==="BUY"?"green":"red";
       ctx.font="12px Inter, Arial";
       ctx.textAlign="left"; ctx.textBaseline="middle";
       ctx.fillText(formatNum(tr.entry),x+12,y);
     });
 
-    // current tick line & label
+    // current tick line
     const lastPrice=chartData[len-1];
     const yCur=canvas.height-padding-((lastPrice-minVal)/range)*h;
     ctx.strokeStyle="#16a34a"; ctx.lineWidth=1.2;
@@ -329,7 +330,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if(!currentSymbol||chartData.length===0) return;
     const stake=parseFloat(stakeInput.value)||1;
     const multiplier=parseInt(multiplierInput.value)||100;
-    const mode=modeSelect.value;
+    const mode=simulationMode?"simulation":modeSelect.value;
     const entry=chartData[chartData.length-1];
 
     const trade={
@@ -389,31 +390,52 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // websocket
   connectBtn.onclick=()=>{
-    const token=tokenInput.value.trim()||null;
-    ws=new WebSocket(WS_URL);
+    if(ws&&ws.readyState===WebSocket.OPEN){
+      ws.close(); ws=null; setStatus("Disconnected"); return;
+    }
+    const token=tokenInput.value.trim();
+    if(!token){ 
+      simulationMode=true; 
+      setStatus("Simulation Mode (no token)");
+      startSimTicks();
+      connectBtn.textContent="Disconnect Simulation"; 
+      logHistory("Running in simulation mode (no token)"); 
+      return; 
+    }
 
+    ws=new WebSocket(WS_URL);
+    setStatus("Connecting...");
     ws.onopen=()=>{
-      setStatus("Connected to Deriv WebSocket");
-      logHistory("WS open");
-      if(token) ws.send(JSON.stringify({authorize:token}));
+      setStatus("Connected");
+      ws.send(JSON.stringify({authorize:token}));
     };
-    ws.onclose=()=>{ setStatus("Disconnected"); logHistory("WS closed"); };
-    ws.onerror=(e)=>{ logHistory("WS error "+JSON.stringify(e)); };
+    ws.onclose=()=>{
+      setStatus("Disconnected"); logHistory("WS closed"); stopSimTicks();
+    };
+    ws.onerror=(e)=>{ logHistory("WS error "+JSON.stringify(e)); stopSimTicks(); };
     ws.onmessage=(msg)=>{
       const data=JSON.parse(msg.data);
       if(data.msg_type==="authorize"){
         authorized=data.authorize?.client_id?true:false;
-        logHistory("Authorized: "+authorized);
-        if(authorized) ws.send(JSON.stringify({balance:"USD"}));
+        if(!authorized){
+          logHistory("Token not authorized — switching to simulation mode");
+          simulationMode=true;
+          setStatus("Simulation Mode");
+          startSimTicks();
+        } else {
+          logHistory("Authorized: "+authorized);
+        }
       }
       if(data.msg_type==="balance") userBalance.textContent=formatNum(data.balance?.balance||0);
       if(data.msg_type==="tick") handleTick(data.tick);
       if(data.msg_type==="proposal") handleProposalResponse(data);
       if(data.msg_type==="buy") handleBuyResponse(data);
     };
+    connectBtn.textContent="Disconnect";
   };
 
   function subscribeTicks(symbol){
+    if(simulationMode) return;
     if(!ws||ws.readyState!==WebSocket.OPEN) return;
     ws.send(JSON.stringify({ticks:symbol,subscribe:1}));
   }
@@ -429,10 +451,24 @@ document.addEventListener("DOMContentLoaded", () => {
     updatePnL();
   }
 
+  function startSimTicks(){
+    if(simInterval) clearInterval(simInterval);
+    simInterval=setInterval(()=>{
+      if(!currentSymbol) return;
+      let last=chartData[chartData.length-1]||1000;
+      const change=(Math.random()-0.5)*20;
+      const tick={symbol:currentSymbol,quote:last+change,epoch:Math.floor(Date.now()/1000)};
+      handleTick(tick);
+    },1000);
+  }
+  function stopSimTicks(){ if(simInterval) clearInterval(simInterval); simInterval=null; }
+
   buyBtn.onclick=()=>executeTrade("BUY");
   sellBtn.onclick=()=>executeTrade("SELL");
 
-  window.addEventListener("resize",()=>{ if(canvas){ canvas.width=chartInner.clientWidth; canvas.height=chartInner.clientHeight; drawChart(); } });
+  window.addEventListener("resize",()=>{ 
+    if(canvas){ canvas.width=chartInner.clientWidth; canvas.height=chartInner.clientHeight; drawChart(); } 
+  });
 
   initSymbols();
   initCanvas();
