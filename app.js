@@ -1,4 +1,4 @@
-// app.js - Unicorn Madagascar (demo live ticks) - Mis à jour avec toutes vos requêtes et affichage du tick courant
+// app.js - Unicorn Madagascar (demo live ticks) - Version nettoyée
 
 document.addEventListener("DOMContentLoaded", () => {
   const APP_ID = 105747;
@@ -20,14 +20,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const multiplierInput = document.getElementById("multiplier");
   const modeSelect = document.getElementById("modeSelect");
   const pnlDisplay = document.getElementById("pnl");
-
-  // Nouveau : affichage prix courant
-  const currentPriceDisplay = document.createElement("div");
-  currentPriceDisplay.id = "currentPrice";
-  currentPriceDisplay.style.fontWeight = "bold";
-  currentPriceDisplay.style.marginTop = "5px";
-  currentPriceDisplay.textContent = "Current Price: --";
-  userBalance.parentNode.insertBefore(currentPriceDisplay, userBalance.nextSibling);
 
   let ws = null;
   let authorized = false;
@@ -80,7 +72,7 @@ document.addEventListener("DOMContentLoaded", () => {
     trades = [];
     initCanvas();
     initGauges();
-    subscribeTicks(sym); // Souscrire aux ticks dès sélection
+    subscribeTicks(sym);
     logHistory(`Selected ${sym}`);
   }
 
@@ -180,14 +172,13 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // chart
- // Dans la fonction drawChart(), on ajoute/modifie pour afficher PNL et prix d'entrée trade
-function drawChart(){
+  function drawChart(){
     if(!ctx||chartData.length===0) return;
     const padding=50;
     const w=canvas.width-padding*2;
     const h=canvas.height-padding*2;
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    const maxVal=Math.max(...chartData, ...trades.map(t=>t.entry)); // inclure les trades
+    const maxVal=Math.max(...chartData, ...trades.map(t=>t.entry));
     const minVal=Math.min(...chartData, ...trades.map(t=>t.entry));
     const range=maxVal-minVal||1;
 
@@ -284,7 +275,7 @@ function drawChart(){
       // point vert sur la ligne
       ctx.beginPath(); ctx.arc(canvas.width-padding,yCur,4,0,Math.PI*2); ctx.fill();
     }
-}
+  }
 
   function canvasMouseMove(e){
     if(!canvas||chartData.length===0) return;
@@ -346,11 +337,6 @@ function drawChart(){
     const symbol=tick.symbol;
     lastPrices[symbol]=p;
 
-    // ✅ mise à jour du prix courant
-    if(symbol === currentSymbol && currentPriceDisplay){
-        currentPriceDisplay.textContent = `Current Price: ${formatNum(p)}`;
-    }
-
     if(symbol===currentSymbol){
       chartData.push(p);
       chartTimes.push(tick.epoch);
@@ -387,7 +373,7 @@ function drawChart(){
         // demander solde
         ws.send(JSON.stringify({ balance:1, subscribe:1 }));
 
-        // souscrire à tous les symboles pour que la liste de symboles affiche prix
+        // souscrire à tous les symboles pour afficher prix
         volatilitySymbols.forEach(sym => subscribeTicks(sym));
       }
       if(data.msg_type==="balance" && data.balance){
