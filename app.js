@@ -15,9 +15,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const closeBtn = document.getElementById("closeBtn");
   const historyList = document.getElementById("historyList");
   const stakeInput = document.getElementById("stake");
-  const tp = document.getElementById("tp");
-  const sl = document.getElementById("sl");
-  const stake = document.getElementById("stake");
   const multiplierInput = document.getElementById("multiplier");
   const pnlDisplay = document.getElementById("pnl");
 
@@ -34,6 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
   tooltip.style.cssText = "position:fixed;padding:6px 10px;background:rgba(0,0,0,0.85);color:#fff;font-size:12px;border-radius:6px;pointer-events:none;display:none;z-index:9999";
   document.body.appendChild(tooltip);
 
+  // helpers
   function logHistory(txt){
     const d=document.createElement("div");
     d.textContent = `${new Date().toLocaleTimeString()} — ${txt}`;
@@ -145,7 +143,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return res;
   }
 
-  // Chart drawing (sans TP/SL manuel)
+  // Chart drawing
   function drawChart(){
     if(!ctx||chartData.length===0) return;
     const padding=50; const w=canvas.width-padding*2; const h=canvas.height-padding*2;
@@ -187,7 +185,7 @@ document.addEventListener("DOMContentLoaded", () => {
     trades.forEach(tr=>{
       if(tr.symbol!==currentSymbol) return;
       const x=padding+((len-1)/(len-1))*w;
-      const yEntry=canvas.height-padding-((tr.entry-minVal)/range)*h;
+      const yEntry=canvas.height-padding-((tr.entry||0-minVal)/range)*h;
 
       ctx.setLineDash([6,4]); ctx.strokeStyle="rgba(220,38,38,0.9)"; ctx.lineWidth=1.2;
       ctx.beginPath(); ctx.moveTo(padding,yEntry); ctx.lineTo(canvas.width-padding,yEntry); ctx.stroke(); ctx.setLineDash([]);
@@ -208,15 +206,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const padding=50; const w=canvas.width-padding*2; const len=chartData.length;
     let idx=Math.round((mouseX-padding)/w*(len-1)); idx=Math.max(0,Math.min(idx,len-1));
     const price=chartData[idx]; const time=chartTimes[idx]?new Date(chartTimes[idx]*1000).toLocaleTimeString().slice(0,8):"";
-    let tradesHtml=""; trades.forEach(tr=>{ if(tr.symbol!==currentSymbol) return; tradesHtml+=`<div style="color:${tr.type==="BUY"?"#0ea5a4":"#ef4444"}">${tr.type} @ ${formatNum(tr.entry)} stake:${tr.stake} mult:${tr.multiplier}</div>`; });
+    let tradesHtml=""; trades.forEach(tr=>{ if(tr.symbol!==currentSymbol) return; tradesHtml+=`<div style="color:${tr.type==="BUY"?"#0ea5a4":"#ef4444"}">${tr.type} @ ${formatNum(tr.entry||0)} stake:${tr.stake} mult:${tr.multiplier}</div>`; });
     tooltip.style.display="block"; tooltip.style.left=(e.clientX+12)+"px"; tooltip.style.top=(e.clientY-36)+"px"; tooltip.innerHTML=`<div><strong>${currentSymbol}</strong></div><div>Price: ${formatNum(price)}</div><div>Time: ${time}</div>${tradesHtml}`;
   }
 
   function executeTrade(type){
     const stake=parseFloat(stakeInput.value)||1;
     const multiplier=parseInt(multiplierInput.value)||300;
-    const tp = 150;
-    const sl = 130;
 
     const trade={ symbol:currentSymbol,type,stake,multiplier,entry:null,tp:null,sl:null,timestamp:Date.now(),id:`sim-${Date.now()}-${Math.random().toString(36).slice(2,8)}` };
     trades.push(trade);
@@ -232,8 +228,7 @@ document.addEventListener("DOMContentLoaded", () => {
           currency: "USD",
           basis: "stake",
           amount: stake.toFixed(2),
-          multiplier: multiplier,
-          limit_order: { "stop_loss": sl, "take_profit": tp } 
+          multiplier: multiplier
         }
       };
       ws.send(JSON.stringify(payload));
@@ -274,8 +269,15 @@ document.addEventListener("DOMContentLoaded", () => {
     ws.onopen=()=>{ setStatus("Connected, authorizing..."); ws.send(JSON.stringify({ authorize: token })); };
     ws.onclose=()=>{ setStatus("Disconnected"); logHistory("WS closed"); };
     ws.onerror=e=>{ logHistory("WS error "+JSON.stringify(e)); };
+
     ws.onmessage=msg=>{
       const data=JSON.parse(msg.data);
+
+      // Log complet pour voir toutes les réponses du serveur
+      console.log("WS message:", data);
+      logHistory("WS msg: " + JSON.stringify(data));
+
+      // Autorisation
       if(data.msg_type==="authorize"){
         if(!data.authorize?.loginid){ setStatus("Simulation Mode (Token invalid)"); logHistory("Token not authorized"); return; }
         authorized=true; setStatus(`Connected: ${data.authorize.loginid}`); logHistory("Authorized: "+data.authorize.loginid);
@@ -283,13 +285,18 @@ document.addEventListener("DOMContentLoaded", () => {
         volatilitySymbols.forEach(sym=>subscribeTicks(sym));
       }
 
-      // update balance
-      if(data.msg_type==="balance"&&data.balance){ const bal=parseFloat(data.balance.balance||0).toFixed(2); const cur=data.balance.currency||"USD"; userBalance.textContent=`Balance: ${bal} ${cur}`; logHistory(`Balance updated: ${bal} ${cur}`); }
+      // Balance
+      if(data.msg_type==="balance" && data.balance){
+        const bal=parseFloat(data.balance.balance||0).toFixed(2); 
+        const cur=data.balance.currency||"USD"; 
+        userBalance.textContent=`Balance: ${bal} ${cur}`; 
+        logHistory(`Balance updated: ${bal} ${cur}`);
+      }
 
-      // tick update
-      if(data.msg_type==="tick"&&data.tick) handleTick(data.tick);
+      // Tick
+      if(data.msg_type==="tick" && data.tick) handleTick(data.tick);
 
-      // check for trade confirmation (server returns entry, tp, sl)
+      // Trade confirmation
       if(data.msg_type==="proposal_open_contract" && data.proposal_open_contract){
         const poc=data.proposal_open_contract;
         const trade=trades.find(t=>t.id.startsWith("sim") && t.entry===null);
