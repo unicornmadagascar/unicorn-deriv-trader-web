@@ -215,8 +215,8 @@ document.addEventListener("DOMContentLoaded", () => {
   function executeTrade(type){
     const stake=parseFloat(stakeInput.value)||1;
     const multiplier=parseInt(multiplierInput.value)||300;
-    const tp = parseInt(tp.value)||1;
-    const sl = parseInt(sl.value)||1;
+    const tp = parseFloat(tp.value)||1;
+    const sl = parseFloat(sl.value)||1;
 
     const trade={ symbol:currentSymbol,type,stake,multiplier,entry:null,tp:null,sl:null,timestamp:Date.now(),id:`sim-${Date.now()}-${Math.random().toString(36).slice(2,8)}` };
     trades.push(trade);
