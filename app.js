@@ -23,18 +23,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const volatilitySymbols = ["BOOM1000","BOOM900","BOOM600","BOOM500","BOOM300","CRASH1000","CRASH900","CRASH600","CRASH500"];
 
-  // --- Tooltip ---
-  const tooltip = document.createElement("div");
-  tooltip.style.position = "absolute";
-  tooltip.style.padding = "6px 10px";
-  tooltip.style.background = "rgba(0,0,0,0.8)";
-  tooltip.style.color = "#fff";
-  tooltip.style.fontSize = "12px";
-  tooltip.style.borderRadius = "4px";
-  tooltip.style.pointerEvents = "none";
-  tooltip.style.display = "none";
-  chartInner.appendChild(tooltip);
-
   function initSymbols() {
     symbolList.innerHTML = "";
     volatilitySymbols.forEach(sym => {
@@ -65,9 +53,6 @@ document.addEventListener("DOMContentLoaded", () => {
     canvas.height = chartInner.clientHeight;
     chartInner.appendChild(canvas);
     ctx = canvas.getContext("2d");
-
-    canvas.addEventListener("mousemove", handleMouseMove);
-    canvas.addEventListener("mouseleave", () => tooltip.style.display = "none");
   }
 
   function drawChart() {
@@ -120,7 +105,7 @@ document.addEventListener("DOMContentLoaded", () => {
       ctx.fillText(chartTimes[i] ? new Date(chartTimes[i] * 1000).toLocaleTimeString().slice(0, 8) : "", x, canvas.height - padding + 5);
     }
 
-    // Price line
+    // Price line chart
     ctx.beginPath();
     chartData.forEach((val, i) => {
       const x = padding + (i / (len - 1)) * w;
@@ -132,10 +117,10 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Trades
+    // Draw trades
     trades.forEach(tr => {
       if (tr.symbol !== currentSymbol) return;
-      const x = padding + ((chartData.length - 1) / (len - 1)) * w;
+      const lastX = padding + ((chartData.length - 1) / (len - 1)) * w;
       const y = canvas.height - padding - ((tr.entry - minVal) / range) * h;
 
       // Dotted line
@@ -151,13 +136,13 @@ document.addEventListener("DOMContentLoaded", () => {
       ctx.fillStyle = "red";
       ctx.beginPath();
       if (tr.type === "BUY") {
-        ctx.moveTo(x, y - 10);
-        ctx.lineTo(x - 6, y);
-        ctx.lineTo(x + 6, y);
+        ctx.moveTo(lastX, y - 10);
+        ctx.lineTo(lastX - 6, y);
+        ctx.lineTo(lastX + 6, y);
       } else {
-        ctx.moveTo(x, y + 10);
-        ctx.lineTo(x - 6, y);
-        ctx.lineTo(x + 6, y);
+        ctx.moveTo(lastX, y + 10);
+        ctx.lineTo(lastX - 6, y);
+        ctx.lineTo(lastX + 6, y);
       }
       ctx.closePath();
       ctx.fill();
@@ -167,7 +152,7 @@ document.addEventListener("DOMContentLoaded", () => {
       ctx.font = "12px Arial";
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
-      ctx.fillText(tr.entry.toFixed(2), x + 10, y);
+      ctx.fillText(tr.entry.toFixed(2), lastX + 10, y);
     });
 
     // Current tick
@@ -180,6 +165,7 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.lineTo(canvas.width - padding, yCur);
     ctx.stroke();
 
+    // Current price label
     ctx.fillStyle = "green";
     ctx.font = "12px Arial";
     ctx.textAlign = "right";
@@ -187,52 +173,26 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.fillText(currentPrice.toFixed(2), canvas.width - padding, yCur - 10);
   }
 
-  function handleMouseMove(e) {
-    if (!canvas || chartData.length === 0) return;
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const padding = 50;
-    const w = canvas.width - padding * 2;
-    const len = chartData.length;
-
-    let nearestIndex = Math.round((mouseX - padding) / w * (len - 1));
-    nearestIndex = Math.max(0, Math.min(nearestIndex, len - 1));
-
-    const price = chartData[nearestIndex];
-    const time = chartTimes[nearestIndex] ? new Date(chartTimes[nearestIndex] * 1000).toLocaleTimeString().slice(0, 8) : "";
-
-    // Tooltip text
-    let text = `Price: ${price.toFixed(2)}\nTime: ${time}`;
-    trades.forEach(tr => {
-      if (tr.symbol !== currentSymbol) return;
-      text += `\n${tr.type} @ ${tr.entry.toFixed(2)} stake:${tr.stake} mult:${tr.multiplier}`;
-    });
-
-    tooltip.style.display = "block";
-    tooltip.style.left = (e.clientX + 15) + "px";
-    tooltip.style.top = (e.clientY - 30) + "px";
-    tooltip.innerHTML = text.replace(/\n/g, "<br>");
-  }
-
   function executeTrade(type) {
-    if (!currentSymbol || chartData.length === 0) return;
-    const stake = parseFloat(stakeInput.value) || 1;
-    const multiplier = parseInt(multiplierInput.value) || 100;
-    const mode = modeSelect.value;
+    if(!currentSymbol || chartData.length===0) return;
+    const stake=parseFloat(stakeInput.value)||1;
+    const multiplier=parseInt(multiplierInput.value)||100;
+    const mode=modeSelect.value;
     const entry = chartData[chartData.length - 1];
 
-    const trade = {symbol: currentSymbol, type, stake, multiplier, entry, timestamp: Date.now()};
+    const trade = {symbol:currentSymbol,type,stake,multiplier,entry,timestamp:Date.now()};
     trades.push(trade);
     logHistory(`${type} ${currentSymbol} @ ${entry.toFixed(2)} stake:${stake} mult:${multiplier}`);
 
-    if (mode === "simulation") {
+    if(mode==="simulation"){
       updatePnL();
-    } else if (mode === "live" && ws && authorized) {
+    } else if(mode==="live" && ws && authorized){
+      // Use proposal_open_contract workflow
       const proposalReq = {
         proposal: 1,
         amount: stake,
         basis: "stake",
-        contract_type: type === "BUY" ? "CALL" : "PUT",
+        contract_type: type==="BUY"?"CALL":"PUT",
         currency: "USD",
         symbol: currentSymbol,
         duration: 60,
@@ -243,53 +203,59 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function updatePnL() {
-    let pnl = 0;
+  function updatePnL(){
+    let pnl=0;
     const currentPrice = chartData[chartData.length - 1];
-    trades.forEach(tr => {
-      pnl += tr.type === "BUY" ? (currentPrice - tr.entry) * tr.stake : (tr.entry - currentPrice) * tr.stake;
+    trades.forEach(tr=>{
+      pnl += tr.type==="BUY"? (currentPrice-tr.entry)*tr.stake : (tr.entry-currentPrice)*tr.stake;
     });
-    pnlDisplay.textContent = "PnL: " + pnl.toFixed(2);
+    pnlDisplay.textContent="PnL: "+pnl.toFixed(2);
   }
 
   buyBtn.onclick = () => executeTrade("BUY");
   sellBtn.onclick = () => executeTrade("SELL");
-  closeBtn.onclick = () => { trades = []; updatePnL(); logHistory("Closed all trades"); }
+  closeBtn.onclick = () => { trades=[]; updatePnL(); logHistory("Closed all trades"); }
 
   connectBtn.onclick = () => {
     const token = tokenInput.value.trim() || null;
     ws = new WebSocket(WS_URL);
-    ws.onopen = () => { setStatus("Connected to Deriv WebSocket"); if (token) authorize(token); else initSymbols(); };
+    ws.onopen = () => { setStatus("Connected to Deriv WebSocket"); if(token) authorize(token); else initSymbols(); };
     ws.onmessage = msg => handleMessage(JSON.parse(msg.data));
     ws.onclose = () => setStatus("WebSocket disconnected");
     ws.onerror = () => setStatus("WebSocket error");
   };
 
-  function handleMessage(data) {
-    if (data.msg_type === "authorize") {
-      if (data.error) { logHistory("❌ Invalid token"); setStatus("Simulation mode"); return; }
+  function handleMessage(data){
+    if(data.msg_type==="authorize"){
+      if(data.error){ logHistory("❌ Invalid token"); setStatus("Simulation mode"); return; }
       authorized = true; setStatus(`Authorized: ${data.authorize.loginid}`); getBalance();
     }
-    if (data.msg_type === "balance" && data.balance?.balance != null)
-      userBalance.textContent = `Balance: ${parseFloat(data.balance.balance).toFixed(2)} USD`;
-    if (data.msg_type === "tick" && data.tick?.symbol) {
+    if(data.msg_type==="balance" && data.balance?.balance!=null)
+      userBalance.textContent=`Balance: ${parseFloat(data.balance.balance).toFixed(2)} USD`;
+    if(data.msg_type==="tick" && data.tick?.symbol){
       const tick = data.tick, symbol = tick.symbol, price = Number(tick.quote);
-      if (symbol === currentSymbol) {
+      if(symbol === currentSymbol){
         chartData.push(price); chartTimes.push(tick.epoch);
-        if (chartData.length > 300) { chartData.shift(); chartTimes.shift(); }
+        if(chartData.length>300){ chartData.shift(); chartTimes.shift(); }
         drawChart(); updatePnL();
       }
       lastPrices[symbol] = price;
     }
   }
 
-  function authorize(token) { ws.send(JSON.stringify({ authorize: token })); }
-  function getBalance() { ws.send(JSON.stringify({ balance: 1, subscribe: 1 })); }
-  function subscribeTicks(symbol) { if (!ws || ws.readyState !== WebSocket.OPEN) return; ws.send(JSON.stringify({ ticks: symbol, subscribe: 1 })); }
-  function logHistory(txt) { const div = document.createElement("div"); div.textContent = `${new Date().toLocaleTimeString()} — ${txt}`; historyList.prepend(div); }
-  function setStatus(txt) { statusSpan.textContent = txt; }
+  function authorize(token){ ws.send(JSON.stringify({ authorize: token })); }
+  function getBalance(){ ws.send(JSON.stringify({ balance:1, subscribe:1 })); }
+  function subscribeTicks(symbol){ if(!ws || ws.readyState!==WebSocket.OPEN) return; ws.send(JSON.stringify({ ticks:symbol, subscribe:1 })); }
 
+  function logHistory(txt){ 
+    const div=document.createElement("div");
+    div.textContent=`${new Date().toLocaleTimeString()} — ${txt}`;
+    historyList.prepend(div);
+  }
+
+  function setStatus(txt){ statusSpan.textContent=txt; }
   setStatus("Ready. Connect and select a symbol.");
   initSymbols();
-  setInterval(() => { if (chartData.length > 0) drawChart(); }, 500);
+
+  setInterval(()=>{ if(chartData.length>0){ drawChart(); updatePnL(); } },500);
 });
