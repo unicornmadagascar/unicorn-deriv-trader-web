@@ -13,13 +13,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const closeBtn = document.getElementById("closeBtn");
   const historyList = document.getElementById("historyList");
   const stakeInput = document.getElementById("stake");
-  const multiplierInput = document.getElementById("multiplier");
+  const multiplierInput = document.getElementById("timeframe");
   const modeSelect = document.getElementById("modeSelect");
   const pnlDisplay = document.getElementById("pnl");
 
-  let ws = null, currentSymbol = null, lastPrices = {}, chartData = [], chartTimes = [];
-  let canvas, ctx, authorized = false;
-  let trades = [];
+  let ws = null, currentSymbol = null, lastPrices = {};
+  let chartData = [], chartTimes = [], trades = [];
+  let chart, areaSeries, authorized = false;
 
   const volatilitySymbols = ["BOOM1000","BOOM900","BOOM600","BOOM500","BOOM300","CRASH1000","CRASH900","CRASH600","CRASH500"];
 
@@ -52,166 +52,65 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll(".symbolItem").forEach(el => el.classList.remove("active"));
     const sel = document.getElementById(`symbol-${symbol}`);
     if (sel) sel.classList.add("active");
+
     chartData = [];
     chartTimes = [];
-    initCanvas();
+    initChart();
     subscribeTicks(symbol);
   }
 
-  function initCanvas() {
+  function initChart() {
     chartInner.innerHTML = "";
-    canvas = document.createElement("canvas");
-    canvas.width = chartInner.clientWidth;
-    canvas.height = chartInner.clientHeight;
-    chartInner.appendChild(canvas);
-    ctx = canvas.getContext("2d");
+    chart = LightweightCharts.createChart(chartInner, {
+      width: chartInner.clientWidth,
+      height: chartInner.clientHeight,
+      layout: { backgroundColor: 'var(--bg-panel)', textColor: 'var(--text-main)' },
+      rightPriceScale: { borderVisible: false },
+      timeScale: { borderVisible: false },
+    });
 
-    canvas.addEventListener("mousemove", handleMouseMove);
-    canvas.addEventListener("mouseleave", () => tooltip.style.display = "none");
+    areaSeries = chart.addAreaSeries({
+      topColor: 'rgba(3, 168, 244, 0.5)',
+      bottomColor: 'rgba(3, 168, 244, 0)',
+      lineColor: '#03A8F4',
+      lineWidth: 2,
+    });
+
+    chart.subscribeCrosshairMove((param) => {
+      if (!param || !param.time) { tooltip.style.display = "none"; return; }
+      const price = param.seriesData.get(areaSeries);
+      if (!price) return;
+
+      let text = `Price: ${price.toFixed(2)}`;
+      trades.forEach(tr => {
+        if (tr.symbol !== currentSymbol) return;
+        text += `\n${tr.type} @ ${tr.entry.toFixed(2)} stake:${tr.stake} mult:${tr.multiplier}`;
+      });
+
+      tooltip.style.display = "block";
+      tooltip.style.left = (param.point.x + 15) + "px";
+      tooltip.style.top = (param.point.y - 30) + "px";
+      tooltip.innerHTML = text.replace(/\n/g, "<br>");
+    });
   }
 
-  function drawChart() {
-    if (!ctx || chartData.length === 0) return;
-    const padding = 50;
-    const w = canvas.width - padding * 2;
-    const h = canvas.height - padding * 2;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  function updateChart() {
+    if (!areaSeries) return;
+    const data = chartData.map((price, idx) => ({ time: chartTimes[idx], value: price }));
+    areaSeries.setData(data);
 
-    const maxVal = Math.max(...chartData);
-    const minVal = Math.min(...chartData);
-    const range = maxVal - minVal || 1;
-
-    // Axes
-    ctx.strokeStyle = "#444";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(padding, padding);
-    ctx.lineTo(padding, canvas.height - padding);
-    ctx.lineTo(canvas.width - padding, canvas.height - padding);
-    ctx.stroke();
-
-    // Grid Y labels
-    ctx.strokeStyle = "#ddd";
-    ctx.lineWidth = 0.8;
-    ctx.fillStyle = "#555";
-    ctx.font = "12px Arial";
-    ctx.textAlign = "right";
-    ctx.textBaseline = "middle";
-    for (let i = 0; i <= 5; i++) {
-      const y = canvas.height - padding - (i / 5) * h;
-      ctx.beginPath();
-      ctx.moveTo(padding, y);
-      ctx.lineTo(canvas.width - padding, y);
-      ctx.stroke();
-      ctx.fillText((minVal + (i / 5) * range).toFixed(2), padding - 10, y);
-    }
-
-    // Grid X labels
-    const len = chartData.length;
-    const stepX = Math.ceil(len / 5);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    for (let i = 0; i < len; i += stepX) {
-      const x = padding + (i / (len - 1)) * w;
-      ctx.beginPath();
-      ctx.moveTo(x, padding);
-      ctx.lineTo(x, canvas.height - padding);
-      ctx.stroke();
-      ctx.fillText(chartTimes[i] ? new Date(chartTimes[i] * 1000).toLocaleTimeString().slice(0, 8) : "", x, canvas.height - padding + 5);
-    }
-
-    // Price line
-    ctx.beginPath();
-    chartData.forEach((val, i) => {
-      const x = padding + (i / (len - 1)) * w;
-      const y = canvas.height - padding - ((val - minVal) / range) * h;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.strokeStyle = "#007bff";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    // Trades
+    // Draw trade markers
     trades.forEach(tr => {
       if (tr.symbol !== currentSymbol) return;
-      const x = padding + ((chartData.length - 1) / (len - 1)) * w;
-      const y = canvas.height - padding - ((tr.entry - minVal) / range) * h;
-
-      // Dotted line
-      ctx.setLineDash([5, 5]);
-      ctx.strokeStyle = "red";
-      ctx.beginPath();
-      ctx.moveTo(padding, y);
-      ctx.lineTo(canvas.width - padding, y);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // Arrow
-      ctx.fillStyle = "red";
-      ctx.beginPath();
-      if (tr.type === "BUY") {
-        ctx.moveTo(x, y - 10);
-        ctx.lineTo(x - 6, y);
-        ctx.lineTo(x + 6, y);
-      } else {
-        ctx.moveTo(x, y + 10);
-        ctx.lineTo(x - 6, y);
-        ctx.lineTo(x + 6, y);
-      }
-      ctx.closePath();
-      ctx.fill();
-
-      // Price label
-      ctx.fillStyle = "red";
-      ctx.font = "12px Arial";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      ctx.fillText(tr.entry.toFixed(2), x + 10, y);
+      const marker = {
+        time: chartTimes[chartTimes.length - 1],
+        position: tr.type === "BUY" ? "aboveBar" : "belowBar",
+        color: "red",
+        shape: "arrowDown",
+        text: tr.entry.toFixed(2)
+      };
+      areaSeries.setMarkers([marker]);
     });
-
-    // Current tick
-    const currentPrice = chartData[len - 1];
-    const yCur = canvas.height - padding - ((currentPrice - minVal) / range) * h;
-    ctx.strokeStyle = "green";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(padding, yCur);
-    ctx.lineTo(canvas.width - padding, yCur);
-    ctx.stroke();
-
-    ctx.fillStyle = "green";
-    ctx.font = "12px Arial";
-    ctx.textAlign = "right";
-    ctx.textBaseline = "middle";
-    ctx.fillText(currentPrice.toFixed(2), canvas.width - padding, yCur - 10);
-  }
-
-  function handleMouseMove(e) {
-    if (!canvas || chartData.length === 0) return;
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const padding = 50;
-    const w = canvas.width - padding * 2;
-    const len = chartData.length;
-
-    let nearestIndex = Math.round((mouseX - padding) / w * (len - 1));
-    nearestIndex = Math.max(0, Math.min(nearestIndex, len - 1));
-
-    const price = chartData[nearestIndex];
-    const time = chartTimes[nearestIndex] ? new Date(chartTimes[nearestIndex] * 1000).toLocaleTimeString().slice(0, 8) : "";
-
-    // Tooltip text
-    let text = `Price: ${price.toFixed(2)}\nTime: ${time}`;
-    trades.forEach(tr => {
-      if (tr.symbol !== currentSymbol) return;
-      text += `\n${tr.type} @ ${tr.entry.toFixed(2)} stake:${tr.stake} mult:${tr.multiplier}`;
-    });
-
-    tooltip.style.display = "block";
-    tooltip.style.left = (e.clientX + 15) + "px";
-    tooltip.style.top = (e.clientY - 30) + "px";
-    tooltip.innerHTML = text.replace(/\n/g, "<br>");
   }
 
   function executeTrade(type) {
@@ -224,10 +123,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const trade = {symbol: currentSymbol, type, stake, multiplier, entry, timestamp: Date.now()};
     trades.push(trade);
     logHistory(`${type} ${currentSymbol} @ ${entry.toFixed(2)} stake:${stake} mult:${multiplier}`);
+    updatePnL();
+    updateChart();
 
-    if (mode === "simulation") {
-      updatePnL();
-    } else if (mode === "live" && ws && authorized) {
+    if (mode === "live" && ws && authorized) {
       const proposalReq = {
         proposal: 1,
         amount: stake,
@@ -254,7 +153,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   buyBtn.onclick = () => executeTrade("BUY");
   sellBtn.onclick = () => executeTrade("SELL");
-  closeBtn.onclick = () => { trades = []; updatePnL(); logHistory("Closed all trades"); }
+  closeBtn.onclick = () => { trades = []; updatePnL(); updateChart(); logHistory("Closed all trades"); }
 
   connectBtn.onclick = () => {
     const token = tokenInput.value.trim() || null;
@@ -277,7 +176,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (symbol === currentSymbol) {
         chartData.push(price); chartTimes.push(tick.epoch);
         if (chartData.length > 300) { chartData.shift(); chartTimes.shift(); }
-        drawChart(); updatePnL();
+        updateChart(); updatePnL();
       }
       lastPrices[symbol] = price;
     }
@@ -291,5 +190,4 @@ document.addEventListener("DOMContentLoaded", () => {
 
   setStatus("Ready. Connect and select a symbol.");
   initSymbols();
-  setInterval(() => { if (chartData.length > 0) drawChart(); }, 500);
 });
