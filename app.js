@@ -17,6 +17,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const stakeInput = document.getElementById("stake");
   const tp = document.getElementById("tp");
   const sl = document.getElementById("sl");
+  const stake = document.getElementById("stake");
   const multiplierInput = document.getElementById("multiplier");
   const pnlDisplay = document.getElementById("pnl");
 
@@ -212,7 +213,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function executeTrade(type){
-    const stake=parseFloat(stakeInput.value)||1;
+    //const stake=parseFloat(stakeInput.value)||1;
     const multiplier=parseInt(multiplierInput.value)||300;
 
     const trade={ symbol:currentSymbol,type,stake,multiplier,entry:null,tp:null,sl:null,timestamp:Date.now(),id:`sim-${Date.now()}-${Math.random().toString(36).slice(2,8)}` };
