@@ -104,7 +104,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Chart drawing (area with blue gradient; no smoothing)
   function drawChart() {
     if (!ctx || chartData.length === 0) return;
-    const padding = 50;
+    const padding = 100;
     const w = canvas.width - padding * 2;
     const h = canvas.height - padding * 2;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
