@@ -1,4 +1,4 @@
-// app.js - Unicorn Madagascar (demo live ticks)
+// app.js - Unicorn Madagascar (demo live ticks) - Mis à jour avec toutes vos requêtes
 
 document.addEventListener("DOMContentLoaded", () => {
   const APP_ID = 105747;
@@ -72,7 +72,7 @@ document.addEventListener("DOMContentLoaded", () => {
     trades = [];
     initCanvas();
     initGauges();
-    subscribeTicks(sym);
+    subscribeTicks(sym); // Souscrire aux ticks dès sélection
     logHistory(`Selected ${sym}`);
   }
 
@@ -110,7 +110,7 @@ document.addEventListener("DOMContentLoaded", () => {
       else if(c.dataset.gaugeName==="RSI") value=computeRSI();
       else if(c.dataset.gaugeName==="EMA") value=computeEMAProb();
       const key = c.dataset.gaugeName==="Volatility"?"volatility":c.dataset.gaugeName==="RSI"?"rsi":"emaProb";
-      gaugeSmoothers[key] = gaugeSmoothers[key]*0.8 + value*0.2; // plus sensible
+      gaugeSmoothers[key] = gaugeSmoothers[key]*0.7 + value*0.3; // un peu plus sensible
       renderGauge(c, gaugeSmoothers[key]);
     });
   }
@@ -123,21 +123,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     gctx.beginPath();
     gctx.arc(w/2,h/2,radius,0,2*Math.PI);
-    gctx.strokeStyle="#eee";
-    gctx.lineWidth=12;
-    gctx.stroke();
+    gctx.strokeStyle="#eee"; gctx.lineWidth=12; gctx.stroke();
 
     const end=(-Math.PI/2)+(Math.max(0,Math.min(100,value))/100)*2*Math.PI;
-    gctx.beginPath();
-    gctx.arc(w/2,h/2,radius,-Math.PI/2,end);
-    gctx.strokeStyle="#2563eb";
-    gctx.lineWidth=12;
-    gctx.stroke();
+    gctx.beginPath(); gctx.arc(w/2,h/2,radius,-Math.PI/2,end);
+    gctx.strokeStyle="#2563eb"; gctx.lineWidth=12; gctx.stroke();
 
-    gctx.fillStyle="#222";
-    gctx.font="12px Inter, Arial";
-    gctx.textAlign="center";
-    gctx.textBaseline="middle";
+    gctx.fillStyle="#222"; gctx.font="12px Inter, Arial"; gctx.textAlign="center"; gctx.textBaseline="middle";
     gctx.fillText(canvas.dataset.gaugeName, w/2, h/2-12);
     gctx.fillText(value.toFixed(1)+"%", w/2, h/2+12);
   }
@@ -149,7 +141,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const mean = lastN.reduce((a,b)=>a+b,0)/lastN.length;
     const variance = lastN.reduce((a,b)=>a+Math.pow(b-mean,2),0)/lastN.length;
     const relative = (Math.sqrt(variance)/(chartData[chartData.length-1]||1))*100;
-    return Math.min(100, relative*2); // plus sensible
+    return Math.min(100, relative*2);
   }
 
   function computeRSI(period=14){
@@ -178,10 +170,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function emaArray(arr, period){
     const k=2/(period+1);
     let ema=arr[0], res=[ema];
-    for(let i=1;i<arr.length;i++){
-      ema=arr[i]*k + ema*(1-k);
-      res.push(ema);
-    }
+    for(let i=1;i<arr.length;i++){ ema=arr[i]*k + ema*(1-k); res.push(ema); }
     return res;
   }
 
@@ -199,19 +188,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // axes
     ctx.strokeStyle="#666"; ctx.lineWidth=1;
-    ctx.beginPath();
-    ctx.moveTo(padding,padding);
-    ctx.lineTo(padding,canvas.height-padding);
-    ctx.lineTo(canvas.width-padding,canvas.height-padding);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(padding,padding); ctx.lineTo(padding,canvas.height-padding); ctx.lineTo(canvas.width-padding,canvas.height-padding); ctx.stroke();
 
-    // y grid
+    // y grid & labels
     ctx.strokeStyle="#e6eef9"; ctx.fillStyle="#2b3a4a"; ctx.font="12px Inter, Arial"; ctx.textAlign="right"; ctx.textBaseline="middle";
     for(let i=0;i<=5;i++){
       const y=canvas.height-padding-(i/5)*h;
       ctx.beginPath(); ctx.moveTo(padding,y); ctx.lineTo(canvas.width-padding,y); ctx.stroke();
-      const v=minVal+(i/5)*range;
-      ctx.fillText(v.toFixed(2), padding-10, y);
+      const v=minVal+(i/5)*range; ctx.fillText(v.toFixed(2), padding-10, y);
     }
 
     // x labels
@@ -234,8 +218,7 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.lineTo(padding,canvas.height-padding);
     ctx.closePath();
     const fillGrad=ctx.createLinearGradient(0,padding,0,canvas.height-padding);
-    fillGrad.addColorStop(0,"rgba(0,123,255,0.35)");
-    fillGrad.addColorStop(1,"rgba(0,123,255,0.08)");
+    fillGrad.addColorStop(0,"rgba(0,123,255,0.35)"); fillGrad.addColorStop(1,"rgba(0,123,255,0.08)");
     ctx.fillStyle=fillGrad; ctx.fill();
 
     // line
@@ -263,10 +246,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if(tr.type==="BUY"){ ctx.moveTo(x,y-10); ctx.lineTo(x-8,y); ctx.lineTo(x+8,y); } 
       else { ctx.moveTo(x,y+10); ctx.lineTo(x-8,y); ctx.lineTo(x+8,y); }
       ctx.closePath(); ctx.fill();
-
-      ctx.fillStyle=tr.type==="BUY"?"green":"red";
-      ctx.font="12px Inter, Arial"; ctx.textAlign="left"; ctx.textBaseline="middle";
-      ctx.fillText(formatNum(tr.entry), x+12, y);
     });
 
     // current tick
@@ -275,8 +254,6 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.strokeStyle="#16a34a"; ctx.lineWidth=1.2;
     ctx.beginPath(); ctx.moveTo(padding,yCur); ctx.lineTo(canvas.width-padding,yCur); ctx.stroke();
     ctx.fillStyle="#16a34a"; ctx.beginPath(); ctx.arc(canvas.width-padding,yCur,4,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle="#064e3b"; ctx.font="13px Inter, Arial"; ctx.textAlign="right"; ctx.textBaseline="bottom";
-    ctx.fillText(formatNum(lastPrice),canvas.width-padding-6,yCur-6);
   }
 
   function canvasMouseMove(e){
@@ -296,7 +273,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // trades
-  const pendingProposals = new Map();
   function executeTrade(type){
     if(!currentSymbol||chartData.length===0) return;
     const stake=parseFloat(stakeInput.value)||1;
@@ -305,13 +281,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const trade={symbol:currentSymbol,type,stake,multiplier,entry,timestamp:Date.now(),id:`sim-${Date.now()}-${Math.random().toString(36).slice(2,8)}`};
     trades.push(trade);
     logHistory(`${type} ${currentSymbol} @ ${formatNum(entry)} stake:${stake} mult:${multiplier}`);
-    drawChart();
+    drawChart(); updatePnL();
   }
   buyBtn.onclick=()=>executeTrade("BUY");
   sellBtn.onclick=()=>executeTrade("SELL");
 
+  closeBtn.onclick=()=>{
+    trades=[];
+    updatePnL();
+    drawChart();
+    logHistory("Toutes les positions fermées (local)");
+  };
+
   function updatePnL(){
-    if(trades.length===0){ pnlDisplay.textContent="0"; return; }
+    if(chartData.length===0||trades.length===0){ pnlDisplay.textContent="0"; return; }
     const lastPrice=chartData[chartData.length-1];
     let pnl=0;
     trades.forEach(tr=>{
@@ -361,10 +344,23 @@ document.addEventListener("DOMContentLoaded", () => {
       const data=JSON.parse(msg.data);
       if(data.msg_type==="authorize"){
         if(!data.authorize?.loginid){ setStatus("Simulation Mode (Token not authorized)"); logHistory("Token invalid"); return; }
-        setStatus("Live ticks (Demo)"); logHistory("Authorized: "+data.authorize.loginid);
+        authorized=true;
+        setStatus(`Connected: ${data.authorize.loginid} (Live ticks Demo)`);
+        logHistory("Authorized: "+data.authorize.loginid);
+
+        // demander solde
+        ws.send(JSON.stringify({ balance:1, subscribe:1 }));
+
+        // souscrire à tous les symboles pour que la liste de symboles affiche prix
+        volatilitySymbols.forEach(sym => subscribeTicks(sym));
+      }
+      if(data.msg_type==="balance" && data.balance){
+        const bal=parseFloat(data.balance.balance||0).toFixed(2);
+        const cur=data.balance.currency||"USD";
+        userBalance.textContent=`Balance: ${bal} ${cur}`;
+        logHistory(`Balance updated: ${bal} ${cur}`);
       }
       if(data.msg_type==="tick" && data.tick) handleTick(data.tick);
-      if(data.msg_type==="balance") userBalance.textContent=`Balance: ${parseFloat(data.balance.balance||0).toFixed(2)} ${data.balance.currency||'USD'}`;
     };
     connectBtn.textContent="Disconnect";
   };
