@@ -306,7 +306,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const slInitial = 130;
 
     const trade={ symbol:currentSymbol,type,stake,multiplier,entry:null,tp:null,sl:null,timestamp:Date.now(),id:`sim-${Date.now()}-${Math.random().toString(36).slice(2,8)}` };
-    trades.push(trade);
+    //trades.push(trade);
     logHistory(`${type} ${currentSymbol} sent (awaiting server response)`);
 
     if(authorized && ws && ws.readyState===WebSocket.OPEN){
@@ -336,7 +336,7 @@ document.addEventListener("DOMContentLoaded", () => {
       };
 
       logHistory(`Payload sent: ${JSON.stringify(payloadforProposal)}`);
-      ws.send(JSON.stringify(payloadforProposal));
+      ws.send(JSON.stringify(payloadforProposal))
         
       console.log(ws);
     }
@@ -402,9 +402,6 @@ document.addEventListener("DOMContentLoaded", () => {
     ws.onerror=e=>{ logHistory("WS error "+JSON.stringify(e)); };
     ws.onmessage=msg=>{
       const data=JSON.parse(msg.data);
-
-      console.log(data);
-
       if(data.msg_type==="authorize"){
         if(!data.authorize?.loginid){ setStatus("Simulation Mode (Token invalid)"); logHistory("Token not authorized"); return; }
         authorized=true; setStatus(`Connected: ${data.authorize.loginid}`); logHistory("Authorized: "+data.authorize.loginid);
