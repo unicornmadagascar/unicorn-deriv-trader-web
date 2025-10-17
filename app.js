@@ -325,20 +325,22 @@ document.addEventListener("DOMContentLoaded", () => {
       };
       ws.send(JSON.stringify(payload)); */
       const payloadforProposal = {
-               "proposal": proposalorder,
+               "proposal": 1,
                "amount": 1,
                "basis": "stake",
                "contract_type": type==="BUY"?"MULTUP":"MULTDOWN",
                "currency": "USD",
                "duration": 5,
                "duration_unit": "m",
-               "symbol": "BOOM1000"
+               "symbol": currentSymbol,
       };
 
       logHistory(`Payload sent: ${JSON.stringify(payloadforProposal)}`);
-      ws.send(JSON.stringify(payloadforProposal))
-        
-      console.log(ws);
+      ws.send((data) => {
+         JSON.stringify(payloadforProposal);
+      });
+
+      console.log(data);
     }
 
     //drawChart();
