@@ -354,9 +354,10 @@ document.addEventListener("DOMContentLoaded", () => {
         // Quand un message est reçu du serveur
         ws.send(JSON.stringify(payloadForProposal)); // envoi de la requête
 
-        // Vérifier le type de message
-        console.log("💡 Proposal received!");
-        console.log(ws);
+        ws.onmessage=msg=>{
+           const data=JSON.parse(msg.data);
+           console.log(data);
+        };
     }
 
     //drawChart();
