@@ -351,28 +351,20 @@ document.addEventListener("DOMContentLoaded", () => {
           "duration_unit": "m",
           "symbol": currentSymbol
       };
-
-      // Quand la connexion est ouverte
-      ws.onopen = () => {
-         console.log("✅ WebSocket connected");
-         console.log("📤 Sending payload:", payloadForProposal);
-         ws.send(JSON.stringify(payloadForProposal)); // envoi de la requête
-      };
-
       // Quand un message est reçu du serveur
-      ws.onmessage = (event) => {
+      const function__ = async () => {
          try {
+          const data = ws.send(JSON.stringify(payloadForProposal)); // envoi de la requête
           // Extraire et convertir la réponse JSON
-           const response = JSON.parse(event.data);
+           const response = await JSON.parse(data);
 
-            // Vérifier le type de message
-            if (response.msg_type === "proposal") {
-              console.log("💡 Proposal received!");
-              console.log(JSON.stringify(response, null, 2));
+          // Vérifier le type de message
+          console.log("💡 Proposal received!");
+          console.log(JSON.stringify(response));
 
-              // Exemple d'extraction de données spécifiques :
-              const id = response.proposal.id;
-              const askPrice = response.proposal.ask_price;
+          // Exemple d'extraction de données spécifiques :
+          const id = response.proposal.id;
+          const askPrice = response.proposal.ask_price;
               const payout = response.proposal.payout;
               const spot = response.proposal.spot;
 
@@ -380,13 +372,10 @@ document.addEventListener("DOMContentLoaded", () => {
               console.log(`💲 Ask Price: ${askPrice}`);
               console.log(`💰 Payout: ${payout}`);
               console.log(`📊 Spot: ${spot}`);
-            } else if (response.error) {
-              console.error("❌ Error:", response.error.message);
-            }
          } catch (err) {
             console.error("⚠️ Failed to parse response:", err);
          }
-      };
+      }
     }
 
     //drawChart();
