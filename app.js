@@ -352,14 +352,14 @@ document.addEventListener("DOMContentLoaded", () => {
           "symbol": currentSymbol
         };
         // Quand un message est reçu du serveur
-        const data = ws.send(JSON.stringify(payloadForProposal)); // envoi de la requête
+        ws.send(JSON.stringify(payloadForProposal)); // envoi de la requête
         // Extraire et convertir la réponse JSON
-        const response = JSON.parse(data);
+        const response = JSON.parse(ws);
 
         // Vérifier le type de message
         console.log("💡 Proposal received!");
         console.log(JSON.stringify(response));
-   }
+    }
 
     //drawChart();
   }
