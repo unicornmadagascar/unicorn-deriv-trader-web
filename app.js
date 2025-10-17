@@ -299,7 +299,6 @@ document.addEventListener("DOMContentLoaded", () => {
   function executeTrade(type){
     const stake=parseFloat(stakeInput.value)||1;
     const multiplier=parseInt(multiplierInput.value)||300;
-    const proposalorder = type === "BUY" ? 1:0;
 
     // TP & SL initiaux
     const tpInitial = 150;
@@ -320,7 +319,7 @@ document.addEventListener("DOMContentLoaded", () => {
           basis: "stake",
           amount: stake.toFixed(2),
           multiplier: multiplier,
-          limit_order: { stop_loss: slInitial, take_profit: tpInitial }
+          //limit_order: { stop_loss: slInitial, take_profit: tpInitial }
         }
       };
       ws.send(JSON.stringify(payload));
