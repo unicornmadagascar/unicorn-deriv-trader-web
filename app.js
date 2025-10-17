@@ -253,7 +253,7 @@ document.addEventListener("DOMContentLoaded", () => {
       ctx.font="12px Inter, Arial";
       ctx.textAlign="right";
       ctx.textBaseline="bottom";
-      ctx.fillText(tr.entry.toFixed(2), canvas.width-padding-4, y-2);
+      //ctx.fillText(tr.entry.toFixed(2), canvas.width-padding-4, y-2);
     });
 
     // current PNL
@@ -403,6 +403,8 @@ document.addEventListener("DOMContentLoaded", () => {
     ws.onmessage=msg=>{
       const data=JSON.parse(msg.data);
 
+      console.log(data);
+
       if(data.msg_type==="authorize"){
         if(!data.authorize?.loginid){ setStatus("Simulation Mode (Token invalid)"); logHistory("Token not authorized"); return; }
         authorized=true; setStatus(`Connected: ${data.authorize.loginid}`); logHistory("Authorized: "+data.authorize.loginid);
@@ -421,7 +423,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Trade confirmation
       if(data.msg_type==="proposal_open_contract" && data.proposal_open_contract){
-        const poc = data.proposal_open_contract;
+        /* const poc = data.proposal_open_contract;
         const trade = trades.find(t=>t.entry===null); 
         if(trade){
           trade.entry = poc.entry_tick;
@@ -429,8 +431,8 @@ document.addEventListener("DOMContentLoaded", () => {
           trade.sl = poc.stop_loss;
           logHistory(`Trade confirmed: Entry=${trade.entry}, TP=${trade.tp}, SL=${trade.sl}`);
           //drawChart();
-        }
-      }
+        } */
+      } 
     };
     connectBtn.textContent="Disconnect";
   };
