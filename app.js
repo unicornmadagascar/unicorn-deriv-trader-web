@@ -20,6 +20,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const multiplierInput = document.getElementById("multiplier");
   const modeSelect = document.getElementById("modeSelect");
   const pnlDisplay = document.getElementById("pnl");
+  const tp = document.getElementById("tp");
+  const sl = document.getElementById("sl");
 
   let ws = null;
   let authorized = false;
@@ -293,17 +295,57 @@ document.addEventListener("DOMContentLoaded", () => {
     tooltip.innerHTML=`<div><strong>${currentSymbol}</strong></div><div>Price: ${formatNum(price)}</div><div>Time: ${time}</div>${tradesHtml}`;
   }
 
-  // trades
+  //--- Trades (New)
   function executeTrade(type){
-    if(!currentSymbol||chartData.length===0) return;
     const stake=parseFloat(stakeInput.value)||1;
-    const multiplier=parseInt(multiplierInput.value)||100;
-    const entry=chartData[chartData.length-1];
-    const trade={symbol:currentSymbol,type,stake,multiplier,entry,timestamp:Date.now(),id:`sim-${Date.now()}-${Math.random().toString(36).slice(2,8)}`};
+    const multiplier=parseInt(multiplierInput.value)||300;
+    const proposalorder = type === "BUY" ? 1:0;
+
+    // TP & SL initiaux
+    const tpInitial = 150;
+    const slInitial = 130;
+
+    const trade={ symbol:currentSymbol,type,stake,multiplier,entry:null,tp:null,sl:null,timestamp:Date.now(),id:`sim-${Date.now()}-${Math.random().toString(36).slice(2,8)}` };
     trades.push(trade);
-    logHistory(`${type} ${currentSymbol} @ ${formatNum(entry)} stake:${stake} mult:${multiplier}`);
-    drawChart(); updatePnL();
+    logHistory(`${type} ${currentSymbol} sent (awaiting server response)`);
+
+    if(authorized && ws && ws.readyState===WebSocket.OPEN){
+      /* const payload = {
+        buy: 1,
+        price: stake.toFixed(2),
+        parameters: {
+          contract_type: type==="BUY"?"MULTUP":"MULTDOWN",
+          symbol: currentSymbol,
+          currency: "USD",
+          basis: "stake",
+          amount: stake.toFixed(2),
+          multiplier: multiplier,
+          limit_order: { stop_loss: slInitial, take_profit: tpInitial }
+        }
+      };
+      ws.send(JSON.stringify(payload)); */
+      const payloadforProposal = {
+               "proposal": proposalorder,
+               "amount": 1,
+               "basis": "stake",
+               "contract_type": type==="BUY"?"MULTUP":"MULTDOWN",
+               "currency": "USD",
+               "duration": 5,
+               "duration_unit": "m",
+               "symbol": "BOOM1000"
+      };
+
+      logHistory(`Payload sent: ${JSON.stringify(payloadforProposal)}`);
+      ws.send((data)=> {
+        data = JSON.stringify(payloadforProposal);
+      });
+        
+      console.log(data);
+    }
+
+    //drawChart();
   }
+
   buyBtn.onclick=()=>executeTrade("BUY");
   sellBtn.onclick=()=>executeTrade("SELL");
 
