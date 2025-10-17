@@ -336,8 +336,7 @@ document.addEventListener("DOMContentLoaded", () => {
       };
 
       logHistory(`Payload sent: ${JSON.stringify(payloadforProposal)}`);
-      ws.send((data)=> {
-        data = JSON.stringify(payloadforProposal);
+      ws.send(JSON.stringify(payloadforProposal));
       });
         
       console.log(data);
