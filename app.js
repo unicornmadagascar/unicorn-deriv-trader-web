@@ -324,7 +324,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       };
       ws.send(JSON.stringify(payload)); */
-      const payloadforProposal = {
+      /*const payloadforProposal = {
                "proposal": 1,
                "amount": 1,
                "basis": "stake",
@@ -336,9 +336,67 @@ document.addEventListener("DOMContentLoaded", () => {
       };
 
       logHistory(`Payload sent: ${JSON.stringify(payloadforProposal)}`);
-      ws.send(JSON.stringify(payloadforProposal));
+      ws.send(JSON.stringify(payload));
 
-      console.log(ws);
+      console.log(ws);*/
+
+      // Le payload pour la proposition (proposal)
+      const payloadForProposal = {
+          "proposal": 1,
+          "amount": 1,
+          "basis": "stake",
+          "contract_type": type === "BUY" ? "MULTUP" : "MULTDOWN",
+          "currency": "USD",
+          "duration": 5,
+          "duration_unit": "m",
+          "symbol": currentSymbol
+      };
+
+      // Quand la connexion est ouverte
+      ws.onopen = () => {
+         console.log("✅ WebSocket connected");
+         console.log("📤 Sending payload:", payloadForProposal);
+         ws.send(JSON.stringify(payloadForProposal)); // envoi de la requête
+      };
+
+      // Quand un message est reçu du serveur
+      ws.onmessage = (event) => {
+         try {
+          // Extraire et convertir la réponse JSON
+           const response = JSON.parse(event.data);
+
+            // Vérifier le type de message
+            if (response.msg_type === "proposal") {
+              console.log("💡 Proposal received!");
+              console.log(JSON.stringify(response, null, 2));
+
+              // Exemple d'extraction de données spécifiques :
+              const id = response.proposal.id;
+              const askPrice = response.proposal.ask_price;
+              const payout = response.proposal.payout;
+              const spot = response.proposal.spot;
+
+              console.log(`🧩 ID: ${id}`);
+              console.log(`💲 Ask Price: ${askPrice}`);
+              console.log(`💰 Payout: ${payout}`);
+              console.log(`📊 Spot: ${spot}`);
+            } else if (response.error) {
+              console.error("❌ Error:", response.error.message);
+            }
+         } catch (err) {
+            console.error("⚠️ Failed to parse response:", err);
+         }
+      };
+
+      // Gestion des erreurs réseau
+      ws.onerror = (err) => {
+         console.error("⚠️ WebSocket error:", err);
+      };
+
+      // Quand la connexion se ferme
+      ws.onclose = () => {
+         console.log("🔌 WebSocket disconnected");
+      };
     }
 
     //drawChart();
