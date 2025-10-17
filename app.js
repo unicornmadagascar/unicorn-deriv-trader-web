@@ -341,7 +341,7 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log(ws);
     }
 
-    drawChart();
+    //drawChart();
   }
 
   buyBtn.onclick=()=>executeTrade("BUY");
@@ -428,7 +428,7 @@ document.addEventListener("DOMContentLoaded", () => {
           trade.tp = poc.take_profit;
           trade.sl = poc.stop_loss;
           logHistory(`Trade confirmed: Entry=${trade.entry}, TP=${trade.tp}, SL=${trade.sl}`);
-          drawChart();
+          //drawChart();
         }
       }
     };
