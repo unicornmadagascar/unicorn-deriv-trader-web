@@ -310,7 +310,7 @@ document.addEventListener("DOMContentLoaded", () => {
     logHistory(`${type} ${currentSymbol} sent (awaiting server response)`);
 
     if(authorized && ws && ws.readyState===WebSocket.OPEN){
-      /* const payload = {
+       const payload = {
         buy: 1,
         price: stake.toFixed(2),
         parameters: {
@@ -323,7 +323,7 @@ document.addEventListener("DOMContentLoaded", () => {
           limit_order: { stop_loss: slInitial, take_profit: tpInitial }
         }
       };
-      ws.send(JSON.stringify(payload)); */
+      ws.send(JSON.stringify(payload));
       /*const payloadforProposal = {
                "proposal": 1,
                "amount": 1,
@@ -341,7 +341,7 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log(ws);*/
 
         // Le payload pour la proposition (proposal)
-        const payloadForProposal = {
+      /*  const payloadForProposal = {
           "proposal": 1,
           "amount": 1,
           "basis": "stake",
@@ -357,7 +357,7 @@ document.addEventListener("DOMContentLoaded", () => {
         ws.onmessage=msg=>{
            const data=JSON.parse(msg.data);
            console.log(data);
-        };
+        }; */
     }
 
     //drawChart();
