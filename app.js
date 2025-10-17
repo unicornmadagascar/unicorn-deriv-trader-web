@@ -340,8 +340,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       console.log(ws);*/
 
-      // Le payload pour la proposition (proposal)
-      const payloadForProposal = {
+        // Le payload pour la proposition (proposal)
+        const payloadForProposal = {
           "proposal": 1,
           "amount": 1,
           "basis": "stake",
@@ -350,33 +350,16 @@ document.addEventListener("DOMContentLoaded", () => {
           "duration": 5,
           "duration_unit": "m",
           "symbol": currentSymbol
-      };
-      // Quand un message est reçu du serveur
-      const function__ = async () => {
-         try {
-          const data = ws.send(JSON.stringify(payloadForProposal)); // envoi de la requête
-          // Extraire et convertir la réponse JSON
-           const response = await JSON.parse(data);
+        };
+        // Quand un message est reçu du serveur
+        const data = ws.send(JSON.stringify(payloadForProposal)); // envoi de la requête
+        // Extraire et convertir la réponse JSON
+        const response = JSON.parse(data);
 
-          // Vérifier le type de message
-          console.log("💡 Proposal received!");
-          console.log(JSON.stringify(response));
-
-          // Exemple d'extraction de données spécifiques :
-          const id = response.proposal.id;
-          const askPrice = response.proposal.ask_price;
-              const payout = response.proposal.payout;
-              const spot = response.proposal.spot;
-
-              console.log(`🧩 ID: ${id}`);
-              console.log(`💲 Ask Price: ${askPrice}`);
-              console.log(`💰 Payout: ${payout}`);
-              console.log(`📊 Spot: ${spot}`);
-         } catch (err) {
-            console.error("⚠️ Failed to parse response:", err);
-         }
-      }
-    }
+        // Vérifier le type de message
+        console.log("💡 Proposal received!");
+        console.log(JSON.stringify(response));
+   }
 
     //drawChart();
   }
