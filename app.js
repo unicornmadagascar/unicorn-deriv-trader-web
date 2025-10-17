@@ -358,7 +358,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Vérifier le type de message
         console.log("💡 Proposal received!");
-        console.log(JSON.stringify(response));
+        console.log(response);
     }
 
     //drawChart();
