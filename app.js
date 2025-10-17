@@ -323,40 +323,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       };
       ws.send(JSON.stringify(payload));
-      /*const payloadforProposal = {
-               "proposal": 1,
-               "amount": 1,
-               "basis": "stake",
-               "contract_type": type==="BUY"?"MULTUP":"MULTDOWN",
-               "currency": "USD",
-               "duration": 5,
-               "duration_unit": "m",
-               "symbol": currentSymbol,
-      };
+      logHistory(`Payload sent: ${JSON.stringify(payload)}`);
 
-      logHistory(`Payload sent: ${JSON.stringify(payloadforProposal)}`);
-      ws.send(JSON.stringify(payload));
-
-      console.log(ws);*/
-
-        // Le payload pour la proposition (proposal)
-      /*  const payloadForProposal = {
-          "proposal": 1,
-          "amount": 1,
-          "basis": "stake",
-          "contract_type": type === "BUY" ? "MULTUP" : "MULTDOWN",
-          "currency": "USD",
-          "duration": 5,
-          "duration_unit": "m",
-          "symbol": currentSymbol
-        };
-        // Quand un message est reçu du serveur
-        ws.send(JSON.stringify(payloadForProposal)); // envoi de la requête
-
-        ws.onmessage=msg=>{
-           const data=JSON.parse(msg.data);
-           console.log(data);
-        }; */
     }
 
     //drawChart();
