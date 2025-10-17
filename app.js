@@ -387,16 +387,6 @@ document.addEventListener("DOMContentLoaded", () => {
             console.error("⚠️ Failed to parse response:", err);
          }
       };
-
-      // Gestion des erreurs réseau
-      ws.onerror = (err) => {
-         console.error("⚠️ WebSocket error:", err);
-      };
-
-      // Quand la connexion se ferme
-      ws.onclose = () => {
-         console.log("🔌 WebSocket disconnected");
-      };
     }
 
     //drawChart();
