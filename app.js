@@ -374,8 +374,7 @@ document.addEventListener("DOMContentLoaded", () => {
            {
             logHistory('Closing contract '+ contract.contract_id + '(' + contract.contract_type + ')');
             ws.send(JSON.stringify({
-              "cancel": contract.contract_id,
-              "price": 0
+              "cancel": contract.contract_id
             }));
            }
           }
