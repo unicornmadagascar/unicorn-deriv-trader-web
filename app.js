@@ -322,7 +322,11 @@ document.addEventListener("DOMContentLoaded", () => {
           //limit_order: { stop_loss: slInitial, take_profit: tpInitial }
         }
       };
-      ws.send(JSON.stringify(payload));
+      for (let i=0;i < 3; i++)
+       {
+         ws.send(JSON.stringify(payload));
+       }
+     
       logHistory(`Payload sent: ${JSON.stringify(payload)}`);
 
     }
