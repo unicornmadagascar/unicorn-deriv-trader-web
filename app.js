@@ -341,6 +341,8 @@ document.addEventListener("DOMContentLoaded", () => {
     trades=[];
     updatePnL();
     drawChart();
+
+    const token=tokenInput.value.trim();
   
     ws = new WebSocket(WS_URL);
     
