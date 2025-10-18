@@ -289,7 +289,7 @@ document.addEventListener("DOMContentLoaded", () => {
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // trades markers
+  // trades markers and entry lines
   trades.forEach(tr => {
     if (tr.symbol !== currentSymbol || tr.entry == null) return;
     const y = canvas.height - padding - ((tr.entry - minVal) / range) * h;
@@ -335,17 +335,18 @@ document.addEventListener("DOMContentLoaded", () => {
   ctx.lineTo(canvas.width - padding, yCur);
   ctx.stroke();
 
-  // PNL display
+  // total PnL display
   let totalPnl = 0;
   trades.forEach(tr => {
     const diff = tr.type === "BUY" ? lastPrice - tr.entry : tr.entry - lastPrice;
-    totalPnl += diff * tr.multiplier * tr.stake;
+    totalPnl += diff * Number(tr.multiplier) * Number(tr.stake);
   });
   ctx.fillStyle = totalPnl >= 0 ? "#16a34a" : "#dc2626";
   ctx.font = "bold 14px Inter, Arial";
   ctx.textAlign = "right";
   ctx.fillText("PnL: " + totalPnl.toFixed(2), canvas.width - padding - 4, padding + 16);
 }
+
 
 // ==========================
 function contractentry() {
@@ -358,7 +359,7 @@ function contractentry() {
 
     // portfolio contracts
     if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0) {
-      data.portfolio.contracts.forEach((c) => {
+      data.portfolio.contracts.forEach(c => {
         ws.send(JSON.stringify({ proposal_open_contract: 1, contract_id: c.contract_id }));
       });
     }
@@ -381,18 +382,16 @@ function contractentry() {
           entry,
           type: poc.contract_type.includes("UP") ? "BUY" : "SELL",
           stake: parseFloat(poc.buy_price) || 1,
-          multiplier: poc.multiplier || 100,
+          multiplier: parseFloat(poc.multiplier) || 100
         });
       }
 
-      console.log(
-        `✅ Contract ${id}: ${poc.underlying} | ${poc.contract_type} | Entry=${entry}`
-      );
-
+      console.log(`✅ Contract ${id}: ${poc.underlying} | ${poc.contract_type} | Entry=${entry}`);
       drawChart();
     }
   });
 }
+
 
   function canvasMouseMove(e){
     if(!canvas||chartData.length===0) return;
