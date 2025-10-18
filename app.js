@@ -341,7 +341,29 @@ document.addEventListener("DOMContentLoaded", () => {
     trades=[];
     updatePnL();
     drawChart();
-    logHistory("Toutes les positions fermées (local)");
+
+    if(authorized && ws && ws.readyState===WebSocket.OPEN){
+       const portfoliopayload = { portfolio : 1};
+
+       ws.onopen = () => {
+          logHistory("The request is open...");
+          logHistory("Request in process...");
+          ws.send(JSON.parse(portfoliopayload));
+       };
+
+       ws.onerror = (e) => {
+          logHistory("WS error "+JSON.stringify(e));
+       };
+       
+       ws.onclose = () => {
+         logHistory("Ws was closed.");
+       };    
+
+       ws.onmessage = (msg) => {
+          const data = JSON.parse(msg.data);
+          console.log(data);
+       };
+    }
   };
 
   function updatePnL(){
