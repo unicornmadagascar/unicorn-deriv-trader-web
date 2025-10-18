@@ -344,7 +344,7 @@ document.addEventListener("DOMContentLoaded", () => {
   
     ws = new WebSocket(WS_URL);
     
-    ws.onopen=()=>{ logHistory("Connection authorized"); ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" })); };
+    ws.onopen=()=>{ ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" })); };
     ws.onclose=()=>{ logHistory("Disconnected"); logHistory("WS closed"); };
     ws.onerror=e=>{ logHistory("WS error "+JSON.stringify(e)); };
     ws.onmessage=msg=>{
@@ -354,33 +354,35 @@ document.addEventListener("DOMContentLoaded", () => {
         if(!data.authorize?.loginid){ logHistory("Token not authorized"); return; }
         authorized=true; 
         logHistory("connection Authorized.");
-     }
-    };
 
-    if(authorized && ws && ws.readyState===WebSocket.OPEN){
-       const portfoliopayload = { portfolio : 1};
-       logHistory('The request is open...');
-      logHistory('Request in process...');   
+        if(authorized && ws && ws.readyState===WebSocket.OPEN)
+        {
+           const portfoliopayload = { portfolio : 1};
+           logHistory('The request is open...');
+           logHistory('Request in process...');   
 
-       ws.send(JSON.stringify(portfoliopayload));
+           ws.send(JSON.stringify(portfoliopayload));
        
-       ws.onmessage = msg => {
-          const data = JSON.parse(msg.data);
-          if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0)
-          {
-           const contracts = data.portfolio.contracts;
-           logHistory('Found '+ contracts.length + ' active contracts - close all...');   
-           for (const contract of contracts)
-           {
-            logHistory('Closing contract '+ contract.contract_id + '(' + contract.contract_type + ')');
-            ws.send(JSON.stringify({
-              "cancel": contract.contract_id
-            }));
-           }
-          }
-        };
-        logHistory("All contracts were closed!");
-    } 
+           ws.onmessage = msg => {
+           const data = JSON.parse(msg.data);
+           if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0)
+            {
+             const contracts = data.portfolio.contracts;
+             logHistory('Found '+ contracts.length + ' active contracts - close all...');   
+             for (const contract of contracts)
+              {
+               logHistory('Closing contract '+ contract.contract_id + '(' + contract.contract_type + ')');
+               ws.send(JSON.stringify({
+                 "cancel": contract.contract_id
+               }));
+             }
+            }
+          };
+
+          logHistory("All contracts were closed!");
+        } 
+      }
+    };
   };
 
   function updatePnL(){
