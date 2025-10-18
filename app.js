@@ -38,6 +38,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const SMA_WINDOW = 20;
   let numb_;
   const isOn = false;
+  let contractsMap = {}; // { contract_id: entry_spot }
 
   const volatilitySymbols = ["BOOM1000","CRASH1000","BOOM900","CRASH900","BOOM600","CRASH600","BOOM500","CRASH500",
                              "R_100","R_75","R_50","R_25"
@@ -104,7 +105,6 @@ document.addEventListener("DOMContentLoaded", () => {
            break;
        }
 
-      
       el.onclick = () => selectSymbol(sym);
       symbolList.appendChild(el);
     });
