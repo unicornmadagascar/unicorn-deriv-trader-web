@@ -303,6 +303,29 @@ document.addEventListener("DOMContentLoaded", () => {
       ctx.fillText(tr.entry.toFixed(2), canvas.width-padding-4, y-2);
     });
 
+    // current PNL
+    if(chartData.length>0){
+      const lastPrice=chartData[len-1];
+      let pnl=0;
+      trades.forEach(tr=>{
+        const diff=tr.type==="BUY"?lastPrice-tr.entry:tr.entry-lastPrice;
+        pnl+=diff*tr.multiplier*tr.stake;
+      });
+      const yCur=canvas.height-padding-((lastPrice-minVal)/range)*h;
+      ctx.strokeStyle="#16a34a"; ctx.lineWidth=1.2;
+      ctx.beginPath(); ctx.moveTo(padding,yCur); ctx.lineTo(canvas.width-padding,yCur); ctx.stroke();
+
+      ctx.fillStyle="#16a34a";
+      ctx.font="bold 14px Inter, Arial";
+      ctx.textAlign="right";
+      ctx.textBaseline="bottom";
+      ctx.fillText("PNL: "+pnl.toFixed(2), canvas.width-padding-4, yCur-4);
+
+      // point vert sur la ligne
+      ctx.beginPath(); ctx.arc(canvas.width-padding,yCur,4,0,Math.PI*2); ctx.fill();
+    }
+  }
+
     function contractentry()
      {
       let entry;
@@ -350,28 +373,6 @@ document.addEventListener("DOMContentLoaded", () => {
       return entry;
      }
 
-    // current PNL
-    if(chartData.length>0){
-      const lastPrice=chartData[len-1];
-      let pnl=0;
-      trades.forEach(tr=>{
-        const diff=tr.type==="BUY"?lastPrice-tr.entry:tr.entry-lastPrice;
-        pnl+=diff*tr.multiplier*tr.stake;
-      });
-      const yCur=canvas.height-padding-((lastPrice-minVal)/range)*h;
-      ctx.strokeStyle="#16a34a"; ctx.lineWidth=1.2;
-      ctx.beginPath(); ctx.moveTo(padding,yCur); ctx.lineTo(canvas.width-padding,yCur); ctx.stroke();
-
-      ctx.fillStyle="#16a34a";
-      ctx.font="bold 14px Inter, Arial";
-      ctx.textAlign="right";
-      ctx.textBaseline="bottom";
-      ctx.fillText("PNL: "+pnl.toFixed(2), canvas.width-padding-4, yCur-4);
-
-      // point vert sur la ligne
-      ctx.beginPath(); ctx.arc(canvas.width-padding,yCur,4,0,Math.PI*2); ctx.fill();
-    }
-  }
 
   function canvasMouseMove(e){
     if(!canvas||chartData.length===0) return;
@@ -566,7 +567,6 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     connectBtn.textContent="Disconnect";
   };
-
 
   initSymbols();
   selectSymbol(volatilitySymbols[0]);
