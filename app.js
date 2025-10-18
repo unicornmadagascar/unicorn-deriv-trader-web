@@ -344,8 +344,8 @@ document.addEventListener("DOMContentLoaded", () => {
   
     ws = new WebSocket(WS_URL);
     
-    ws.onopen=()=>{ setStatus("Connection authorized"); ws.send(JSON.stringify({ authorize: token })); };
-    ws.onclose=()=>{ setStatus("Disconnected"); logHistory("WS closed"); };
+    ws.onopen=()=>{ logHistory("Connection authorized"); ws.send(JSON.stringify({ authorize: token })); };
+    ws.onclose=()=>{ logHistory("Disconnected"); logHistory("WS closed"); };
     ws.onerror=e=>{ logHistory("WS error "+JSON.stringify(e)); };
     ws.onmessage=msg=>{
     const data=JSON.parse(msg.data);
@@ -360,13 +360,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if(authorized && ws && ws.readyState===WebSocket.OPEN){
        const portfoliopayload = { portfolio : 1};
        logHistory('The request is open...');
-       setTimeout(() => {
-          logHistory('Request in process...');   
-       },500);
+      logHistory('Request in process...');   
 
        ws.send(JSON.stringify(portfoliopayload));
        
-       ws.onmessage = (msg) => {
+       ws.onmessage = msg => {
           const data = JSON.parse(msg.data);
           if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0)
           {
@@ -376,14 +374,14 @@ document.addEventListener("DOMContentLoaded", () => {
            {
             logHistory('Closing contract '+ contract.contract_id + '(' + contract.contract_type + ')');
             ws.send(JSON.stringify({
-              "sell": contract.contract_id,
+              "cancel": contract.contract_id,
               "price": 0
             }));
            }
           }
         };
         logHistory("All contracts were closed!");
-    }; 
+    } 
   };
 
   function updatePnL(){
