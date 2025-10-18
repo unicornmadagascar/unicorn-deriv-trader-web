@@ -220,156 +220,192 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // chart
-  function drawChart(){
-    if(!ctx||chartData.length===0) return;
-    const padding=50;
-    const w=canvas.width-padding*2;
-    const h=canvas.height-padding*2;
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    const maxVal=Math.max(...chartData, ...trades.map(t=>t.entry));
-    const minVal=Math.min(...chartData, ...trades.map(t=>t.entry));
-    const range=maxVal-minVal||1;
+function drawChart() {
+  if (!ctx || chartData.length === 0) return;
 
-    // axes
-    ctx.strokeStyle="#666"; ctx.lineWidth=1;
-    ctx.beginPath(); ctx.moveTo(padding,padding); ctx.lineTo(padding,canvas.height-padding); ctx.lineTo(canvas.width-padding,canvas.height-padding); ctx.stroke();
+  const padding = 50;
+  const w = canvas.width - padding * 2;
+  const h = canvas.height - padding * 2;
 
-    // y grid & labels
-    ctx.strokeStyle="#e6eef9"; ctx.fillStyle="#2b3a4a"; ctx.font="12px Inter, Arial"; ctx.textAlign="right"; ctx.textBaseline="middle";
-    for(let i=0;i<=5;i++){
-      const y=canvas.height-padding-(i/5)*h;
-      ctx.beginPath(); ctx.moveTo(padding,y); ctx.lineTo(canvas.width-padding,y); ctx.stroke();
-      const v=minVal+(i/5)*range; ctx.fillText(v.toFixed(2), padding-10, y);
-    }
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // x labels
-    ctx.textAlign="center"; ctx.textBaseline="top";
-    const len=chartData.length; const step=Math.max(1,Math.ceil(len/6));
-    for(let i=0;i<len;i+=step){
-      const x=padding+(i/(len-1))*w;
-      const t=chartTimes[i]?new Date(chartTimes[i]*1000).toLocaleTimeString().slice(0,8):"";
-      ctx.fillText(t,x,canvas.height-padding+5);
-    }
+  const maxVal = Math.max(...chartData, ...trades.map(t => t.entry || 0));
+  const minVal = Math.min(...chartData, ...trades.map(t => t.entry || chartData[0]));
+  const range = maxVal - minVal || 1;
 
-    // area chart
+  // --- Axes
+  ctx.strokeStyle = "#666";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padding, padding);
+  ctx.lineTo(padding, canvas.height - padding);
+  ctx.lineTo(canvas.width - padding, canvas.height - padding);
+  ctx.stroke();
+
+  // --- Y grid & labels
+  ctx.strokeStyle = "#e6eef9";
+  ctx.fillStyle = "#2b3a4a";
+  ctx.font = "12px Inter, Arial";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+
+  for (let i = 0; i <= 5; i++) {
+    const y = canvas.height - padding - (i / 5) * h;
     ctx.beginPath();
-    for(let i=0;i<len;i++){
-      const x=padding+(i/(len-1))*w;
-      const y=canvas.height-padding-((chartData[i]-minVal)/range)*h;
-      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    ctx.moveTo(padding, y);
+    ctx.lineTo(canvas.width - padding, y);
+    ctx.stroke();
+
+    const v = minVal + (i / 5) * range;
+    ctx.fillText(v.toFixed(2), padding - 10, y);
+  }
+
+  // --- X labels
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  const len = chartData.length;
+  const step = Math.max(1, Math.ceil(len / 6));
+  for (let i = 0; i < len; i += step) {
+    const x = padding + (i / (len - 1)) * w;
+    const t = chartTimes[i] ? new Date(chartTimes[i] * 1000).toLocaleTimeString().slice(0, 8) : "";
+    ctx.fillText(t, x, canvas.height - padding + 5);
+  }
+
+  // --- Area chart
+  ctx.beginPath();
+  for (let i = 0; i < len; i++) {
+    const x = padding + (i / (len - 1)) * w;
+    const y = canvas.height - padding - ((chartData[i] - minVal) / range) * h;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.lineTo(canvas.width - padding, canvas.height - padding);
+  ctx.lineTo(padding, canvas.height - padding);
+  ctx.closePath();
+  const fillGrad = ctx.createLinearGradient(0, padding, 0, canvas.height - padding);
+  fillGrad.addColorStop(0, "rgba(0,123,255,0.35)");
+  fillGrad.addColorStop(1, "rgba(0,123,255,0.08)");
+  ctx.fillStyle = fillGrad;
+  ctx.fill();
+
+  // --- Line chart
+  ctx.beginPath();
+  for (let i = 0; i < len; i++) {
+    const x = padding + (i / (len - 1)) * w;
+    const y = canvas.height - padding - ((chartData[i] - minVal) / range) * h;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = "#007bff";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // --- Trades
+  trades.forEach(tr => {
+    if (tr.symbol !== currentSymbol || !tr.entry) return;
+
+    const x = padding + ((len - 1) / (len - 1)) * w; // place at right end
+    const y = canvas.height - padding - ((tr.entry - minVal) / range) * h;
+
+    // Entry line
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = "rgba(220,38,38,0.9)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(padding, y);
+    ctx.lineTo(canvas.width - padding, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Trade triangle
+    ctx.fillStyle = tr.type === "BUY" ? "green" : "red";
+    ctx.beginPath();
+    if (tr.type === "BUY") {
+      ctx.moveTo(x, y - 10);
+      ctx.lineTo(x - 8, y);
+      ctx.lineTo(x + 8, y);
+    } else {
+      ctx.moveTo(x, y + 10);
+      ctx.lineTo(x - 8, y);
+      ctx.lineTo(x + 8, y);
     }
-    ctx.lineTo(canvas.width-padding,canvas.height-padding);
-    ctx.lineTo(padding,canvas.height-padding);
     ctx.closePath();
-    const fillGrad=ctx.createLinearGradient(0,padding,0,canvas.height-padding);
-    fillGrad.addColorStop(0,"rgba(0,123,255,0.35)");
-    fillGrad.addColorStop(1,"rgba(0,123,255,0.08)");
-    ctx.fillStyle=fillGrad; ctx.fill();
+    ctx.fill();
 
-    // line chart
+    // Entry label
+    ctx.fillStyle = "rgba(220,38,38,0.9)";
+    ctx.font = "12px Inter, Arial";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "bottom";
+    ctx.fillText(tr.entry.toFixed(2), canvas.width - padding - 4, y - 2);
+
+    // P/L label
+    if (tr.profit !== undefined) {
+      ctx.fillStyle = "#16a34a";
+      ctx.font = "bold 14px Inter, Arial";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "top";
+      ctx.fillText("P/L: " + tr.profit.toFixed(2), canvas.width - padding - 4, y + 4);
+    }
+  });
+
+  // --- Current Price line
+  if (chartData.length > 0) {
+    const lastPrice = chartData[len - 1];
+    const yCur = canvas.height - padding - ((lastPrice - minVal) / range) * h;
+    ctx.strokeStyle = "#16a34a";
+    ctx.lineWidth = 1.2;
     ctx.beginPath();
-    for(let i=0;i<len;i++){
-      const x=padding+(i/(len-1))*w;
-      const y=canvas.height-padding-((chartData[i]-minVal)/range)*h;
-      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-    }
-    ctx.strokeStyle="#007bff"; ctx.lineWidth=2; ctx.stroke();
+    ctx.moveTo(padding, yCur);
+    ctx.lineTo(canvas.width - padding, yCur);
+    ctx.stroke();
 
-    // trades et PNL
-    trades.forEach(tr=>{
-      if(tr.symbol!==currentSymbol) return;
-      const x=padding+((len-1)/(len-1))*w;
-      const y=canvas.height-padding-((tr.entry-minVal)/range)*h;
+    ctx.fillStyle = "#16a34a";
+    ctx.beginPath();
+    ctx.arc(canvas.width - padding, yCur, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
 
-      // ligne pointillée rouge pour prix d'entrée
-      ctx.setLineDash([6,4]);
-      ctx.strokeStyle="rgba(220,38,38,0.9)";
-      ctx.lineWidth=1.2; ctx.beginPath(); ctx.moveTo(padding,y); ctx.lineTo(canvas.width-padding,y); ctx.stroke();
-      ctx.setLineDash([]);
+ // --- Safe helper: Fetch contract entries without overwriting existing ws.onmessage
+function fetchContractEntry(tradeId){
+  if(!ws || ws.readyState !== WebSocket.OPEN) return;
 
-      // triangle trade
-      ctx.fillStyle=tr.type==="BUY"?"green":"red";
-      ctx.beginPath();
-      if(tr.type==="BUY"){ ctx.moveTo(x,y-10); ctx.lineTo(x-8,y); ctx.lineTo(x+8,y); } 
-      else { ctx.moveTo(x,y+10); ctx.lineTo(x-8,y); ctx.lineTo(x+8,y); }
-      ctx.closePath(); ctx.fill();
+  // Generate a unique request ID
+  const requestId = "req-" + Date.now() + "-" + Math.random().toString(36).slice(2,8);
 
-      // prix d'entrée attaché à la ligne
-      ctx.fillStyle="rgba(220,38,38,0.9)";
-      ctx.font="12px Inter, Arial";
-      ctx.textAlign="right";
-      ctx.textBaseline="bottom";
-      tr.entry = contractentry();
-      ctx.fillText(tr.entry.toFixed(2), canvas.width-padding-4, y-2);
-    });
+  // Store a one-time listener
+  function onMessageOnce(event){
+    const data = JSON.parse(event.data);
 
-    // current PNL
-    if(chartData.length>0){
-      const lastPrice=chartData[len-1];
-      let pnl=0;
-      trades.forEach(tr=>{
-        const diff=tr.type==="BUY"?lastPrice-tr.entry:tr.entry-lastPrice;
-        pnl+=diff*tr.multiplier*tr.stake;
+    if(data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0){
+      data.portfolio.contracts.forEach(c => {
+        ws.send(JSON.stringify({
+          proposal_open_contract: 1,
+          contract_id: c.contract_id,
+          req_id: requestId
+        }));
       });
-      const yCur=canvas.height-padding-((lastPrice-minVal)/range)*h;
-      ctx.strokeStyle="#16a34a"; ctx.lineWidth=1.2;
-      ctx.beginPath(); ctx.moveTo(padding,yCur); ctx.lineTo(canvas.width-padding,yCur); ctx.stroke();
+    }
 
-      ctx.fillStyle="#16a34a";
-      ctx.font="bold 14px Inter, Arial";
-      ctx.textAlign="right";
-      ctx.textBaseline="bottom";
-      ctx.fillText("PNL: "+pnl.toFixed(2), canvas.width-padding-4, yCur-4);
-
-      // point vert sur la ligne
-      ctx.beginPath(); ctx.arc(canvas.width-padding,yCur,4,0,Math.PI*2); ctx.fill();
+    if(data.msg_type === "proposal_open_contract" && data.proposal_open_contract && data.req_id === requestId){
+      const poc = data.proposal_open_contract;
+      const trade = trades.find(t => t.id === tradeId);
+      if(trade){
+        trade.entry = poc.entry_spot;
+        trade.profit = poc.profit;
+        drawChart();
+        logHistory(`Trade confirmed: Entry = ${poc.entry_spot}, P/L = ${poc.profit}`);
+      }
+      ws.removeEventListener("message", onMessageOnce);
     }
   }
 
-  function contractentry()
-  {
-      let entry;
-      //ws = new WebSocket(WS_URL);
-      ws.onopen = () => {
-         ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" }));
-      };
+  ws.addEventListener("message", onMessageOnce);
 
-      ws.onmessage = (msg) => {
-         const data = JSON.parse(msg.data);
-
-         if (data.msg_type === "authorize"){
-           // Get open positions
-           ws.send(JSON.stringify({ portfolio: 1 }));
-         }
-
-         // For each contract, get entry info
-         if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0){
-            const contracts = data.portfolio.contracts;
-            logHistory("Found " + contracts.length + " open contracts.");
-
-            for (const c of contracts) {
-               ws.send(JSON.stringify({
-                  proposal_open_contract: 1,
-                  contract_id: c.contract_id
-               }));
-            }
-         }
-
-         // Show entry price for each
-         if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract){
-            const poc = data.proposal_open_contract;
-            logHistory("🆔 Contract " + poc.contract_id);
-            logHistory("  ↳ Entry Price: " + poc.entry_spot);
-            logHistory("  ↳ Buy Price: " + poc.buy_price);
-            logHistory("  ↳ Current Spot: " + poc.current_spot);
-            logHistory("  ↳ Profit: " + poc.profit);
-            logHistory("--------------------------------");
-            entry = poc.entry_spot;
-         }
-      };
-
-      return entry;
-  }
+  // Request portfolio
+  ws.send(JSON.stringify({ portfolio: 1, req_id: requestId }));
+}
 
   function canvasMouseMove(e){
     if(!canvas||chartData.length===0) return;
