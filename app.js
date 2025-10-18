@@ -1,10 +1,10 @@
-// app.js - Unicorn Madagascar (demo live ticks) - Version nettoyée
+// app.js - Unicorn Madagascar (demo live ticks) - Full Version
 
 document.addEventListener("DOMContentLoaded", () => {
   const APP_ID = 105747;
   const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
 
-  // UI
+  // UI elements
   const tokenInput = document.getElementById("tokenInput");
   const connectBtn = document.getElementById("connectBtn");
   const statusSpan = document.getElementById("status");
@@ -26,6 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const sellnumb = document.getElementById("sellNumber");
   const toggleBtn = document.getElementById("themeToggle");
 
+  // Globals
   let ws = null;
   let authorized = false;
   let currentSymbol = null;
@@ -33,15 +34,16 @@ document.addEventListener("DOMContentLoaded", () => {
   let chartData = [];
   let chartTimes = [];
   let trades = [];
+  let openContracts = {}; // store live contract info by contract_id
   let canvas, ctx;
   let gaugeSmoothers = { volatility: 0, rsi: 0, emaProb: 0 };
   const SMA_WINDOW = 20;
   let numb_;
-  const isOn = false;
 
-  const volatilitySymbols = ["BOOM1000","CRASH1000","BOOM900","CRASH900","BOOM600","CRASH600","BOOM500","CRASH500",
-                             "R_100","R_75","R_50","R_25"
-                            ];
+  const volatilitySymbols = [
+    "BOOM1000","CRASH1000","BOOM900","CRASH900","BOOM600","CRASH600","BOOM500","CRASH500",
+    "R_100","R_75","R_50","R_25"
+  ];
 
   // tooltip
   const tooltip = document.createElement("div");
@@ -64,52 +66,17 @@ document.addEventListener("DOMContentLoaded", () => {
       const el = document.createElement("div");
       el.className = "symbolItem";
       el.id = `symbol-${sym}`;
-      switch(sym)
-       {
-        case "BOOM1000":
-           el.textContent = "BOOM 1000";
-           break;
-        case "BOOM900":
-           el.textContent = "BOOM 900";
-           break;
-        case "BOOM600":
-           el.textContent = "BOOM 600";
-           break;
-        case "BOOM500":
-           el.textContent = "BOOM 500";
-           break;
-        case "CRASH1000":
-           el.textContent = "CRASH 1000";
-           break;
-        case "CRASH900":
-           el.textContent = "CRASH 900";
-           break;
-        case "CRASH600":
-           el.textContent = "CRASH 600";
-           break;
-        case "CRASH500":
-           el.textContent = "CRASH 500";
-           break;
-        case "R_100":
-           el.textContent = "VIX 100";
-           break;
-        case "R_75":
-           el.textContent = "VIX 75";
-           break;
-        case "R_50":
-           el.textContent = "VIX 50";
-           break;
-        case "R_25":
-           el.textContent = "VIX 25";
-           break;
-       }
-
+      const nameMap = {
+        BOOM1000:"BOOM 1000", BOOM900:"BOOM 900", BOOM600:"BOOM 600", BOOM500:"BOOM 500",
+        CRASH1000:"CRASH 1000", CRASH900:"CRASH 900", CRASH600:"CRASH 600", CRASH500:"CRASH 500",
+        R_100:"VIX 100", R_75:"VIX 75", R_50:"VIX 50", R_25:"VIX 25"
+      };
+      el.textContent = nameMap[sym]||sym;
       el.onclick = () => selectSymbol(sym);
       symbolList.appendChild(el);
     });
   }
 
-  // select symbol
   function selectSymbol(sym){
     currentSymbol = sym;
     document.querySelectorAll(".symbolItem").forEach(e => e.classList.remove("active"));
@@ -124,7 +91,6 @@ document.addEventListener("DOMContentLoaded", () => {
     logHistory(`Selected ${sym}`);
   }
 
-  // canvas
   function initCanvas(){
     chartInner.innerHTML = "";
     canvas = document.createElement("canvas");
@@ -138,7 +104,6 @@ document.addEventListener("DOMContentLoaded", () => {
     canvas.addEventListener("mouseleave", ()=>{ tooltip.style.display="none"; });
   }
 
-  // gauges
   function initGauges(){
     gaugeDashboard.innerHTML = "";
     ["Volatility","RSI","EMA"].forEach(name=>{
@@ -179,7 +144,6 @@ document.addEventListener("DOMContentLoaded", () => {
     gctx.fillText(value.toFixed(1)+"%", w/2, h/2+12);
   }
 
-  // compute volatility
   function computeVolatility(){
     if(chartData.length<2) return 0;
     const lastN = chartData.slice(-SMA_WINDOW);
@@ -219,7 +183,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return res;
   }
 
-  // chart
+  // ------------------- Chart -------------------
   function drawChart(){
     if(!ctx||chartData.length===0) return;
     const padding=50;
@@ -275,32 +239,37 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     ctx.strokeStyle="#007bff"; ctx.lineWidth=2; ctx.stroke();
 
-    // trades et PNL
+    // trades and PNL
     trades.forEach(tr=>{
       if(tr.symbol!==currentSymbol) return;
-      const x=padding+((len-1)/(len-1))*w;
-      const y=canvas.height-padding-((tr.entry-minVal)/range)*h;
 
-      // ligne pointillée rouge pour prix d'entrée
+      const contract = tr.contract_id ? openContracts[tr.contract_id] : null;
+      const entryPrice = contract ? contract.entry_spot : (tr.entry || chartData[len-1]);
+      const profit = contract ? contract.profit : 0;
+
+      const x = padding + ((len-1)/(len-1))*w;
+      const y = canvas.height-padding-((entryPrice-minVal)/range)*h;
+
       ctx.setLineDash([6,4]);
       ctx.strokeStyle="rgba(220,38,38,0.9)";
-      ctx.lineWidth=1.2; ctx.beginPath(); ctx.moveTo(padding,y); ctx.lineTo(canvas.width-padding,y); ctx.stroke();
+      ctx.lineWidth=1.2;
+      ctx.beginPath();
+      ctx.moveTo(padding, y);
+      ctx.lineTo(canvas.width-padding, y);
+      ctx.stroke();
       ctx.setLineDash([]);
 
-      // triangle trade
       ctx.fillStyle=tr.type==="BUY"?"green":"red";
       ctx.beginPath();
       if(tr.type==="BUY"){ ctx.moveTo(x,y-10); ctx.lineTo(x-8,y); ctx.lineTo(x+8,y); } 
       else { ctx.moveTo(x,y+10); ctx.lineTo(x-8,y); ctx.lineTo(x+8,y); }
       ctx.closePath(); ctx.fill();
 
-      // prix d'entrée attaché à la ligne
       ctx.fillStyle="rgba(220,38,38,0.9)";
       ctx.font="12px Inter, Arial";
       ctx.textAlign="right";
       ctx.textBaseline="bottom";
-      tr.entry = contractentry();
-      ctx.fillText(tr.entry.toFixed(2), canvas.width-padding-4, y-2);
+      ctx.fillText(entryPrice.toFixed(2) + " | PNL: " + profit.toFixed(2), canvas.width-padding-4, y-2);
     });
 
     // current PNL
@@ -308,7 +277,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const lastPrice=chartData[len-1];
       let pnl=0;
       trades.forEach(tr=>{
-        const diff=tr.type==="BUY"?lastPrice-tr.entry:tr.entry-lastPrice;
+        const entryPrice = tr.contract_id && openContracts[tr.contract_id] ? openContracts[tr.contract_id].entry_spot : tr.entry || lastPrice;
+        const diff=tr.type==="BUY"?lastPrice-entryPrice:entryPrice-lastPrice;
         pnl+=diff*tr.multiplier*tr.stake;
       });
       const yCur=canvas.height-padding-((lastPrice-minVal)/range)*h;
@@ -321,58 +291,9 @@ document.addEventListener("DOMContentLoaded", () => {
       ctx.textBaseline="bottom";
       ctx.fillText("PNL: "+pnl.toFixed(2), canvas.width-padding-4, yCur-4);
 
-      // point vert sur la ligne
       ctx.beginPath(); ctx.arc(canvas.width-padding,yCur,4,0,Math.PI*2); ctx.fill();
     }
   }
-
-    function contractentry()
-     {
-      let entry;
-      ws = new WebSocket(WS_URL);
-      ws.onopen = () => {
-         ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" }));
-      };
-
-      ws.onmessage = (msg) => {
-         const data = JSON.parse(msg.data);
-
-         if (data.msg_type === "authorize"){
-           // Get open positions
-           ws.send(JSON.stringify({ portfolio: 1 }));
-         }
-
-         // For each contract, get entry info
-         if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0){
-            const contracts = data.portfolio.contracts;
-            logHistory("Found " + contracts.length + " open contracts.");
-
-            for (const c of contracts) {
-               ws.send(JSON.stringify({
-                  proposal_open_contract: 1,
-                  contract_id: c.contract_id
-               }));
-            }
-         }
-
-         // Show entry price for each
-         if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract){
-            const poc = data.proposal_open_contract;
-            logHistory("🆔 Contract " + poc.contract_id);
-            logHistory("  ↳ Entry Price: " + poc.entry_spot);
-            logHistory("  ↳ Buy Price: " + poc.buy_price);
-            logHistory("  ↳ Current Spot: " + poc.current_spot);
-            logHistory("  ↳ Profit: " + poc.profit);
-            logHistory("--------------------------------");
-         }
-
-         entry = poc.entry_spot;
-
-      };
-
-      return entry;
-     }
-
 
   function canvasMouseMove(e){
     if(!canvas||chartData.length===0) return;
@@ -390,21 +311,16 @@ document.addEventListener("DOMContentLoaded", () => {
     tooltip.innerHTML=`<div><strong>${currentSymbol}</strong></div><div>Price: ${formatNum(price)}</div><div>Time: ${time}</div>${tradesHtml}`;
   }
 
-  //--- Trades (New)
+  // ------------------- Trades -------------------
   function executeTrade(type){
     const stake=parseFloat(stakeInput.value)||1;
     const multiplier=parseInt(multiplierInput.value)||300;
-
-    // TP & SL initiaux
-    const tpInitial = 150;
-    const slInitial = 130;
-
-    const trade={ symbol:currentSymbol,type,stake,multiplier,entry:null,tp:null,sl:null,timestamp:Date.now(),id:`sim-${Date.now()}-${Math.random().toString(36).slice(2,8)}` };
-    //trades.push(trade);
-    logHistory(`${type} ${currentSymbol} sent (awaiting server response)`);
+    const trade={ symbol:currentSymbol,type,stake,multiplier,entry:null,timestamp:Date.now(),id:`sim-${Date.now()}-${Math.random().toString(36).slice(2,8)}` };
+    trades.push(trade);
+    logHistory(`${type} ${currentSymbol} sent`);
 
     if(authorized && ws && ws.readyState===WebSocket.OPEN){
-       const payload = {
+      const payload = {
         buy: 1,
         price: stake.toFixed(2),
         parameters: {
@@ -413,85 +329,23 @@ document.addEventListener("DOMContentLoaded", () => {
           currency: "USD",
           basis: "stake",
           amount: stake.toFixed(2),
-          multiplier: multiplier,
-          //limit_order: { stop_loss: slInitial, take_profit: tpInitial }
+          multiplier: multiplier
         }
       };
-
-      if (type === "BUY")
-       {
-        numb_ = parseInt(buynumb.value)||1;
-       }
-      else if (type === "SELL")
-       {
-        numb_ = parseInt(sellnumb.value)||1;
-       }
-
-      for (let i=0;i < numb_; i++)
-       {
-         ws.send(JSON.stringify(payload));
-       }
-     
+      numb_ = type==="BUY"?parseInt(buynumb.value)||1:parseInt(sellnumb.value)||1;
+      for (let i=0;i<numb_; i++) ws.send(JSON.stringify(payload));
       logHistory(`Payload sent: ${JSON.stringify(payload)}`);
-
     }
-
     drawChart();
   }
 
   buyBtn.onclick=()=>executeTrade("BUY");
   sellBtn.onclick=()=>executeTrade("SELL");
-  toggleBtn.addEventListener("click", ()=>{
-   
-  });
 
   closeBtn.onclick=()=>{
-    trades=[];
+    trades=[]; openContracts={};
     updatePnL();
     drawChart();
-  
-    ws = new WebSocket(WS_URL);
-    
-    ws.onopen=()=>{ ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" })); };
-    ws.onclose=()=>{ logHistory("Disconnected"); logHistory("WS closed"); };
-    ws.onerror=e=>{ logHistory("WS error "+JSON.stringify(e)); };
-    ws.onmessage=msg=>{
-    const data=JSON.parse(msg.data);
-    if(data.msg_type==="authorize")
-     {
-        if(!data.authorize?.loginid){ logHistory("Token not authorized"); return; }
-        authorized=true; 
-        logHistory("connection Authorized.");
-
-        if(authorized && ws && ws.readyState===WebSocket.OPEN)
-        {
-           const portfoliopayload = { portfolio : 1};
-           logHistory('The request is open...');
-           logHistory('Request in process...');   
-
-           ws.send(JSON.stringify(portfoliopayload));
-       
-           ws.onmessage = msg => {
-           const data = JSON.parse(msg.data);
-           if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0)
-            {
-             const contracts = data.portfolio.contracts;
-             logHistory('Found '+ contracts.length + ' active contracts - close all...');   
-             for (const contract of contracts)
-              {
-               logHistory('Closing contract '+ contract.contract_id + '(' + contract.contract_type + ')');
-               ws.send(JSON.stringify({
-                 "sell": contract.contract_id,
-                 "price": 0
-               }));
-             }
-            }
-          };
-
-          logHistory("All contracts were closed!");
-        } 
-      }
-    };
   };
 
   function updatePnL(){
@@ -499,75 +353,62 @@ document.addEventListener("DOMContentLoaded", () => {
     const lastPrice=chartData[chartData.length-1];
     let pnl=0;
     trades.forEach(tr=>{
-      const diff=tr.type==="BUY"?lastPrice-tr.entry:tr.entry-lastPrice;
+      const entryPrice = tr.contract_id && openContracts[tr.contract_id] ? openContracts[tr.contract_id].entry_spot : tr.entry || lastPrice;
+      const diff=tr.type==="BUY"?lastPrice-entryPrice:entryPrice-lastPrice;
       pnl+=diff*tr.multiplier*tr.stake;
     });
     pnlDisplay.textContent=pnl.toFixed(2);
   }
 
-  // websocket
+  // ------------------- WebSocket -------------------
+  function connectWS(token){
+    ws=new WebSocket(WS_URL);
+    ws.onopen=()=>{ setStatus("Connected. Authorizing..."); ws.send(JSON.stringify({ authorize: token })); };
+    ws.onmessage=e=>{
+      const data=JSON.parse(e.data);
+      if(data.msg_type==="authorize" && data.authorize && data.authorize.account_id){
+        authorized=true;
+        setStatus("Authorized");
+        subscribeTicks(currentSymbol);
+        logHistory("Authorized, account id: "+data.authorize.account_id);
+      }
+      if(data.msg_type==="tick" && data.tick && data.tick.symbol===currentSymbol){
+        chartData.push(data.tick.quote); chartTimes.push(data.tick.epoch);
+        if(chartData.length>200) { chartData.shift(); chartTimes.shift(); }
+        drawChart(); drawGauges(); updatePnL();
+      }
+      if(data.msg_type==="proposal_open_contract" && data.proposal_open_contract){
+        const poc = data.proposal_open_contract;
+        const tr = trades.find(t=>!t.contract_id && t.symbol===currentSymbol);
+        if(tr) tr.contract_id = poc.contract_id;
+        openContracts[poc.contract_id] = {
+          entry_spot: poc.entry_spot,
+          buy_price: poc.buy_price,
+          current_spot: poc.current_spot,
+          profit: poc.profit
+        };
+        logHistory(`Trade confirmed: ${poc.contract_id} Entry=${poc.entry_spot} Profit=${poc.profit}`);
+        drawChart(); updatePnL();
+      }
+    };
+    ws.onclose=()=>{ setStatus("Disconnected"); authorized=false; };
+    ws.onerror=err=>{ console.error(err); setStatus("Error"); };
+  }
+
   function subscribeTicks(symbol){
-    if(!ws||ws.readyState!==WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ ticks: symbol, subscribe:1 }));
+    if(!authorized || !ws || ws.readyState!==WebSocket.OPEN || !symbol) return;
+    const payload={ ticks: symbol, subscribe: 1 };
+    ws.send(JSON.stringify(payload));
     logHistory(`Subscribed to ticks: ${symbol}`);
   }
 
-  function handleTick(tick){
-    const p=Number(tick.quote);
-    const symbol=tick.symbol;
-    lastPrices[symbol]=p;
+  connectBtn.onclick=()=>{ const token=tokenInput.value.trim(); if(token) connectWS(token); };
 
-    if(symbol===currentSymbol){
-      chartData.push(p);
-      chartTimes.push(tick.epoch);
-      if(chartData.length>600){ chartData.shift(); chartTimes.shift(); }
-      drawChart(); drawGauges(); updatePnL();
-    }
-    const symbolEl=document.getElementById(`symbol-${symbol}`);
-    if(symbolEl){
-      let span=symbolEl.querySelector(".lastPrice");
-      if(!span){ span=document.createElement("span"); span.className="lastPrice"; span.style.float="right"; span.style.opacity="0.8"; symbolEl.appendChild(span);}
-      span.textContent=formatNum(p);
-    }
-  }
+  toggleBtn.onclick=()=>{ document.body.classList.toggle("dark"); };
 
- connectBtn.onclick=()=>{
-    if(ws&&ws.readyState===WebSocket.OPEN){ ws.close(); ws=null; setStatus("Disconnected"); connectBtn.textContent="Connect"; return; }
-    const token=tokenInput.value.trim();
-    if(!token){ setStatus("Simulation Mode"); logHistory("Running in simulation (no token)"); return; }
-    ws=new WebSocket(WS_URL);
-    setStatus("Connecting...");
-    ws.onopen=()=>{ setStatus("Connected, authorizing..."); ws.send(JSON.stringify({ authorize: token })); };
-    ws.onclose=()=>{ setStatus("Disconnected"); logHistory("WS closed"); };
-    ws.onerror=e=>{ logHistory("WS error "+JSON.stringify(e)); };
-    ws.onmessage=msg=>{
-      const data=JSON.parse(msg.data);
-      if(data.msg_type==="authorize"){
-        if(!data.authorize?.loginid){ setStatus("Simulation Mode (Token invalid)"); logHistory("Token not authorized"); return; }
-        authorized=true; setStatus(`Connected: ${data.authorize.loginid}`); logHistory("Authorized: "+data.authorize.loginid);
-        ws.send(JSON.stringify({ balance:1, subscribe:1 }));
-        volatilitySymbols.forEach(sym=>subscribeTicks(sym));
-      }
+  window.onresize=()=>{ if(canvas){ canvas.width=chartInner.clientWidth; canvas.height=chartInner.clientHeight; drawChart(); } };
 
-      if(data.msg_type==="balance"&&data.balance){ 
-        const bal=parseFloat(data.balance.balance||0).toFixed(2); 
-        const cur=data.balance.currency||"USD"; 
-        userBalance.textContent=`Balance: ${bal} ${cur}`; 
-        logHistory(`Balance updated: ${bal} ${cur}`); 
-      }
-
-      if(data.msg_type==="tick"&&data.tick) handleTick(data.tick);
-
-      // Trade confirmation
-      if(data.msg_type==="proposal_open_contract" && data.proposal_open_contract){
-        const poc = data.proposal_open_contract;
-        logHistory(`Trade confirmed: Entry = ${poc.entry_spot}`);
-        drawChart();
-      } 
-    };
-    connectBtn.textContent="Disconnect";
-  };
-
+  // init
   initSymbols();
   selectSymbol(volatilitySymbols[0]);
 });
