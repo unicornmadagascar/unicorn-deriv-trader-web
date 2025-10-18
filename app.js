@@ -300,8 +300,56 @@ document.addEventListener("DOMContentLoaded", () => {
       ctx.font="12px Inter, Arial";
       ctx.textAlign="right";
       ctx.textBaseline="bottom";
-      //ctx.fillText(tr.entry.toFixed(2), canvas.width-padding-4, y-2);
+      tr.entry = contractentry();
+      ctx.fillText(tr.entry.toFixed(2), canvas.width-padding-4, y-2);
     });
+
+    function contractentry()
+     {
+      let entry;
+      ws = new WebSocket(WS_URL);
+      ws.onopen = () => {
+         ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" }));
+      };
+
+      ws.onmessage = (msg) => {
+         const data = JSON.parse(msg.data);
+
+         if (data.msg_type === "authorize"){
+           // Get open positions
+           ws.send(JSON.stringify({ portfolio: 1 }));
+         }
+
+         // For each contract, get entry info
+         if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0){
+            const contracts = data.portfolio.contracts;
+            logHistory("Found " + contracts.length + " open contracts.");
+
+            for (const c of contracts) {
+               ws.send(JSON.stringify({
+                  proposal_open_contract: 1,
+                  contract_id: c.contract_id
+               }));
+            }
+         }
+
+         // Show entry price for each
+         if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract){
+            const poc = data.proposal_open_contract;
+            logHistory("🆔 Contract " + poc.contract_id);
+            logHistory("  ↳ Entry Price: " + poc.entry_spot);
+            logHistory("  ↳ Buy Price: " + poc.buy_price);
+            logHistory("  ↳ Current Spot: " + poc.current_spot);
+            logHistory("  ↳ Profit: " + poc.profit);
+            logHistory("--------------------------------");
+         }
+
+         entry = poc.entry_spot;
+
+      };
+
+      return entry
+     }
 
     // current PNL
     if(chartData.length>0){
@@ -388,7 +436,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     }
 
-    //drawChart();
+    drawChart();
   }
 
   buyBtn.onclick=()=>executeTrade("BUY");
@@ -521,6 +569,8 @@ document.addEventListener("DOMContentLoaded", () => {
           logHistory(`Trade confirmed: Entry=${trade.entry}, TP=${trade.tp}, SL=${trade.sl}`);
           //drawChart();
         } */
+
+        drawChart();
       } 
     };
     connectBtn.textContent="Disconnect";
