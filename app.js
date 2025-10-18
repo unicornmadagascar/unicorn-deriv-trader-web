@@ -223,6 +223,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // chart
   function drawChart() {
   if (!ctx || chartData.length === 0) return;
+
   const padding = 50;
   const w = canvas.width - padding * 2;
   const h = canvas.height - padding * 2;
@@ -234,8 +235,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const range = maxVal - minVal || 1;
   const len = chartData.length;
 
-  // -----------------------
-  // Y-axis grid & labels
+  // axes
+  ctx.strokeStyle = "#666";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padding, padding);
+  ctx.lineTo(padding, canvas.height - padding);
+  ctx.lineTo(canvas.width - padding, canvas.height - padding);
+  ctx.stroke();
+
+  // y-grid & labels
   ctx.strokeStyle = "rgba(150,150,150,0.2)";
   ctx.fillStyle = "var(--text-muted)";
   ctx.font = "12px Inter, Arial";
@@ -251,19 +260,17 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.fillText(v.toFixed(2), padding - 10, y);
   }
 
-  // -----------------------
-  // X-axis labels
+  // x-axis labels
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
-  const step = Math.floor(len / 6);
+  const step = Math.floor(len / 5);
   for (let i = 0; i < len; i += step) {
     const x = padding + (i / (len - 1)) * w;
-    const t = chartTimes[i] ? new Date(chartTimes[i] * 1000).toLocaleTimeString().slice(0, 8) : i;
+    const t = chartTimes[i] ? new Date(chartTimes[i] * 1000).toLocaleTimeString().slice(0, 8) : "";
     ctx.fillText(t, x, canvas.height - padding + 5);
   }
 
-  // -----------------------
-  // Area fill under price line
+  // area fill
   ctx.beginPath();
   for (let i = 0; i < len; i++) {
     const x = padding + (i / (len - 1)) * w;
@@ -280,8 +287,7 @@ document.addEventListener("DOMContentLoaded", () => {
   ctx.fillStyle = gradient;
   ctx.fill();
 
-  // -----------------------
-  // Price line
+  // price line
   ctx.beginPath();
   for (let i = 0; i < len; i++) {
     const x = padding + (i / (len - 1)) * w;
@@ -293,14 +299,16 @@ document.addEventListener("DOMContentLoaded", () => {
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // -----------------------
-  // Trades markers
+  // trades markers
   trades.forEach(tr => {
     if (tr.symbol !== currentSymbol || tr.entry == null) return;
 
-    // find nearest X for the trade based on time
-    let tradeIdx = chartTimes.findIndex(t => t >= tr.timestamp / 1000);
-    if (tradeIdx < 0) tradeIdx = len - 1; // last if not found
+    // X position (nearest timestamp or fallback)
+    let tradeIdx = len - 1;
+    if (tr.timestamp && chartTimes.length > 0) {
+      tradeIdx = chartTimes.findIndex(t => t >= tr.timestamp / 1000);
+      if (tradeIdx < 0) tradeIdx = len - 1;
+    }
     const x = padding + (tradeIdx / (len - 1)) * w;
     const y = canvas.height - padding - ((tr.entry - minVal) / range) * h;
 
@@ -308,8 +316,8 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.setLineDash([5, 4]);
     ctx.strokeStyle = tr.type === "BUY" ? "rgba(34,197,94,0.9)" : "rgba(239,68,68,0.9)";
     ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, canvas.height - padding);
+    ctx.moveTo(padding, y);
+    ctx.lineTo(canvas.width - padding, y);
     ctx.stroke();
     ctx.setLineDash([]);
 
@@ -317,13 +325,13 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.fillStyle = tr.type === "BUY" ? "#22c55e" : "#ef4444";
     ctx.beginPath();
     if (tr.type === "BUY") {
-      ctx.moveTo(x - 6, y - 8);
-      ctx.lineTo(x + 6, y);
-      ctx.lineTo(x - 6, y + 8);
+      ctx.moveTo(x - 8, y);
+      ctx.lineTo(x, y - 8);
+      ctx.lineTo(x, y + 8);
     } else {
-      ctx.moveTo(x - 6, y + 8);
-      ctx.lineTo(x + 6, y);
-      ctx.lineTo(x - 6, y - 8);
+      ctx.moveTo(x + 8, y);
+      ctx.lineTo(x, y - 8);
+      ctx.lineTo(x, y + 8);
     }
     ctx.closePath();
     ctx.fill();
@@ -335,8 +343,7 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.fillText(`${tr.type} @ ${tr.entry.toFixed(2)}`, x + 10, y - 5);
   });
 
-  // -----------------------
-  // Current price line
+  // current price line
   const lastPrice = chartData[len - 1];
   const yCur = canvas.height - padding - ((lastPrice - minVal) / range) * h;
   ctx.strokeStyle = "#16a34a";
@@ -346,19 +353,17 @@ document.addEventListener("DOMContentLoaded", () => {
   ctx.lineTo(canvas.width - padding, yCur);
   ctx.stroke();
 
-  // -----------------------
   // PnL display
   let totalPnl = 0;
   trades.forEach(tr => {
     const diff = tr.type === "BUY" ? lastPrice - tr.entry : tr.entry - lastPrice;
-    totalPnl += diff * Number(tr.multiplier) * Number(tr.stake);
+    totalPnl += diff * tr.multiplier * tr.stake;
   });
   ctx.fillStyle = totalPnl >= 0 ? "#16a34a" : "#dc2626";
   ctx.font = "bold 14px Inter, Arial";
   ctx.textAlign = "right";
   ctx.fillText("PnL: " + totalPnl.toFixed(2), canvas.width - padding - 4, padding + 16);
 }
-
 
 // ==========================
 function contractentry() {
@@ -371,7 +376,7 @@ function contractentry() {
 
     // portfolio contracts
     if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0) {
-      data.portfolio.contracts.forEach(c => {
+      data.portfolio.contracts.forEach((c) => {
         ws.send(JSON.stringify({ proposal_open_contract: 1, contract_id: c.contract_id }));
       });
     }
@@ -387,6 +392,7 @@ function contractentry() {
       let existing = trades.find(t => t.contract_id === id);
       if (existing) {
         existing.entry = entry;
+        existing.timestamp = Date.now(); // store timestamp for chart
       } else {
         trades.push({
           contract_id: id,
@@ -394,15 +400,20 @@ function contractentry() {
           entry,
           type: poc.contract_type.includes("UP") ? "BUY" : "SELL",
           stake: parseFloat(poc.buy_price) || 1,
-          multiplier: parseFloat(poc.multiplier) || 100
+          multiplier: poc.multiplier || 100,
+          timestamp: Date.now() // store timestamp for chart
         });
       }
 
-      console.log(`✅ Contract ${id}: ${poc.underlying} | ${poc.contract_type} | Entry=${entry}`);
+      console.log(
+        `✅ Contract ${id}: ${poc.underlying} | ${poc.contract_type} | Entry=${entry}`
+      );
+
       drawChart();
     }
   });
 }
+
 
 
   function canvasMouseMove(e){
