@@ -348,7 +348,7 @@ document.addEventListener("DOMContentLoaded", () => {
        ws.onopen = () => {
           logHistory("The request is open...");
           logHistory("Request in process...");
-          ws.send(JSON.parse(portfoliopayload));
+          ws.send(JSON.stringify(portfoliopayload));
        };
 
        ws.onerror = (e) => {
