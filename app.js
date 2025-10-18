@@ -228,8 +228,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const h = canvas.height - padding * 2;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  const maxVal = Math.max(...chartData, ...trades.map(t => t.entry || 0));
-  const minVal = Math.min(...chartData, ...trades.map(t => t.entry || 0));
+  const allValues = [...chartData, ...trades.map(t => t.entry || 0)];
+  const maxVal = Math.max(...allValues);
+  const minVal = Math.min(...allValues);
   const range = maxVal - minVal || 1;
   const len = chartData.length;
 
@@ -242,9 +243,9 @@ document.addEventListener("DOMContentLoaded", () => {
   ctx.lineTo(canvas.width - padding, canvas.height - padding);
   ctx.stroke();
 
-  // y grid & labels
-  ctx.strokeStyle = "#e6eef9";
-  ctx.fillStyle = "#2b3a4a";
+  // y-grid & labels
+  ctx.strokeStyle = "rgba(150,150,150,0.2)";
+  ctx.fillStyle = "var(--text-muted)";
   ctx.font = "12px Inter, Arial";
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
@@ -290,37 +291,38 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // trades markers
   trades.forEach(tr => {
-    if (tr.symbol !== currentSymbol || tr.entry === null) return;
+    if (tr.symbol !== currentSymbol || tr.entry == null) return;
     const y = canvas.height - padding - ((tr.entry - minVal) / range) * h;
-    ctx.setLineDash([6, 4]);
-    ctx.strokeStyle = "rgba(220,38,38,0.9)";
+
+    // entry line
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = tr.type === "BUY" ? "rgba(34,197,94,0.9)" : "rgba(239,68,68,0.9)";
     ctx.beginPath();
     ctx.moveTo(padding, y);
     ctx.lineTo(canvas.width - padding, y);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // triangle
-    ctx.fillStyle = tr.type === "BUY" ? "green" : "red";
+    // entry triangle marker
+    ctx.fillStyle = tr.type === "BUY" ? "#22c55e" : "#ef4444";
     ctx.beginPath();
     if (tr.type === "BUY") {
-      ctx.moveTo(canvas.width - padding - 10, y - 8);
-      ctx.lineTo(canvas.width - padding, y + 8);
-      ctx.lineTo(canvas.width - padding - 20, y + 8);
+      ctx.moveTo(padding + 10, y - 8);
+      ctx.lineTo(padding + 18, y);
+      ctx.lineTo(padding + 10, y + 8);
     } else {
-      ctx.moveTo(canvas.width - padding - 10, y + 8);
-      ctx.lineTo(canvas.width - padding, y - 8);
-      ctx.lineTo(canvas.width - padding - 20, y - 8);
+      ctx.moveTo(canvas.width - padding - 10, y - 8);
+      ctx.lineTo(canvas.width - padding - 18, y);
+      ctx.lineTo(canvas.width - padding - 10, y + 8);
     }
     ctx.closePath();
     ctx.fill();
 
     // entry label
-    ctx.fillStyle = "rgba(220,38,38,0.9)";
+    ctx.fillStyle = "rgba(0,0,0,0.7)";
     ctx.font = "12px Inter, Arial";
-    ctx.textAlign = "right";
-    ctx.textBaseline = "bottom";
-    ctx.fillText(tr.entry.toFixed(2), canvas.width - padding - 4, y - 2);
+    ctx.textAlign = "left";
+    ctx.fillText(`${tr.type} @ ${tr.entry.toFixed(2)}`, padding + 24, y - 5);
   });
 
   // current price line
@@ -334,68 +336,63 @@ document.addEventListener("DOMContentLoaded", () => {
   ctx.stroke();
 
   // PNL display
-  let pnl = 0;
+  let totalPnl = 0;
   trades.forEach(tr => {
     const diff = tr.type === "BUY" ? lastPrice - tr.entry : tr.entry - lastPrice;
-    pnl += diff * tr.multiplier * tr.stake;
+    totalPnl += diff * tr.multiplier * tr.stake;
   });
-  ctx.fillStyle = "#16a34a";
+  ctx.fillStyle = totalPnl >= 0 ? "#16a34a" : "#dc2626";
   ctx.font = "bold 14px Inter, Arial";
   ctx.textAlign = "right";
-  ctx.fillText("PNL: " + pnl.toFixed(2), canvas.width - padding - 4, yCur - 4);
+  ctx.fillText("PnL: " + totalPnl.toFixed(2), canvas.width - padding - 4, padding + 16);
 }
 
-
+// ==========================
 function contractentry() {
   if (!authorized || !ws || ws.readyState !== WebSocket.OPEN) return;
 
-  // Get all open multiplier contracts (only once)
   ws.send(JSON.stringify({ portfolio: 1 }));
 
   ws.addEventListener("message", (msg) => {
     const data = JSON.parse(msg.data);
 
+    // portfolio contracts
     if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0) {
-      const contracts = data.portfolio.contracts;
-
-      contracts.forEach((c) => {
-        ws.send(
-          JSON.stringify({
-            proposal_open_contract: 1,
-            contract_id: c.contract_id,
-          })
-        );
+      data.portfolio.contracts.forEach((c) => {
+        ws.send(JSON.stringify({ proposal_open_contract: 1, contract_id: c.contract_id }));
       });
     }
 
+    // open contract details
     if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
       const poc = data.proposal_open_contract;
-      const entry = parseFloat(poc.entry_spot || poc.buy_price || 0);
       const id = poc.contract_id;
+      const entry = parseFloat(poc.entry_spot || poc.buy_price || 0);
 
-      // Update or insert trade info
+      if (!entry || !poc.underlying) return;
+
       let existing = trades.find(t => t.contract_id === id);
-      if (existing) existing.entry = entry;
-      else {
+      if (existing) {
+        existing.entry = entry;
+      } else {
         trades.push({
+          contract_id: id,
           symbol: poc.underlying,
           entry,
           type: poc.contract_type.includes("UP") ? "BUY" : "SELL",
-          stake: 1,
-          multiplier: poc.multiplier || 300,
-          contract_id: id,
+          stake: parseFloat(poc.buy_price) || 1,
+          multiplier: poc.multiplier || 100,
         });
       }
 
-      logHistory(
-        `📘 Contract ${id} | ${poc.underlying} | Entry ${entry.toFixed(2)} | PNL ${poc.profit.toFixed(2)}`
+      console.log(
+        `✅ Contract ${id}: ${poc.underlying} | ${poc.contract_type} | Entry=${entry}`
       );
 
       drawChart();
     }
   });
 }
-
 
   function canvasMouseMove(e){
     if(!canvas||chartData.length===0) return;
