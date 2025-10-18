@@ -348,7 +348,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       };
 
-      return entry
+      return entry;
      }
 
     // current PNL
@@ -560,16 +560,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Trade confirmation
       if(data.msg_type==="proposal_open_contract" && data.proposal_open_contract){
-        /* const poc = data.proposal_open_contract;
-        const trade = trades.find(t=>t.entry===null); 
-        if(trade){
-          trade.entry = poc.entry_tick;
-          trade.tp = poc.take_profit;
-          trade.sl = poc.stop_loss;
-          logHistory(`Trade confirmed: Entry=${trade.entry}, TP=${trade.tp}, SL=${trade.sl}`);
-          //drawChart();
-        } */
-
+        const poc = data.proposal_open_contract;
+        logHistory(`Trade confirmed: Entry = ${poc.entry_spot}`);
         drawChart();
       } 
     };
