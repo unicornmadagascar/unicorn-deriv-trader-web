@@ -1,4 +1,4 @@
-// app.js - Unicorn Madagascar (demo/live ticks) - Version Stable
+// app.js - Unicorn Madagascar (demo live ticks) - Version nettoyée
 
 document.addEventListener("DOMContentLoaded", () => {
   const APP_ID = 105747;
@@ -20,6 +20,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const multiplierInput = document.getElementById("multiplier");
   const modeSelect = document.getElementById("modeSelect");
   const pnlDisplay = document.getElementById("pnl");
+  const tp = document.getElementById("tp");
+  const sl = document.getElementById("sl");
   const buynumb = document.getElementById("buyNumber");
   const sellnumb = document.getElementById("sellNumber");
   const toggleBtn = document.getElementById("themeToggle");
@@ -34,40 +36,80 @@ document.addEventListener("DOMContentLoaded", () => {
   let canvas, ctx;
   let gaugeSmoothers = { volatility: 0, rsi: 0, emaProb: 0 };
   const SMA_WINDOW = 20;
+  let numb_;
+  const isOn = false;
 
-  const openContracts = {}; // Store entry_spot and profit for each contract
+  const volatilitySymbols = ["BOOM1000","CRASH1000","BOOM900","CRASH900","BOOM600","CRASH600","BOOM500","CRASH500",
+                             "R_100","R_75","R_50","R_25"
+                            ];
 
-  const volatilitySymbols = [
-    "BOOM1000","CRASH1000","BOOM900","CRASH900","BOOM600","CRASH600",
-    "BOOM500","CRASH500","R_100","R_75","R_50","R_25"
-  ];
-
-  // Tooltip
+  // tooltip
   const tooltip = document.createElement("div");
   tooltip.style.cssText = "position:fixed;padding:6px 10px;background:rgba(0,0,0,0.85);color:#fff;font-size:12px;border-radius:6px;pointer-events:none;display:none;z-index:9999";
   document.body.appendChild(tooltip);
 
+  // helpers
   function logHistory(txt){
     const d = document.createElement("div");
     d.textContent = `${new Date().toLocaleTimeString()} — ${txt}`;
     historyList.prepend(d);
   }
-
   function setStatus(txt){ statusSpan.textContent = txt; }
   function formatNum(n){ return Number(n).toFixed(2); }
 
+  // init symbols list
   function initSymbols(){
     symbolList.innerHTML = "";
     volatilitySymbols.forEach(sym => {
       const el = document.createElement("div");
       el.className = "symbolItem";
       el.id = `symbol-${sym}`;
-      el.textContent = sym.replace("_"," ").replace("R","VIX");
+      switch(sym)
+       {
+        case "BOOM1000":
+           el.textContent = "BOOM 1000";
+           break;
+        case "BOOM900":
+           el.textContent = "BOOM 900";
+           break;
+        case "BOOM600":
+           el.textContent = "BOOM 600";
+           break;
+        case "BOOM500":
+           el.textContent = "BOOM 500";
+           break;
+        case "CRASH1000":
+           el.textContent = "CRASH 1000";
+           break;
+        case "CRASH900":
+           el.textContent = "CRASH 900";
+           break;
+        case "CRASH600":
+           el.textContent = "CRASH 600";
+           break;
+        case "CRASH500":
+           el.textContent = "CRASH 500";
+           break;
+        case "R_100":
+           el.textContent = "VIX 100";
+           break;
+        case "R_75":
+           el.textContent = "VIX 75";
+           break;
+        case "R_50":
+           el.textContent = "VIX 50";
+           break;
+        case "R_25":
+           el.textContent = "VIX 25";
+           break;
+       }
+
       el.onclick = () => selectSymbol(sym);
       symbolList.appendChild(el);
     });
   }
 
+  // select symbol
   function selectSymbol(sym){
     currentSymbol = sym;
     document.querySelectorAll(".symbolItem").forEach(e => e.classList.remove("active"));
@@ -78,23 +120,25 @@ document.addEventListener("DOMContentLoaded", () => {
     trades = [];
     initCanvas();
     initGauges();
-    if(ws && ws.readyState === WebSocket.OPEN) subscribeTicks(sym);
+    subscribeTicks(sym);
     logHistory(`Selected ${sym}`);
   }
 
-  // Canvas
+  // canvas
   function initCanvas(){
     chartInner.innerHTML = "";
     canvas = document.createElement("canvas");
     canvas.width = chartInner.clientWidth;
     canvas.height = chartInner.clientHeight;
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
     chartInner.appendChild(canvas);
     ctx = canvas.getContext("2d");
     canvas.addEventListener("mousemove", canvasMouseMove);
     canvas.addEventListener("mouseleave", ()=>{ tooltip.style.display="none"; });
   }
 
-  // Gauges
+  // gauges
   function initGauges(){
     gaugeDashboard.innerHTML = "";
     ["Volatility","RSI","EMA"].forEach(name=>{
@@ -135,6 +179,7 @@ document.addEventListener("DOMContentLoaded", () => {
     gctx.fillText(value.toFixed(1)+"%", w/2, h/2+12);
   }
 
+  // compute volatility
   function computeVolatility(){
     if(chartData.length<2) return 0;
     const lastN = chartData.slice(-SMA_WINDOW);
@@ -174,23 +219,22 @@ document.addEventListener("DOMContentLoaded", () => {
     return res;
   }
 
-  // Chart
+  // chart
   function drawChart(){
     if(!ctx||chartData.length===0) return;
     const padding=50;
     const w=canvas.width-padding*2;
     const h=canvas.height-padding*2;
     ctx.clearRect(0,0,canvas.width,canvas.height);
-
-    const maxVal=Math.max(...chartData,...trades.map(t=>t.entry||0));
-    const minVal=Math.min(...chartData,...trades.map(t=>t.entry||0));
+    const maxVal=Math.max(...chartData, ...trades.map(t=>t.entry));
+    const minVal=Math.min(...chartData, ...trades.map(t=>t.entry));
     const range=maxVal-minVal||1;
 
-    // Axes
+    // axes
     ctx.strokeStyle="#666"; ctx.lineWidth=1;
     ctx.beginPath(); ctx.moveTo(padding,padding); ctx.lineTo(padding,canvas.height-padding); ctx.lineTo(canvas.width-padding,canvas.height-padding); ctx.stroke();
 
-    // Y grid & labels
+    // y grid & labels
     ctx.strokeStyle="#e6eef9"; ctx.fillStyle="#2b3a4a"; ctx.font="12px Inter, Arial"; ctx.textAlign="right"; ctx.textBaseline="middle";
     for(let i=0;i<=5;i++){
       const y=canvas.height-padding-(i/5)*h;
@@ -198,7 +242,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const v=minVal+(i/5)*range; ctx.fillText(v.toFixed(2), padding-10, y);
     }
 
-    // X labels
+    // x labels
     ctx.textAlign="center"; ctx.textBaseline="top";
     const len=chartData.length; const step=Math.max(1,Math.ceil(len/6));
     for(let i=0;i<len;i+=step){
@@ -207,7 +251,7 @@ document.addEventListener("DOMContentLoaded", () => {
       ctx.fillText(t,x,canvas.height-padding+5);
     }
 
-    // Area chart
+    // area chart
     ctx.beginPath();
     for(let i=0;i<len;i++){
       const x=padding+(i/(len-1))*w;
@@ -222,7 +266,7 @@ document.addEventListener("DOMContentLoaded", () => {
     fillGrad.addColorStop(1,"rgba(0,123,255,0.08)");
     ctx.fillStyle=fillGrad; ctx.fill();
 
-    // Line chart
+    // line chart
     ctx.beginPath();
     for(let i=0;i<len;i++){
       const x=padding+(i/(len-1))*w;
@@ -231,49 +275,102 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     ctx.strokeStyle="#007bff"; ctx.lineWidth=2; ctx.stroke();
 
-    // Trades & PNL
+    // trades et PNL
     trades.forEach(tr=>{
-      if(tr.symbol!==currentSymbol || !openContracts[tr.id]) return;
-      const contract = openContracts[tr.id];
+      if(tr.symbol!==currentSymbol) return;
       const x=padding+((len-1)/(len-1))*w;
-      const y=canvas.height-padding-((contract.entry_spot-minVal)/range)*h;
+      const y=canvas.height-padding-((tr.entry-minVal)/range)*h;
 
-      // Entry line
+      // ligne pointillée rouge pour prix d'entrée
       ctx.setLineDash([6,4]);
       ctx.strokeStyle="rgba(220,38,38,0.9)";
-      ctx.lineWidth=1.2;
-      ctx.beginPath(); ctx.moveTo(padding,y); ctx.lineTo(canvas.width-padding,y); ctx.stroke();
+      ctx.lineWidth=1.2; ctx.beginPath(); ctx.moveTo(padding,y); ctx.lineTo(canvas.width-padding,y); ctx.stroke();
       ctx.setLineDash([]);
 
-      // Triangle
+      // triangle trade
       ctx.fillStyle=tr.type==="BUY"?"green":"red";
       ctx.beginPath();
       if(tr.type==="BUY"){ ctx.moveTo(x,y-10); ctx.lineTo(x-8,y); ctx.lineTo(x+8,y); } 
       else { ctx.moveTo(x,y+10); ctx.lineTo(x-8,y); ctx.lineTo(x+8,y); }
       ctx.closePath(); ctx.fill();
 
-      // Entry price text
+      // prix d'entrée attaché à la ligne
       ctx.fillStyle="rgba(220,38,38,0.9)";
       ctx.font="12px Inter, Arial";
       ctx.textAlign="right";
       ctx.textBaseline="bottom";
-      ctx.fillText(contract.entry_spot.toFixed(2), canvas.width-padding-4, y-2);
+      tr.entry = contractentry();
+      ctx.fillText(tr.entry.toFixed(2), canvas.width-padding-4, y-2);
+    });
 
-      // PNL line
-      const lastPrice = chartData[len-1];
-      const diff = tr.type==="BUY"?lastPrice-contract.entry_spot:contract.entry_spot-lastPrice;
-      const pnl = diff*tr.multiplier*tr.stake;
+    function contractentry()
+     {
+      let entry;
+      ws = new WebSocket(WS_URL);
+      ws.onopen = () => {
+         ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" }));
+      };
 
-      ctx.strokeStyle="#16a34a";
-      ctx.lineWidth=1.2;
-      ctx.beginPath(); ctx.moveTo(padding,y); ctx.lineTo(canvas.width-padding,y); ctx.stroke();
+      ws.onmessage = (msg) => {
+         const data = JSON.parse(msg.data);
+
+         if (data.msg_type === "authorize"){
+           // Get open positions
+           ws.send(JSON.stringify({ portfolio: 1 }));
+         }
+
+         // For each contract, get entry info
+         if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0){
+            const contracts = data.portfolio.contracts;
+            logHistory("Found " + contracts.length + " open contracts.");
+
+            for (const c of contracts) {
+               ws.send(JSON.stringify({
+                  proposal_open_contract: 1,
+                  contract_id: c.contract_id
+               }));
+            }
+         }
+
+         // Show entry price for each
+         if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract){
+            const poc = data.proposal_open_contract;
+            logHistory("🆔 Contract " + poc.contract_id);
+            logHistory("  ↳ Entry Price: " + poc.entry_spot);
+            logHistory("  ↳ Buy Price: " + poc.buy_price);
+            logHistory("  ↳ Current Spot: " + poc.current_spot);
+            logHistory("  ↳ Profit: " + poc.profit);
+            logHistory("--------------------------------");
+         }
+
+         entry = poc.entry_spot;
+
+      };
+
+      return entry;
+     }
+
+    // current PNL
+    if(chartData.length>0){
+      const lastPrice=chartData[len-1];
+      let pnl=0;
+      trades.forEach(tr=>{
+        const diff=tr.type==="BUY"?lastPrice-tr.entry:tr.entry-lastPrice;
+        pnl+=diff*tr.multiplier*tr.stake;
+      });
+      const yCur=canvas.height-padding-((lastPrice-minVal)/range)*h;
+      ctx.strokeStyle="#16a34a"; ctx.lineWidth=1.2;
+      ctx.beginPath(); ctx.moveTo(padding,yCur); ctx.lineTo(canvas.width-padding,yCur); ctx.stroke();
 
       ctx.fillStyle="#16a34a";
       ctx.font="bold 14px Inter, Arial";
       ctx.textAlign="right";
       ctx.textBaseline="bottom";
-      ctx.fillText("PNL: "+pnl.toFixed(2), canvas.width-padding-4, y-20);
-    });
+      ctx.fillText("PNL: "+pnl.toFixed(2), canvas.width-padding-4, yCur-4);
+
+      // point vert sur la ligne
+      ctx.beginPath(); ctx.arc(canvas.width-padding,yCur,4,0,Math.PI*2); ctx.fill();
+    }
   }
 
   function canvasMouseMove(e){
@@ -287,67 +384,168 @@ document.addEventListener("DOMContentLoaded", () => {
     const price=chartData[idx];
     const time=chartTimes[idx]?new Date(chartTimes[idx]*1000).toLocaleTimeString().slice(0,8):"";
     let tradesHtml="";
-    trades.forEach(tr=>{
-      if(tr.symbol!==currentSymbol || !openContracts[tr.id]) return;
-      const contract = openContracts[tr.id];
-      tradesHtml+=`<div style="color:${tr.type==="BUY"?"#0ea5a4":"#ef4444"}">${tr.type} @ ${contract.entry_spot.toFixed(2)} stake:${tr.stake} mult:${tr.multiplier}</div>`;
-    });
-    tooltip.style.display="block";
-    tooltip.style.left=(e.clientX+12)+"px";
-    tooltip.style.top=(e.clientY-36)+"px";
+    trades.forEach(tr=>{ if(tr.symbol!==currentSymbol) return; tradesHtml+=`<div style="color:${tr.type==="BUY"?"#0ea5a4":"#ef4444"}">${tr.type} @ ${formatNum(tr.entry)} stake:${tr.stake} mult:${tr.multiplier}</div>`; });
+    tooltip.style.display="block"; tooltip.style.left=(e.clientX+12)+"px"; tooltip.style.top=(e.clientY-36)+"px";
     tooltip.innerHTML=`<div><strong>${currentSymbol}</strong></div><div>Price: ${formatNum(price)}</div><div>Time: ${time}</div>${tradesHtml}`;
   }
 
-  // --- Trades
+  //--- Trades (New)
   function executeTrade(type){
     const stake=parseFloat(stakeInput.value)||1;
     const multiplier=parseInt(multiplierInput.value)||300;
-    const numb = type==="BUY"?parseInt(buynumb.value)||1:parseInt(sellnumb.value)||1;
 
-    for(let i=0;i<numb;i++){
-      const trade={ symbol:currentSymbol,type,stake,multiplier,id:`sim-${Date.now()}-${Math.random().toString(36).slice(2,8)}` };
-      trades.push(trade);
+    // TP & SL initiaux
+    const tpInitial = 150;
+    const slInitial = 130;
 
-      if(authorized && ws && ws.readyState===WebSocket.OPEN){
-        const payload = {
-          buy: 1,
-          price: stake.toFixed(2),
-          parameters: {
-            contract_type: type==="BUY"?"MULTUP":"MULTDOWN",
-            symbol: currentSymbol,
-            currency: "USD",
-            basis: "stake",
-            amount: stake.toFixed(2),
-            multiplier: multiplier
-          }
-        };
-        ws.send(JSON.stringify(payload));
-        logHistory(`Trade sent: ${type} ${currentSymbol} stake:${stake} mult:${multiplier}`);
-      }
+    const trade={ symbol:currentSymbol,type,stake,multiplier,entry:null,tp:null,sl:null,timestamp:Date.now(),id:`sim-${Date.now()}-${Math.random().toString(36).slice(2,8)}` };
+    //trades.push(trade);
+    logHistory(`${type} ${currentSymbol} sent (awaiting server response)`);
+
+    if(authorized && ws && ws.readyState===WebSocket.OPEN){
+       const payload = {
+        buy: 1,
+        price: stake.toFixed(2),
+        parameters: {
+          contract_type: type==="BUY"?"MULTUP":"MULTDOWN",
+          symbol: currentSymbol,
+          currency: "USD",
+          basis: "stake",
+          amount: stake.toFixed(2),
+          multiplier: multiplier,
+          //limit_order: { stop_loss: slInitial, take_profit: tpInitial }
+        }
+      };
+
+      if (type === "BUY")
+       {
+        numb_ = parseInt(buynumb.value)||1;
+       }
+      else if (type === "SELL")
+       {
+        numb_ = parseInt(sellnumb.value)||1;
+       }
+
+      for (let i=0;i < numb_; i++)
+       {
+         ws.send(JSON.stringify(payload));
+       }
+     
+      logHistory(`Payload sent: ${JSON.stringify(payload)}`);
+
     }
+
     drawChart();
   }
 
   buyBtn.onclick=()=>executeTrade("BUY");
   sellBtn.onclick=()=>executeTrade("SELL");
+  toggleBtn.addEventListener("click", ()=>{
+   
+  });
 
-  // WebSocket connection
-  function connectWS(token){
+  closeBtn.onclick=()=>{
+    trades=[];
+    updatePnL();
+    drawChart();
+  
     ws = new WebSocket(WS_URL);
-    setStatus("Connecting...");
-    ws.onopen = ()=>{ ws.send(JSON.stringify({ authorize: token })); };
-    ws.onclose = ()=>{ setStatus("Disconnected"); logHistory("WS closed"); };
-    ws.onerror = e=>{ logHistory("WS error "+JSON.stringify(e)); };
-    ws.onmessage = msg=>{
-      const data = JSON.parse(msg.data);
+    
+    ws.onopen=()=>{ ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" })); };
+    ws.onclose=()=>{ logHistory("Disconnected"); logHistory("WS closed"); };
+    ws.onerror=e=>{ logHistory("WS error "+JSON.stringify(e)); };
+    ws.onmessage=msg=>{
+    const data=JSON.parse(msg.data);
+    if(data.msg_type==="authorize")
+     {
+        if(!data.authorize?.loginid){ logHistory("Token not authorized"); return; }
+        authorized=true; 
+        logHistory("connection Authorized.");
 
+        if(authorized && ws && ws.readyState===WebSocket.OPEN)
+        {
+           const portfoliopayload = { portfolio : 1};
+           logHistory('The request is open...');
+           logHistory('Request in process...');   
+
+           ws.send(JSON.stringify(portfoliopayload));
+       
+           ws.onmessage = msg => {
+           const data = JSON.parse(msg.data);
+           if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0)
+            {
+             const contracts = data.portfolio.contracts;
+             logHistory('Found '+ contracts.length + ' active contracts - close all...');   
+             for (const contract of contracts)
+              {
+               logHistory('Closing contract '+ contract.contract_id + '(' + contract.contract_type + ')');
+               ws.send(JSON.stringify({
+                 "sell": contract.contract_id,
+                 "price": 0
+               }));
+             }
+            }
+          };
+
+          logHistory("All contracts were closed!");
+        } 
+      }
+    };
+  };
+
+  function updatePnL(){
+    if(chartData.length===0||trades.length===0){ pnlDisplay.textContent="0"; return; }
+    const lastPrice=chartData[chartData.length-1];
+    let pnl=0;
+    trades.forEach(tr=>{
+      const diff=tr.type==="BUY"?lastPrice-tr.entry:tr.entry-lastPrice;
+      pnl+=diff*tr.multiplier*tr.stake;
+    });
+    pnlDisplay.textContent=pnl.toFixed(2);
+  }
+
+  // websocket
+  function subscribeTicks(symbol){
+    if(!ws||ws.readyState!==WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ ticks: symbol, subscribe:1 }));
+    logHistory(`Subscribed to ticks: ${symbol}`);
+  }
+
+  function handleTick(tick){
+    const p=Number(tick.quote);
+    const symbol=tick.symbol;
+    lastPrices[symbol]=p;
+
+    if(symbol===currentSymbol){
+      chartData.push(p);
+      chartTimes.push(tick.epoch);
+      if(chartData.length>600){ chartData.shift(); chartTimes.shift(); }
+      drawChart(); drawGauges(); updatePnL();
+    }
+    const symbolEl=document.getElementById(`symbol-${symbol}`);
+    if(symbolEl){
+      let span=symbolEl.querySelector(".lastPrice");
+      if(!span){ span=document.createElement("span"); span.className="lastPrice"; span.style.float="right"; span.style.opacity="0.8"; symbolEl.appendChild(span);}
+      span.textContent=formatNum(p);
+    }
+  }
+
+ connectBtn.onclick=()=>{
+    if(ws&&ws.readyState===WebSocket.OPEN){ ws.close(); ws=null; setStatus("Disconnected"); connectBtn.textContent="Connect"; return; }
+    const token=tokenInput.value.trim();
+    if(!token){ setStatus("Simulation Mode"); logHistory("Running in simulation (no token)"); return; }
+    ws=new WebSocket(WS_URL);
+    setStatus("Connecting...");
+    ws.onopen=()=>{ setStatus("Connected, authorizing..."); ws.send(JSON.stringify({ authorize: token })); };
+    ws.onclose=()=>{ setStatus("Disconnected"); logHistory("WS closed"); };
+    ws.onerror=e=>{ logHistory("WS error "+JSON.stringify(e)); };
+    ws.onmessage=msg=>{
+      const data=JSON.parse(msg.data);
       if(data.msg_type==="authorize"){
         if(!data.authorize?.loginid){ setStatus("Simulation Mode (Token invalid)"); logHistory("Token not authorized"); return; }
-        authorized = true;
-        setStatus(`Connected: ${data.authorize.loginid}`);
+        authorized=true; setStatus(`Connected: ${data.authorize.loginid}`); logHistory("Authorized: "+data.authorize.loginid);
         ws.send(JSON.stringify({ balance:1, subscribe:1 }));
         volatilitySymbols.forEach(sym=>subscribeTicks(sym));
-        logHistory("WS Authorized");
       }
 
       if(data.msg_type==="balance"&&data.balance){ 
@@ -359,52 +557,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if(data.msg_type==="tick"&&data.tick) handleTick(data.tick);
 
+      // Trade confirmation
       if(data.msg_type==="proposal_open_contract" && data.proposal_open_contract){
         const poc = data.proposal_open_contract;
-        const trade = trades.find(t=>!openContracts[t.id]);
-        if(trade){
-          openContracts[trade.id] = {
-            entry_spot: poc.entry_spot,
-            profit: poc.profit || 0
-          };
-          drawChart();
-          logHistory(`Trade confirmed: Entry = ${poc.entry_spot} P/L=${poc.profit}`);
-        }
-      }
+        logHistory(`Trade confirmed: Entry = ${poc.entry_spot}`);
+        drawChart();
+      } 
     };
-  }
-
-  function subscribeTicks(symbol){
-    if(ws && ws.readyState === WebSocket.OPEN){
-      ws.send(JSON.stringify({ ticks: symbol, subscribe:1 }));
-      logHistory(`Subscribed to ticks: ${symbol}`);
-    }
-  }
-
-  function handleTick(tick){
-    const p=Number(tick.quote);
-    const symbol=tick.symbol;
-    lastPrices[symbol]=p;
-    if(symbol===currentSymbol){
-      chartData.push(p);
-      chartTimes.push(tick.epoch);
-      if(chartData.length>600){ chartData.shift(); chartTimes.shift(); }
-      drawChart(); drawGauges();
-    }
-    const symbolEl=document.getElementById(`symbol-${symbol}`);
-    if(symbolEl){
-      let span=symbolEl.querySelector(".lastPrice");
-      if(!span){ span=document.createElement("span"); span.className="lastPrice"; span.style.float="right"; span.style.opacity="0.8"; symbolEl.appendChild(span);}
-      span.textContent=formatNum(p);
-    }
-  }
-
-  connectBtn.onclick=()=>{
-    if(ws && ws.readyState===WebSocket.OPEN){ ws.close(); ws=null; setStatus("Disconnected"); connectBtn.textContent="Connect"; return; }
-    const token=tokenInput.value.trim() || "demo"; // Use demo if empty
-    connectWS(token);
     connectBtn.textContent="Disconnect";
   };
+
 
   initSymbols();
   selectSymbol(volatilitySymbols[0]);
