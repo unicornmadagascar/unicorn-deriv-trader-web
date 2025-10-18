@@ -341,12 +341,10 @@ document.addEventListener("DOMContentLoaded", () => {
     trades=[];
     updatePnL();
     drawChart();
-
-    const token=tokenInput.value.trim();
   
     ws = new WebSocket(WS_URL);
     
-    ws.onopen=()=>{ logHistory("Connection authorized"); ws.send(JSON.stringify({ authorize: token })); };
+    ws.onopen=()=>{ logHistory("Connection authorized"); ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" })); };
     ws.onclose=()=>{ logHistory("Disconnected"); logHistory("WS closed"); };
     ws.onerror=e=>{ logHistory("WS error "+JSON.stringify(e)); };
     ws.onmessage=msg=>{
