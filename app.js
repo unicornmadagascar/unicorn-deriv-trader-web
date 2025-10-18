@@ -24,6 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const sl = document.getElementById("sl");
   const buynumb = document.getElementById("buyNumber");
   const sellnumb = document.getElementById("sellNumber");
+  const toggleBtn = document.getElementById("themeToggle");
 
   let ws = null;
   let authorized = false;
@@ -36,6 +37,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let gaugeSmoothers = { volatility: 0, rsi: 0, emaProb: 0 };
   const SMA_WINDOW = 20;
   let numb_;
+  const isOn = false;
 
   const volatilitySymbols = ["BOOM1000","CRASH1000","BOOM900","CRASH900","BOOM600","CRASH600","BOOM500","CRASH500",
                              "R_100","R_75","R_50","R_25"
@@ -62,7 +64,47 @@ document.addEventListener("DOMContentLoaded", () => {
       const el = document.createElement("div");
       el.className = "symbolItem";
       el.id = `symbol-${sym}`;
-      el.textContent = sym;
+      switch(sym)
+       {
+        case "BOOM1000":
+           el.textContent = "BOOM 1000";
+           break;
+        case "BOOM900":
+           el.textContent = "BOOM 900";
+           break;
+        case "BOOM600":
+           el.textContent = "BOOM 600";
+           break;
+        case "BOOM500":
+           el.textContent = "BOOM 500";
+           break;
+        case "CRASH1000":
+           el.textContent = "CRASH 1000";
+           break;
+        case "CRASH900":
+           el.textContent = "CRASH 900";
+           break;
+        case "CRASH600":
+           el.textContent = "CRASH 600";
+           break;
+        case "CRASH500":
+           el.textContent = "CRASH 500";
+           break;
+        case "R_100":
+           el.textContent = "VIX 100";
+           break;
+        case "R_75":
+           el.textContent = "VIX 75";
+           break;
+        case "R_50":
+           el.textContent = "VIX 50";
+           break;
+        case "R_25":
+           el.textContent = "VIX 25";
+           break;
+       }
+
+      
       el.onclick = () => selectSymbol(sym);
       symbolList.appendChild(el);
     });
@@ -351,6 +393,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   buyBtn.onclick=()=>executeTrade("BUY");
   sellBtn.onclick=()=>executeTrade("SELL");
+  toggleBtn.addEventListener("click", ()=>{
+   
+  });
 
   closeBtn.onclick=()=>{
     trades=[];
