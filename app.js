@@ -22,6 +22,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const pnlDisplay = document.getElementById("pnl");
   const tp = document.getElementById("tp");
   const sl = document.getElementById("sl");
+  const buynumb = document.getElementById("buyNumber");
+  const sellnumb = document.getElementById("sellNumber");
 
   let ws = null;
   let authorized = false;
@@ -33,6 +35,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let canvas, ctx;
   let gaugeSmoothers = { volatility: 0, rsi: 0, emaProb: 0 };
   const SMA_WINDOW = 20;
+  let numb_;
 
   const volatilitySymbols = ["BOOM1000","CRASH1000","BOOM900","CRASH900","BOOM600","CRASH600","BOOM500","CRASH500"];
 
@@ -322,7 +325,17 @@ document.addEventListener("DOMContentLoaded", () => {
           //limit_order: { stop_loss: slInitial, take_profit: tpInitial }
         }
       };
-      for (let i=0;i < 3; i++)
+
+      if (type === "BUY")
+       {
+        numb_ = parseInt(buynumb.value)||1;
+       }
+      else if (type === "SELL")
+       {
+        numb_ = parseInt(sellnumb.value)||1;
+       }
+
+      for (let i=0;i < numb_; i++)
        {
          ws.send(JSON.stringify(payload));
        }
