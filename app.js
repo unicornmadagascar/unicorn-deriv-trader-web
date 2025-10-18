@@ -234,16 +234,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const range = maxVal - minVal || 1;
   const len = chartData.length;
 
-  // axes
-  ctx.strokeStyle = "#666";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(padding, padding);
-  ctx.lineTo(padding, canvas.height - padding);
-  ctx.lineTo(canvas.width - padding, canvas.height - padding);
-  ctx.stroke();
-
-  // y-grid & labels
+  // -----------------------
+  // Y-axis grid & labels
   ctx.strokeStyle = "rgba(150,150,150,0.2)";
   ctx.fillStyle = "var(--text-muted)";
   ctx.font = "12px Inter, Arial";
@@ -259,7 +251,19 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.fillText(v.toFixed(2), padding - 10, y);
   }
 
-  // area fill
+  // -----------------------
+  // X-axis labels
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  const step = Math.floor(len / 6);
+  for (let i = 0; i < len; i += step) {
+    const x = padding + (i / (len - 1)) * w;
+    const t = chartTimes[i] ? new Date(chartTimes[i] * 1000).toLocaleTimeString().slice(0, 8) : i;
+    ctx.fillText(t, x, canvas.height - padding + 5);
+  }
+
+  // -----------------------
+  // Area fill under price line
   ctx.beginPath();
   for (let i = 0; i < len; i++) {
     const x = padding + (i / (len - 1)) * w;
@@ -270,14 +274,14 @@ document.addEventListener("DOMContentLoaded", () => {
   ctx.lineTo(canvas.width - padding, canvas.height - padding);
   ctx.lineTo(padding, canvas.height - padding);
   ctx.closePath();
-
   const gradient = ctx.createLinearGradient(0, padding, 0, canvas.height - padding);
   gradient.addColorStop(0, "rgba(37,99,235,0.35)");
   gradient.addColorStop(1, "rgba(37,99,235,0.05)");
   ctx.fillStyle = gradient;
   ctx.fill();
 
-  // price line
+  // -----------------------
+  // Price line
   ctx.beginPath();
   for (let i = 0; i < len; i++) {
     const x = padding + (i / (len - 1)) * w;
@@ -289,31 +293,37 @@ document.addEventListener("DOMContentLoaded", () => {
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // trades markers and entry lines
+  // -----------------------
+  // Trades markers
   trades.forEach(tr => {
     if (tr.symbol !== currentSymbol || tr.entry == null) return;
+
+    // find nearest X for the trade based on time
+    let tradeIdx = chartTimes.findIndex(t => t >= tr.timestamp / 1000);
+    if (tradeIdx < 0) tradeIdx = len - 1; // last if not found
+    const x = padding + (tradeIdx / (len - 1)) * w;
     const y = canvas.height - padding - ((tr.entry - minVal) / range) * h;
 
     // entry line
     ctx.setLineDash([5, 4]);
     ctx.strokeStyle = tr.type === "BUY" ? "rgba(34,197,94,0.9)" : "rgba(239,68,68,0.9)";
     ctx.beginPath();
-    ctx.moveTo(padding, y);
-    ctx.lineTo(canvas.width - padding, y);
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, canvas.height - padding);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // entry triangle marker
+    // triangle marker
     ctx.fillStyle = tr.type === "BUY" ? "#22c55e" : "#ef4444";
     ctx.beginPath();
     if (tr.type === "BUY") {
-      ctx.moveTo(padding + 10, y - 8);
-      ctx.lineTo(padding + 18, y);
-      ctx.lineTo(padding + 10, y + 8);
+      ctx.moveTo(x - 6, y - 8);
+      ctx.lineTo(x + 6, y);
+      ctx.lineTo(x - 6, y + 8);
     } else {
-      ctx.moveTo(canvas.width - padding - 10, y - 8);
-      ctx.lineTo(canvas.width - padding - 18, y);
-      ctx.lineTo(canvas.width - padding - 10, y + 8);
+      ctx.moveTo(x - 6, y + 8);
+      ctx.lineTo(x + 6, y);
+      ctx.lineTo(x - 6, y - 8);
     }
     ctx.closePath();
     ctx.fill();
@@ -322,10 +332,11 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.fillStyle = "rgba(0,0,0,0.7)";
     ctx.font = "12px Inter, Arial";
     ctx.textAlign = "left";
-    ctx.fillText(`${tr.type} @ ${tr.entry.toFixed(2)}`, padding + 24, y - 5);
+    ctx.fillText(`${tr.type} @ ${tr.entry.toFixed(2)}`, x + 10, y - 5);
   });
 
-  // current price line
+  // -----------------------
+  // Current price line
   const lastPrice = chartData[len - 1];
   const yCur = canvas.height - padding - ((lastPrice - minVal) / range) * h;
   ctx.strokeStyle = "#16a34a";
@@ -335,7 +346,8 @@ document.addEventListener("DOMContentLoaded", () => {
   ctx.lineTo(canvas.width - padding, yCur);
   ctx.stroke();
 
-  // total PnL display
+  // -----------------------
+  // PnL display
   let totalPnl = 0;
   trades.forEach(tr => {
     const diff = tr.type === "BUY" ? lastPrice - tr.entry : tr.entry - lastPrice;
