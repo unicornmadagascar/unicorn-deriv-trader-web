@@ -38,7 +38,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let numb_;
 
   const volatilitySymbols = ["BOOM1000","CRASH1000","BOOM900","CRASH900","BOOM600","CRASH600","BOOM500","CRASH500",
-                             "BOOM150","CRASH150","R_100","R_90","R_75","R_50","R_30","R_25","R_15"
+                             "R_100","R_75","R_50","R_25"
                             ];
 
   // tooltip
