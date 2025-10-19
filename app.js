@@ -25,6 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const buynumb = document.getElementById("buyNumber");
   const sellnumb = document.getElementById("sellNumber");
   const toggleBtn = document.getElementById("themeToggle");
+  const autoHistoryList = document.getElementById("autoHistoryList");
 
   let ws = null;
   let authorized = false;
@@ -39,6 +40,31 @@ document.addEventListener("DOMContentLoaded", () => {
   let numb_;
   let entry;
   const isOn = false;
+  // Exemple de données
+  const trades__ = [
+  {
+       time: "12:05:10",
+       contract_id: "9823746123",
+       type: "BUY",
+       stake: 1.00,
+       multiplier: 200,
+       entry_spot: 13456.25,
+       tp: 1.5,
+       sl: 1.0,
+       profit: "+0.50"
+     },
+     {
+       time: "12:10:44",
+       contract_id: "9823746158",
+       type: "SELL",
+       stake: 2.00,
+       multiplier: 300,
+       entry_spot: 12678.92,
+       tp: 2.0,
+       sl: 1.5,
+       profit: "-1.00"
+     }
+  ];
 
   const volatilitySymbols = ["BOOM1000","CRASH1000","BOOM900","CRASH900","BOOM600","CRASH600","BOOM500","CRASH500",
                              "R_100","R_75","R_50","R_25","R_10"
@@ -126,6 +152,56 @@ document.addEventListener("DOMContentLoaded", () => {
     initGauges();
     subscribeTicks(sym);
     logHistory(`Selected ${sym}`);
+  }
+
+  // Table
+  function initTable()
+  {
+   // Construction du tableau HTML
+   autoHistoryList.innerHTML = `
+    <table class="trade-table" id="autoTradeTable">
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="selectAll"></th>
+          <th>Time of Trade</th>
+          <th>Contract ID</th>
+          <th>Contract Type</th>
+          <th>Stake</th>
+          <th>Multiplier</th>
+          <th>Entry Spot</th>
+          <th>TP (%)</th>
+          <th>SL (%)</th>
+          <th>Profit</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="autoTradeBody"></tbody>
+    </table>
+    <button id="deleteSelected" style="margin-top:8px; background:#dc2626; color:white; border:none; padding:6px 10px; border-radius:6px; cursor:pointer;">🗑 Delete Selected</button>
+   `;
+
+    const autoTradeBody = document.getElementById("autoTradeBody");
+  }
+
+  // Fonction d’ajout d’une ligne de trade
+  function addTradeRow(trade) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input type="checkbox" class="rowSelect"></td>
+      <td>${trade.time}</td>
+      <td>${trade.contract_id}</td>
+      <td class="${trade.type === "BUY" ? "buy" : "sell"}">${trade.type}</td>
+      <td>${trade.stake.toFixed(2)}</td>
+      <td>${trade.multiplier}</td>
+      <td>${trade.entry_spot}</td>
+      <td>${trade.tp}%</td>
+      <td>${trade.sl}%</td>
+      <td>${trade.profit}</td>
+      <td>
+        <button class="deleteRowBtn" style="background:#ef4444; border:none; color:white; border-radius:4px; padding:2px 6px; cursor:pointer;">Delete</button>
+      </td>
+    `;
+    autoTradeBody.appendChild(tr);
   }
 
   // canvas
@@ -584,5 +660,31 @@ document.addEventListener("DOMContentLoaded", () => {
 
   initSymbols();
   selectSymbol(volatilitySymbols[0]);
+  initTable();
+ // Ajoute les trades de test
+  trades.forEach(addTradeRow);
+
+  // Gestion du "Select All"
+  const selectAll = document.getElementById("selectAll");
+  selectAll.addEventListener("change", () => {
+    document.querySelectorAll(".rowSelect").forEach(cb => {
+      cb.checked = selectAll.checked;
+    });
+  });
+
+  // Supprimer les lignes sélectionnées
+  document.getElementById("deleteSelected").addEventListener("click", () => {
+    document.querySelectorAll(".rowSelect:checked").forEach(cb => {
+      cb.closest("tr").remove();
+    });
+    selectAll.checked = false;
+  });
+
+  // Supprimer une ligne individuelle
+  autoTradeBody.addEventListener("click", (e) => {
+    if (e.target.classList.contains("deleteRowBtn")) {
+      e.target.closest("tr").remove();
+    }
+  });
   //contractentry();
 });
