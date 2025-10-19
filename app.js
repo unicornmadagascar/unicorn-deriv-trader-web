@@ -367,10 +367,8 @@ document.addEventListener("DOMContentLoaded", () => {
             logHistory("  ↳ Current Spot: " + poc.current_spot);
             logHistory("  ↳ Profit: " + poc.profit);
             logHistory("--------------------------------");
+            entry = poc.entry_spot;
          }
-
-         entry = poc.entry_spot;
-
       };
 
       return entry;
@@ -435,7 +433,6 @@ document.addEventListener("DOMContentLoaded", () => {
        }
      
       logHistory(`Payload sent: ${JSON.stringify(payload)}`);
-
     }
 
     drawChart();
