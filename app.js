@@ -483,21 +483,25 @@ document.addEventListener("DOMContentLoaded", () => {
                   contract_id: contract.contract_id
                 }));
 
-                // Show entry price for each
-                if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract)
-                 {
-                   const poc = data.proposal_open_contract;
-                   if (poc.profit.toFixed(2) >= 0)
+                ws.onmessage = async (msg) => {
+                   const data = await JSON.parse(msg.data);
+
+                   // Show entry price for each
+                   if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract)
+                   {
+                    const poc = data.proposal_open_contract;
+                    if (poc.profit.toFixed(2) >= 0)
                     { 
-                     logHistory('Closing contract '+ poc.contract_id + " Profit : " + poc.profit + ' (' + poc.contract_type + ')');
+                     logHistory('Closing contract '+ contract.contract_id + " Profit : " + poc.profit + ' (' + contract.contract_type + ')');
                      ws.send(JSON.stringify({
                         "sell": contract.contract_id,
                         "price": 0
                       }));
                     }
                   }
-               }
-             }
+               };
+              }
+            }
           };
         } 
       }
