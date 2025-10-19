@@ -14,7 +14,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const gaugeDashboard = document.getElementById("gaugeDashboard");
   const buyBtn = document.getElementById("buyBtn");
   const sellBtn = document.getElementById("sellBtn");
-  const closeBtn = document.getElementById("closeBtn");
+  const closeBtnWin = document.getElementById("closeBtnWin");
+  const closeBtnAll = document.getElementById("closeBtnAll");
   const historyList = document.getElementById("historyList");
   const stakeInput = document.getElementById("stake");
   const multiplierInput = document.getElementById("multiplier");
@@ -520,7 +521,7 @@ document.addEventListener("DOMContentLoaded", () => {
    
   });
 
-  closeBtn.onclick = () => {
+  closeBtnWin.onclick = () => {
     trades=[];
     updatePnL();
     drawChart();
@@ -551,13 +552,15 @@ document.addEventListener("DOMContentLoaded", () => {
          const contracts = data.portfolio.contracts;
          logHistory("📊 Found " + contracts.length + " active contracts.");
 
-         contracts.forEach((contract) => {
-         ws.send(
-           JSON.stringify({
-              proposal_open_contract: 1,
-              contract_id: contract.contract_id,
-           })
-         );
+         contracts.forEach((contract,i) => {
+         setTimeout(() => {
+            ws.send(
+              JSON.stringify({
+                 proposal_open_contract: 1,
+                 contract_id: contract.contract_id,
+              })
+            );
+          }, i * 500); // Délai de 500ms entre chaque demande
       });
     }
 
@@ -592,6 +595,58 @@ document.addEventListener("DOMContentLoaded", () => {
     }
    };
  };
+
+  closeBtnAll.onclick=()=>{
+    trades=[];
+    updatePnL();
+    drawChart();
+  
+    ws = new WebSocket(WS_URL);
+    
+    ws.onopen=()=>{ ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" })); };
+    ws.onclose=()=>{ logHistory("Disconnected"); logHistory("WS closed"); };
+    ws.onerror=e=>{ logHistory("WS error "+JSON.stringify(e)); };
+    ws.onmessage=msg=>{
+    const data=JSON.parse(msg.data);
+    if(data.msg_type==="authorize")
+     {
+        if(!data.authorize?.loginid){ logHistory("Token not authorized"); return; }
+        authorized=true; 
+        logHistory("connection Authorized.");
+
+        if(authorized && ws && ws.readyState===WebSocket.OPEN)
+        {
+           const portfoliopayload = { portfolio : 1};
+           logHistory('The request is open...');
+           logHistory('Request in process...');   
+
+           ws.send(JSON.stringify(portfoliopayload));
+       
+           ws.onmessage = msg => {
+           const data = JSON.parse(msg.data);
+           if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0)
+            {
+             const contracts = data.portfolio.contracts;
+             logHistory('Found '+ contracts.length + ' active contracts - close all...');   
+             for (const contract of contracts)
+              {
+               logHistory('Closing contract '+ contract.contract_id + '(' + contract.contract_type + ')');
+               ws.send(JSON.stringify({
+                 "sell": contract.contract_id,
+                 "price": 0
+               }));
+             }
+
+             if (contracts.length === 0)
+              {
+                logHistory("All contracts were closed!");
+              }
+            }
+          };
+        } 
+      }
+    };
+  };
 
 
   function updatePnL(){
@@ -630,6 +685,55 @@ document.addEventListener("DOMContentLoaded", () => {
       span.textContent=formatNum(p);
     }
   }
+
+  closeBtn.onclick=()=>{
+    trades=[];
+    updatePnL();
+    drawChart();
+  
+    ws = new WebSocket(WS_URL);
+    
+    ws.onopen=()=>{ ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" })); };
+    ws.onclose=()=>{ logHistory("Disconnected"); logHistory("WS closed"); };
+    ws.onerror=e=>{ logHistory("WS error "+JSON.stringify(e)); };
+    ws.onmessage=msg=>{
+    const data=JSON.parse(msg.data);
+    if(data.msg_type==="authorize")
+     {
+        if(!data.authorize?.loginid){ logHistory("Token not authorized"); return; }
+        authorized=true; 
+        logHistory("connection Authorized.");
+
+        if(authorized && ws && ws.readyState===WebSocket.OPEN)
+        {
+           const portfoliopayload = { portfolio : 1};
+           logHistory('The request is open...');
+           logHistory('Request in process...');   
+
+           ws.send(JSON.stringify(portfoliopayload));
+       
+           ws.onmessage = msg => {
+           const data = JSON.parse(msg.data);
+           if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0)
+            {
+             const contracts = data.portfolio.contracts;
+             logHistory('Found '+ contracts.length + ' active contracts - close all...');   
+             for (const contract of contracts)
+              {
+               logHistory('Closing contract '+ contract.contract_id + '(' + contract.contract_type + ')');
+               ws.send(JSON.stringify({
+                 "sell": contract.contract_id,
+                 "price": 0
+               }));
+             }
+            }
+          };
+
+          logHistory("All contracts were closed!");
+        } 
+      }
+    };
+  };
 
  connectBtn.onclick=()=>{
     if(ws&&ws.readyState===WebSocket.OPEN){ ws.close(); ws=null; setStatus("Disconnected"); connectBtn.textContent="Connect"; return; }
@@ -672,7 +776,7 @@ document.addEventListener("DOMContentLoaded", () => {
   selectSymbol(volatilitySymbols[0]);
   initTable();
  // Ajoute les trades de test
-  trades.forEach(addTradeRow);
+  trades__.forEach(addTradeRow);
 
   // Gestion du "Select All"
   const selectAll = document.getElementById("selectAll");
