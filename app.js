@@ -482,11 +482,19 @@ document.addEventListener("DOMContentLoaded", () => {
              logHistory('Found '+ contracts.length + ' active contracts - close all...');   
              for (const contract of contracts)
               {
-               logHistory('Closing contract '+ contract.contract_id + '(' + contract.contract_type + ')');
-               ws.send(JSON.stringify({
-                 "sell": contract.contract_id,
-                 "price": 0
-               }));
+               if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract)
+               {
+                const poc = data.proposal_open_contract;
+                logHistory("  ↳ Entry Price: " + poc.entry_spot);
+                if (poc.profit > 0)
+                 {
+                   logHistory('Closing contract '+ contract.contract_id + '(' + contract.contract_type + ')');
+                   ws.send(JSON.stringify({
+                      "sell": contract.contract_id,
+                      "price": 0
+                   }));
+                 }
+               }
              }
             }
           };
