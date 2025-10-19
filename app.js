@@ -537,7 +537,7 @@ document.addEventListener("DOMContentLoaded", () => {
  connectBtn.onclick=()=>{
     if(ws&&ws.readyState===WebSocket.OPEN){ ws.close(); ws=null; setStatus("Disconnected"); connectBtn.textContent="Connect"; return; }
     const token=tokenInput.value.trim();
-    if(!token){ setStatus("Simulation Mode"); drawChart(); logHistory("Running in simulation (no token)"); return; }
+    if(!token){ setStatus("Simulation Mode"); logHistory("Running in simulation (no token)"); return; }
     ws=new WebSocket(WS_URL);
     setStatus("Connecting...");
     ws.onopen=()=>{ setStatus("Connected, authorizing..."); ws.send(JSON.stringify({ authorize: token })); };
