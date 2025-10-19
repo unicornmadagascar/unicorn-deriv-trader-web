@@ -331,7 +331,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function contractentry()
-  {
+  {  
+      ws.send({ ping : 1 });
       //ws = new WebSocket(WS_URL);
       ws.onopen = () => {
          ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" }));
@@ -452,7 +453,7 @@ document.addEventListener("DOMContentLoaded", () => {
     updatePnL();
     drawChart();
   
-    ws = new WebSocket(WS_URL);
+    ws.send({ ping : 1 });
     
     ws.onopen=()=>{ ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" })); };
     ws.onclose=()=>{ logHistory("Disconnected"); logHistory("WS closed"); };
