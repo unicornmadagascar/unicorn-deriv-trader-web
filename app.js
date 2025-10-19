@@ -473,19 +473,29 @@ document.addEventListener("DOMContentLoaded", () => {
            const data = await JSON.parse(msg.data);
            if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0)
             {
-             const contracts = data.portfolio?.contracts||[];
-             logHistory('Found '+ contracts.length + ' active contracts - close all...');   
+             const contracts = data.portfolio?.contracts || [];
+             logHistory('Found '+ contracts.length + ' active contracts - close all...'); 
+             
              for (const contract of contracts)
               {
-                const profit_ = await profitwithid(ws,contract.contract_id);
-                //if (parseFloat(contract.profit) >= 0)
-                // { 
-                   logHistory('Closing contract '+ contract.contract_id + " Profit : " + profit_ + '(' + contract.contract_type + ')');
-                   ws.send(JSON.stringify({
-                      "sell": contract.contract_id,
-                      "price": 0
-                   }));
-                // }
+                ws.send(JSON.stringify({
+                  proposal_open_contract: 1,
+                  contract_id: contract.contract_id
+                }));
+
+                // Show entry price for each
+                if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract)
+                 {
+                   const poc = data.proposal_open_contract;
+                   if (poc.profit.toFixed(2) >= 0)
+                    { 
+                     logHistory('Closing contract '+ poc.contract_id + " Profit : " + poc.profit + ' (' + poc.contract_type + ')');
+                     ws.send(JSON.stringify({
+                        "sell": contract.contract_id,
+                        "price": 0
+                      }));
+                    }
+                  }
                }
              }
           };
@@ -493,46 +503,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     };
   };
-
-  function profitwithid(ws,id)
-   {
-    let profit__;
-
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" }));
-    };
-
-    ws.onmessage = (msg) => {
-      const data = JSON.parse(msg.data);
-      if (data.msg_type === "authorize")
-      {
-       if(!data.authorize?.loginid){ logHistory("Token not authorized"); return; }
-         authorized=true; 
-         logHistory("connection Authorized.");
-
-        if(authorized && ws && ws.readyState===WebSocket.OPEN)
-        {
-          ws.send(JSON.stringify({
-              proposal_open_contract : 1,
-              contract_id : id,
-              subscribe : 1
-          }));
-
-          ws.onmessage = (msgY) => {
-            const dataY = JSON.parse(msgY.data);
-            if (dataY.msg_type == "proposal_open_contract")
-             {
-              const poc = dataY.proposal_open_contract;
-              profit__ = poc.profit.toFixed(2);
-              logHistory("Profit : " + profit__);
-             }
-          };
-        }
-      }
-    };
-
-    return profit__;
-   }
 
   function updatePnL(){
     if(chartData.length===0||trades.length===0){ pnlDisplay.textContent="0"; return; }
