@@ -332,7 +332,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function contractentry()
   {  
-      ws.send(JSON.stringify({ ping : 1 }));
       //ws = new WebSocket(WS_URL);
       ws.onopen = () => {
          ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" }));
@@ -452,8 +451,6 @@ document.addEventListener("DOMContentLoaded", () => {
     trades=[];
     updatePnL();
     drawChart();
-  
-    ws.send(JSON.stringify({ ping : 1 }));
     
     ws.onopen=()=>{ ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" })); };
     ws.onclose=()=>{ logHistory("Disconnected"); logHistory("WS closed"); };
@@ -482,11 +479,7 @@ document.addEventListener("DOMContentLoaded", () => {
              logHistory('Found '+ contracts.length + ' active contracts - close all...');   
              for (const contract of contracts)
               {
-               if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract)
-               {
-                const poc = data.proposal_open_contract;
-                logHistory("  ↳ Entry Price: " + poc.entry_spot);
-                if (poc.profit > 0)
+                if (contract.profit >= 0)
                  {
                    logHistory('Closing contract '+ contract.contract_id + '(' + contract.contract_type + ')');
                    ws.send(JSON.stringify({
