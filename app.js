@@ -444,7 +444,7 @@ document.addEventListener("DOMContentLoaded", () => {
    
   });
 
-  closeBtn.onclick=()=>{
+  closeBtn.onclick = async ()=>{
     trades=[];
     updatePnL();
     drawChart();
@@ -473,11 +473,11 @@ document.addEventListener("DOMContentLoaded", () => {
            const data = JSON.parse(msg.data);
            if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0)
             {
-             const contracts = data.portfolio.contracts;
+             const contracts = data.portfolio?.contracts||[];
              logHistory('Found '+ contracts.length + ' active contracts - close all...');   
              for (const contract of contracts)
               {
-                const profit_ = profitwithid(contract.contract_id);
+                const profit_ = await profitwithid(ws,contract.contract_id);
                 //if (parseFloat(contract.profit) >= 0)
                 // { 
                    logHistory('Closing contract '+ contract.contract_id + " Profit : " + profit_ + '(' + contract.contract_type + ')');
@@ -489,14 +489,12 @@ document.addEventListener("DOMContentLoaded", () => {
                }
              }
           };
-
-          logHistory("All contracts were closed!");
         } 
       }
     };
   };
 
-  function profitwithid(id)
+  function profitwithid(ws,id)
    {
     let profit__;
 
@@ -522,7 +520,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
           ws.onmessage = (msgY) => {
             const dataY = JSON.parse(msgY.data);
-            if (dataY.msg_type == "proposal_open_contract")
+            if (dataY.msg_type == "proposal_open_contract" && )
              {
               const poc = dataY.proposal_open_contract;
               profit__ = poc.profit.toFixed(2);
