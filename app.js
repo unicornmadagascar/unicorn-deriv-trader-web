@@ -570,5 +570,5 @@ document.addEventListener("DOMContentLoaded", () => {
 
   initSymbols();
   selectSymbol(volatilitySymbols[0]);
-  contractentry();
+  //contractentry();
 });
