@@ -524,64 +524,75 @@ document.addEventListener("DOMContentLoaded", () => {
     trades=[];
     updatePnL();
     drawChart();
+    logHistory("🔒 Closing all profitable trades...");
 
-    ws = new WebSocket(WS_URL);
-    ws.onopen=()=>{ ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" })); };
-    ws.onclose=()=>{ logHistory("Disconnected"); logHistory("WS closed"); };
-    ws.onerror=e=>{ logHistory("WS error "+JSON.stringify(e)); };
-    ws.onmessage=msg=>{
-    const data=JSON.parse(msg.data);
-    if(data.msg_type==="authorize")
-     {
-        if(!data.authorize?.loginid){ logHistory("Token not authorized"); return; }
-        authorized=true; 
-        logHistory("connection Authorized.");
+    const token = "wgf8TFDsJ8Ecvze";
+    const ws = new WebSocket(WS_URL);
 
-        if(authorized && ws && ws.readyState===WebSocket.OPEN)
-        {
-           const portfoliopayload = { portfolio : 1};
-           logHistory('The request is open...');
-           logHistory('Request in process...');   
-
-           ws.send(JSON.stringify(portfoliopayload));
-       
-           ws.onmessage = async  (msg) => {
-           const data = await JSON.parse(msg.data);
-           if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0)
-            {
-             const contracts = data.portfolio?.contracts || [];
-             logHistory('Found '+ contracts.length + ' active contracts - close all...'); 
-             
-             contracts.forEach(contract => {
-                ws.send(JSON.stringify({
-                  proposal_open_contract: 1,
-                  contract_id: contract.contract_id
-                }));
-             
-                //ws.onmessage = async (msg) => {
-                   //const data = await JSON.parse(msg.data);
-
-                   // Show entry price for each
-                   if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract)
-                   {
-                    const poc = data.proposal_open_contract;
-                    if (poc.profit.toFixed(2) > 0)
-                    { 
-                     logHistory('Closing contract '+ contract.contract_id + " Profit : " + poc.profit + ' (' + contract.contract_type + ')');
-                     ws.send(JSON.stringify({
-                        "sell": contract.contract_id,
-                        "price": 0
-                      }));
-                    }
-                   }
-                //};   
-             }); 
-            }
-          };
-        } 
-      }
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ authorize: token }));
     };
-  };
+
+    ws.onerror = (e) => {
+      logHistory("❌ WS Error: " + JSON.stringify(e));
+    };
+
+    ws.onmessage = (msg) => {
+       const data = JSON.parse(msg.data);
+
+      // Authorization successful
+      if (data.msg_type === "authorize") {
+         logHistory("✅ Authorized successfully. Fetching portfolio...");
+         ws.send(JSON.stringify({ portfolio: 1 }));
+      }
+
+      // Portfolio received
+      if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0) {
+         const contracts = data.portfolio.contracts;
+         logHistory("📊 Found " + contracts.length + " active contracts.");
+
+         contracts.forEach((contract) => {
+         ws.send(
+           JSON.stringify({
+              proposal_open_contract: 1,
+              contract_id: contract.contract_id,
+           })
+         );
+      });
+    }
+
+    // Proposal open contract (detail for each active trade)
+    if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
+      const poc = data.proposal_open_contract;
+      const profit = parseFloat(poc.profit);
+
+      if (profit > 0) {
+        logHistory(
+          `💰 Closing profitable trade ${poc.contract_id} with profit ${profit.toFixed(2)}`
+        );
+
+        ws.send(
+          JSON.stringify({
+            sell: poc.contract_id,
+            price: 0, // 0 = sell at market price
+          })
+        );
+      }
+    }
+
+    // Sell confirmation
+    if (data.msg_type === "sell") {
+      const profit = parseFloat(data.sell.profit);
+      logHistory(`✅ Trade ${data.sell.contract_id} closed with profit: ${profit.toFixed(2)}`);
+    }
+
+    // No open contracts
+    if (data.msg_type === "portfolio" && (!data.portfolio || !data.portfolio.contracts.length)) {
+      logHistory("⚠️ No active contracts found.");
+    }
+   };
+ };
+
 
   function updatePnL(){
     if(chartData.length===0||trades.length===0){ pnlDisplay.textContent="0"; return; }
