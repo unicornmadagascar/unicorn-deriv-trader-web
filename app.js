@@ -596,8 +596,13 @@ document.addEventListener("DOMContentLoaded", () => {
    };
  };
 
-  closeBtnAll.onclick=()=>{
-    //ws = new WebSocket(WS_URL);
+ closeBtn.onclick=()=>{
+    trades=[];
+    updatePnL();
+    drawChart();
+  
+    ws = new WebSocket(WS_URL);
+    
     ws.onopen=()=>{ ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" })); };
     ws.onclose=()=>{ logHistory("Disconnected"); logHistory("WS closed"); };
     ws.onerror=e=>{ logHistory("WS error "+JSON.stringify(e)); };
@@ -631,18 +636,18 @@ document.addEventListener("DOMContentLoaded", () => {
                  "price": 0
                }));
              }
-
-             if (contracts.length === 0)
-              {
-                logHistory("All contracts were closed!");
-              }
+            }
+            
+            if (contracts.length === 0)
+            {
+              logHistory('No active contracts found.');
             }
           };
         } 
       }
     };
   };
-  
+
   function updatePnL(){
     if(chartData.length===0||trades.length===0){ pnlDisplay.textContent="0"; return; }
     const lastPrice=chartData[chartData.length-1];
