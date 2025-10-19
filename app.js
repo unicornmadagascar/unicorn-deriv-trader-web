@@ -479,7 +479,7 @@ document.addEventListener("DOMContentLoaded", () => {
               {
                 //if (parseFloat(contract.profit) >= 0)
                 // {
-                   logHistory('Closing contract '+ contract.contract_id + '(' + contract.contract_type + ')');
+                   logHistory('Closing contract '+ contract.contract_id + "Profit : " + contract.profit + '(' + contract.contract_type + ')');
                    ws.send(JSON.stringify({
                       "sell": contract.contract_id,
                       "price": 0
