@@ -448,7 +448,7 @@ document.addEventListener("DOMContentLoaded", () => {
     trades=[];
     updatePnL();
     drawChart();
-    
+
     ws = new WebSocket(WS_URL);
     ws.onopen=()=>{ ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" })); };
     ws.onclose=()=>{ logHistory("Disconnected"); logHistory("WS closed"); };
@@ -477,7 +477,7 @@ document.addEventListener("DOMContentLoaded", () => {
              logHistory('Found '+ contracts.length + ' active contracts - close all...');   
              for (const contract of contracts)
               {
-                if (contract.profit >= 0)
+                if (parseFloat(contract.profit) >= 0)
                  {
                    logHistory('Closing contract '+ contract.contract_id + '(' + contract.contract_type + ')');
                    ws.send(JSON.stringify({
