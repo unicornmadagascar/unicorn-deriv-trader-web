@@ -552,15 +552,14 @@ document.addEventListener("DOMContentLoaded", () => {
              const contracts = data.portfolio?.contracts || [];
              logHistory('Found '+ contracts.length + ' active contracts - close all...'); 
              
-             for (const contract of contracts)
-              {
+             contracts.forEach(contract => {
                 ws.send(JSON.stringify({
                   proposal_open_contract: 1,
                   contract_id: contract.contract_id
                 }));
-
-                //ws.onmessage = async (msg) => {
-                   //const data = await JSON.parse(msg.data);
+             
+                ws.onmessage = async (msg) => {
+                   const data = await JSON.parse(msg.data);
 
                    // Show entry price for each
                    if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract)
@@ -574,9 +573,9 @@ document.addEventListener("DOMContentLoaded", () => {
                         "price": 0
                       }));
                     }
-                  }
-               //};
-              }
+                   }
+                };   
+             }); 
             }
           };
         } 
