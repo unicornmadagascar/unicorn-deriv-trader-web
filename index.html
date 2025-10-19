@@ -149,21 +149,50 @@
       color: var(--text-muted);
     }
 
-    #tradeHistory {
+    /* === Trade History === */
+    #tradeHistory, #autoTradeHistory {
       margin-top: 10px;
       background-color: var(--bg-panel);
       padding: 10px;
       border-radius: 8px;
       border: 1px solid var(--border);
-      height: 150px;
+      height: 180px;
       overflow-y: auto;
     }
 
-    #tradeHistory strong {
+    #tradeHistory strong, #autoTradeHistory strong {
       display: block;
       margin-bottom: 6px;
       color: var(--text-main);
     }
+
+    table.trade-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    .trade-table th, .trade-table td {
+      padding: 6px 8px;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .trade-table th {
+      background-color: var(--bg-accent);
+      color: var(--text-muted);
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+
+    .trade-table td {
+      color: var(--text-main);
+    }
+
+    .buy { color: #16a34a; font-weight: 600; }
+    .sell { color: #dc2626; font-weight: 600; }
 
     #pnl {
       font-weight: bold;
@@ -214,7 +243,6 @@
       box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     }
 
-    /* Tooltip flottant */
     .tooltip {
       position: absolute;
       background: var(--bg-panel);
@@ -228,7 +256,6 @@
       z-index: 999;
     }
 
-    /* Prix courant label */
     .lastPriceLabel {
       position: absolute;
       right: 8px;
@@ -242,7 +269,6 @@
       font-weight: 500;
     }
 
-    /* === Bouton Launch Automation === */
     #launchAutomation {
       background: linear-gradient(90deg, #3b82f6, var(--accent));
       color: white;
@@ -260,7 +286,7 @@
     }
 
     #launchAutomation.active {
-      background: linear-gradient(90deg, #ef4444, #dc2626); /* rouge actif */
+      background: linear-gradient(90deg, #ef4444, #dc2626);
     }
   </style>
 </head>
@@ -314,7 +340,6 @@
           <input id="sl" type="number" step="0.01" value="1.0" />
         </label>
 
-        <!-- 🌀 Nouveaux contrôles -->
         <label>Buy Number:
           <input id="buyNumber" type="number" min="1" max="100" value="1" />
         </label>
@@ -324,17 +349,22 @@
         </label>
 
         <button id="launchAutomation">Launch Automation</button>
-        <!-- ✅ Fin des nouveaux contrôles -->
-
         <button id="buyBtn">BUY</button>
         <button id="sellBtn">SELL</button>
         <button id="closeBtn">CLOSE</button>
         <div id="pnl">PnL: --</div>
       </div>
 
+      <!-- Trade history manuel -->
       <div id="tradeHistory">
         <strong>📜 Trade history</strong>
         <div id="historyList"></div>
+      </div>
+
+      <!-- Trade history automatisé -->
+      <div id="autoTradeHistory">
+        <strong>🤖 Automated trades</strong>
+        <div id="autoHistoryList"></div>
       </div>
     </section>
   </main>
