@@ -483,14 +483,14 @@ document.addEventListener("DOMContentLoaded", () => {
                   contract_id: contract.contract_id
                 }));
 
-                ws.onmessage = async (msg) => {
-                   const data = await JSON.parse(msg.data);
+                //ws.onmessage = async (msg) => {
+                   //const data = await JSON.parse(msg.data);
 
                    // Show entry price for each
                    if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract)
                    {
                     const poc = data.proposal_open_contract;
-                    if (poc.profit.toFixed(2) >= 0)
+                    if (poc.profit.toFixed(2) > 0)
                     { 
                      logHistory('Closing contract '+ contract.contract_id + " Profit : " + poc.profit + ' (' + contract.contract_type + ')');
                      ws.send(JSON.stringify({
@@ -499,7 +499,7 @@ document.addEventListener("DOMContentLoaded", () => {
                       }));
                     }
                   }
-               };
+               //};
               }
             }
           };
