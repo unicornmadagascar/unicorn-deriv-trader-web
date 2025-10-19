@@ -489,7 +489,6 @@ document.addEventListener("DOMContentLoaded", () => {
                  }
                }
              }
-            }
           };
 
           logHistory("All contracts were closed!");
