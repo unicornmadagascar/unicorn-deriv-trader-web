@@ -332,7 +332,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function contractentry()
   {  
-      //ws = new WebSocket(WS_URL);
+      ws = new WebSocket(WS_URL);
       ws.onopen = () => {
          ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" }));
       };
