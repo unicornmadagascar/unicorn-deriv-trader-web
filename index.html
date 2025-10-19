@@ -395,6 +395,60 @@
         ? "Stop Automation"
         : "Launch Automation";
     });
+
+    document.addEventListener("DOMContentLoaded", () => {
+  const autoHistoryList = document.getElementById("autoHistoryList");
+  if (!autoHistoryList) {
+    console.error("❌ Élément #autoHistoryList introuvable !");
+    return;
+  }
+
+  autoHistoryList.innerHTML = `
+    <table class="trade-table" id="autoTradeTable">
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="selectAll"></th>
+          <th>Time of Trade</th>
+          <th>Contract ID</th>
+          <th>Contract Type</th>
+          <th>Stake</th>
+          <th>Multiplier</th>
+          <th>Entry Spot</th>
+          <th>TP (%)</th>
+          <th>SL (%)</th>
+          <th>Profit</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="autoTradeBody"></tbody>
+    </table>
+  `;
+
+  const autoTradeBody = document.getElementById("autoTradeBody");
+
+  const trades = [
+    { time: "12:05:10", contract_id: "9823746123", type: "BUY", stake: 1.00, multiplier: 200, entry_spot: 13456.25, tp: 1.5, sl: 1.0, profit: "+0.50" },
+    { time: "12:10:44", contract_id: "9823746158", type: "SELL", stake: 2.00, multiplier: 300, entry_spot: 12678.92, tp: 2.0, sl: 1.5, profit: "-1.00" }
+  ];
+
+  trades.forEach(trade => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input type="checkbox" class="rowSelect"></td>
+      <td>${trade.time}</td>
+      <td>${trade.contract_id}</td>
+      <td class="${trade.type === "BUY" ? "buy" : "sell"}">${trade.type}</td>
+      <td>${trade.stake.toFixed(2)}</td>
+      <td>${trade.multiplier}</td>
+      <td>${trade.entry_spot}</td>
+      <td>${trade.tp}%</td>
+      <td>${trade.sl}%</td>
+      <td>${trade.profit}</td>
+      <td><button class="deleteRowBtn">Delete</button></td>
+    `;
+    autoTradeBody.appendChild(tr);
+  });
+});
   </script>
 </body>
 </html>
