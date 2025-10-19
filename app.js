@@ -525,7 +525,8 @@ document.addEventListener("DOMContentLoaded", () => {
             if (dataY.msg_type == "proposal_open_contract")
              {
               const poc = dataY.proposal_open_contract;
-              profit__ = poc.profit;
+              profit__ = poc.profit.toFixed(2);
+              logHistory("Profit : " + profit__);
              }
           };
         }
