@@ -449,6 +449,7 @@ document.addEventListener("DOMContentLoaded", () => {
     updatePnL();
     drawChart();
     
+    ws = new WebSocket(WS_URL);
     ws.onopen=()=>{ ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" })); };
     ws.onclose=()=>{ logHistory("Disconnected"); logHistory("WS closed"); };
     ws.onerror=e=>{ logHistory("WS error "+JSON.stringify(e)); };
