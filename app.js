@@ -477,9 +477,10 @@ document.addEventListener("DOMContentLoaded", () => {
              logHistory('Found '+ contracts.length + ' active contracts - close all...');   
              for (const contract of contracts)
               {
+                const profit_ = profitwithid(contract.contract_id);
                 //if (parseFloat(contract.profit) >= 0)
-                // {
-                   logHistory('Closing contract '+ contract.contract_id + "Profit : " + contract.profit + '(' + contract.contract_type + ')');
+                // { 
+                   logHistory('Closing contract '+ contract.contract_id + " Profit : " + profit_ + '(' + contract.contract_type + ')');
                    ws.send(JSON.stringify({
                       "sell": contract.contract_id,
                       "price": 0
@@ -494,6 +495,45 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     };
   };
+
+  function profitwithid(id)
+   {
+    let profit__;
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" }));
+    };
+
+    ws.onmessage = (msg) => {
+      const data = JSON.parse(msg.data);
+      if (data.msg_type === "authorize")
+      {
+       if(!data.authorize?.loginid){ logHistory("Token not authorized"); return; }
+         authorized=true; 
+         logHistory("connection Authorized.");
+
+        if(authorized && ws && ws.readyState===WebSocket.OPEN)
+        {
+          ws.send(JSON.stringify({
+              proposal_open_contract : 1,
+              contract_id : id,
+              subscribe : 1
+          }));
+
+          ws.onmessage = (msgY) => {
+            const dataY = JSON.parse(msgY.data);
+            if (dataY.msg_type == "proposal_open_contract")
+             {
+              const poc = dataY.proposal_open_contract;
+              profit__ = poc.profit;
+             }
+          };
+        }
+      }
+    };
+
+    return profit__;
+   }
 
   function updatePnL(){
     if(chartData.length===0||trades.length===0){ pnlDisplay.textContent="0"; return; }
