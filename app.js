@@ -444,7 +444,7 @@ document.addEventListener("DOMContentLoaded", () => {
    
   });
 
-  closeBtn.onclick = async ()=>{
+  closeBtn.onclick = () => {
     trades=[];
     updatePnL();
     drawChart();
@@ -469,8 +469,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
            ws.send(JSON.stringify(portfoliopayload));
        
-           ws.onmessage = (msg) => {
-           const data = JSON.parse(msg.data);
+           ws.onmessage = async  (msg) => {
+           const data = await JSON.parse(msg.data);
            if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0)
             {
              const contracts = data.portfolio?.contracts||[];
@@ -520,7 +520,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
           ws.onmessage = (msgY) => {
             const dataY = JSON.parse(msgY.data);
-            if (dataY.msg_type == "proposal_open_contract" && )
+            if (dataY.msg_type == "proposal_open_contract")
              {
               const poc = dataY.proposal_open_contract;
               profit__ = poc.profit.toFixed(2);
