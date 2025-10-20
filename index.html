@@ -177,7 +177,7 @@
       padding: 10px;
       border-radius: 8px;
       border: 1px solid var(--border);
-      height: 180px;
+      height: 500px;
       overflow-y: auto;
     }
 
@@ -317,6 +317,27 @@
       display: block;
     }
 
+    /* === Nouveau Gauge de Profit/Loss === */
+    #plGaugeContainer {
+      margin-top: 15px;
+      padding: 10px;
+      background-color: var(--bg-panel);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      text-align: center;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+    }
+
+    #plGauge {
+      width: 160px;
+      height: 160px;
+    }
+
+    .pl-label {
+      margin-top: 6px;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
   </style>
 </head>
 
@@ -333,7 +354,13 @@
   </header>
 
   <main>
-    <aside id="symbolList"></aside>
+    <aside id="symbolList">
+       <!-- ✅ Nouveau Gauge de Profit/Loss -->
+       <div id="plGaugeContainer">
+          <canvas id="plGauge"></canvas>
+          <div class="pl-label">P/L Gauge</div>
+       </div>
+    </aside>
 
     <section id="chartSection">
       <div id="gaugeDashboard"></div>
