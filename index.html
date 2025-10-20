@@ -110,14 +110,27 @@
       transition: 0.3s;
     }
 
-    .symbolItem {
+    /*.symbolItem {
       padding: 8px;
       margin-bottom: 6px;
       border-radius: 6px;
       cursor: pointer;
       background-color: var(--bg-accent);
       transition: 0.2s;
+    } */
+
+    .symbolItem {
+       display: flex;
+       justify-content: space-between; /* espace entre le nom et la quote */
+       align-items: center;
+       width: 180px; /* augmentez la largeur selon le besoin */
+       padding: 4px 8px; /* un petit padding pour le confort visuel */
+       background: #f8fafc;
+       border-radius: 8px;
+       margin-bottom: 6px;
+       cursor: pointer;
     }
+
 
     .symbolItem:hover {
       background-color: var(--accent-light);
