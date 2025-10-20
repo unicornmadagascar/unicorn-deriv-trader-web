@@ -752,5 +752,75 @@ closeBtnAll.onclick=()=>{
       e.target.closest("tr").remove();
     }
   });
-  //contractentry();
+ 
+    /* === 🧭 Nouveau Gauge de Profit/Loss === */
+  function initPLGauge() {
+    if (!plCanvas) return;
+    const ctx = plCanvas.getContext("2d");
+    const w = plCanvas.width = 120;
+    const h = plCanvas.height = 120;
+    drawPLGauge(0); // Initialisation à 0%
+  }
+
+  function drawPLGauge(value) {
+    if (!plCanvas) return;
+    const ctx = plCanvas.getContext("2d");
+    const w = plCanvas.width;
+    const h = plCanvas.height;
+    const centerX = w / 2;
+    const centerY = h / 2;
+    const radius = 45;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Fond du gauge
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = "#e5e7eb";
+    ctx.lineWidth = 10;
+    ctx.stroke();
+
+    // Arc dynamique
+    const endAngle = (-Math.PI / 2) + (Math.min(100, Math.max(-100, value)) / 100) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, -Math.PI / 2, endAngle);
+    ctx.strokeStyle = value >= 0 ? "#22c55e" : "#ef4444";
+    ctx.lineWidth = 10;
+    ctx.stroke();
+
+    // Texte
+    ctx.fillStyle = "#111";
+    ctx.font = "14px Inter, Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("P/L", centerX, centerY - 14);
+    ctx.fillText(value.toFixed(1) + "%", centerX, centerY + 14);
+  }
+
+  // 🧮 Met à jour le P/L gauge selon les trades en cours
+  function updatePLGauge() {
+    if (!trades || trades.length === 0) {
+      drawPLGauge(0);
+      return;
+    }
+
+    const lastPrice = chartData[chartData.length - 1] || 0;
+    let totalPnL = 0;
+    let totalStake = 0;
+
+    trades.forEach(tr => {
+      const diff = tr.type === "BUY" ? lastPrice - tr.entry : tr.entry - lastPrice;
+      const pnl = diff * tr.multiplier * tr.stake;
+      totalPnL += pnl;
+      totalStake += tr.stake;
+    });
+
+    const pnlPercent = totalStake > 0 ? (totalPnL / totalStake) * 100 : 0;
+    drawPLGauge(pnlPercent);
+  }
+
+  // 🪄 On initialise le gauge P/L et on l’actualise régulièrement
+  initPLGauge();
+  setInterval(updatePLGauge, 1000);
+
 });
