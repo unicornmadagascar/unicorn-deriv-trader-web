@@ -14,7 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const gaugeDashboard = document.getElementById("gaugeDashboard");
   const buyBtn = document.getElementById("buyBtn");
   const sellBtn = document.getElementById("sellBtn");
-  const closeBtnWin = document.getElementById("closeBtnWin");
+  const closeBtn = document.getElementById("closeBtn");
   const closeBtnAll = document.getElementById("closeBtnAll");
   const historyList = document.getElementById("historyList");
   const stakeInput = document.getElementById("stake");
@@ -521,7 +521,7 @@ document.addEventListener("DOMContentLoaded", () => {
    
   });
 
-  closeBtnWin.onclick = () => {
+  closeBtn.onclick = () => {
     trades=[];
     updatePnL();
     drawChart();
