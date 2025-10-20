@@ -317,15 +317,17 @@
       display: block;
     }
 
-    /* === Nouveau Gauge de Profit/Loss === */
+    /* ✅ Style du conteneur du gauge P/L */
     #plGaugeContainer {
-      margin-top: 15px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin-top: 12px;
       padding: 10px;
-      background-color: var(--bg-panel);
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      text-align: center;
-      box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+      background: #f8fafc;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
 
     #plGauge {
@@ -334,10 +336,12 @@
     }
 
     .pl-label {
-      margin-top: 6px;
-      font-size: 0.9rem;
-      color: var(--text-muted);
+       margin-top: 6px;
+       font-size: 13px;
+       color: #475569;
+       font-weight: 500;
     }
+
   </style>
 </head>
 
