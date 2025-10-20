@@ -90,7 +90,7 @@
     #symbolList {
       flex-shrink: 0;
       margin-top: 16px; /* augmentez la valeur selon l'espace souhaité */
-      width: 220px;
+      width: 320px;
     }
 
     #chartSection {
@@ -111,47 +111,64 @@
       transition: 0.3s;
     }
 
-    /* Conteneurs symboles – light par défaut */
-/* Conteneurs symboles – light par défaut */
-.symbolItem {
-  background: var(--bg-panel);   /* fond clair */
-  color: var(--text-main);       /* texte sombre */
-  border: 1px solid var(--border);
-  padding: 12px 14px;            /* hauteur plus grande */
-  margin-bottom: 10px;           /* espace vertical entre conteneurs */
-  border-radius: 8px;
-  display: flex;
-  justify-content: space-between; /* symbole à gauche, quote à droite */
-  align-items: center;
-  font-weight: 500;
-  cursor: pointer;
-  max-width: 360px;              /* largeur contrôlée */
-  transition: all 0.3s ease;
-}
+    /* Conteneurs symboles – style moderne */
+    .symbolItem {
+       background: var(--bg-panel);
+       color: var(--text-main);
+       border-radius: 12px;
+       border: 1px solid var(--border);
+       padding: 14px 16px;           /* hauteur confortable */
+       margin-bottom: 12px;           /* espace entre conteneurs */
+       display: flex;
+       justify-content: space-between;
+       align-items: center;
+       font-weight: 600;
+       cursor: pointer;
+       max-width: 360px;
+       box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+       transition: all 0.3s ease;
+  }
 
-/* Survol – light */
-.symbolItem:hover {
-  background: var(--bg-accent);
-}
+  /* Hover moderne */
+  .symbolItem:hover {
+     transform: translateY(-2px);
+     box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+     background: var(--bg-accent);
+  }
 
-/* Dark mode – applique bien body.dark */
-body.dark .symbolItem {
-  background: #161b22;      /* fond sombre des conteneurs */
-  color: #f8fafc;           /* texte blanc */
-  border: 1px solid #30363d; /* bordure sombre */
-}
+  /* Dark mode moderne */
+  body.dark .symbolItem {
+    background: #161b22;          /* fond sombre */
+    color: #f8fafc;               /* texte blanc */
+    border: 1px solid #30363d;    /* bordure sombre */
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  }
 
-/* Survol – dark */
-body.dark .symbolItem:hover {
-  background: #1e293b;
-}
+  body.dark .symbolItem:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    background: #1e293b;
+  }
 
-/* Quotes/prix alignés à droite */
-.symbolItem .lastPrice {
-  color: inherit;  /* prend la couleur du texte du conteneur */
-}
+  /* Symboles à gauche, quotes à droite */
+  .symbolItem .symbolName {
+    font-size: 0.95rem;
+  }
 
+  .symbolItem .lastPrice {
+     font-weight: 500;
+     font-size: 0.9rem;
+     color: inherit; /* suit la couleur du texte du conteneur */
+   }
 
+   /* Optionnel : ajout d’un petit badge ou accent coloré */
+   .symbolItem .badge {
+      background: var(--accent);
+      color: white;
+      font-size: 0.75rem;
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
 
     #chartSection {
       flex: 1;
