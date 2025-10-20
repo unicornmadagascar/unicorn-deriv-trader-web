@@ -86,13 +86,23 @@
 
     /* Étend la hauteur principale du contenu */
     main {
-      height: auto;               /* Permet d'adapter la hauteur au contenu */
-      min-height: 120vh;          /* Augmente la hauteur globale (ex: 120% de la fenêtre) */
+      display: flex;
+      align-items: flex-start;
+      height: auto;
+      min-height: 100vh;
+    }
+
+    #symbolList {
+      flex-shrink: 0;
+    }
+
+    #chartSection {
+      flex: 1;
     }
 
     /* Donne plus d’espace à la section de droite (chart + tables) */
     #chartSection {
-      min-height: 1000px;         /* Ajuste ici selon la taille voulue */
+      min-height: 300px;         /* Ajuste ici selon la taille voulue */
     }
 
     aside#symbolList {
