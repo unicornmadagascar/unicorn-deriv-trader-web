@@ -596,7 +596,7 @@ document.addEventListener("DOMContentLoaded", () => {
    };
  };
 
- /*closeBtnAll.onclick=()=>{
+closeBtnAll.onclick=()=>{
     trades=[];
     updatePnL();
     drawChart();
@@ -646,7 +646,7 @@ document.addEventListener("DOMContentLoaded", () => {
         } 
       }
     };
-  }; */
+  }; 
 
   function updatePnL(){
     if(chartData.length===0||trades.length===0){ pnlDisplay.textContent="0"; return; }
