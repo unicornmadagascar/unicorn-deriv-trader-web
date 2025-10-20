@@ -79,9 +79,20 @@
 
     button:hover { opacity: 0.9; }
 
-    main {
+   /* main {
       display: flex;
       height: calc(100vh - 60px);
+    } */
+
+    /* Étend la hauteur principale du contenu */
+    main {
+      height: auto;               /* Permet d'adapter la hauteur au contenu */
+      min-height: 120vh;          /* Augmente la hauteur globale (ex: 120% de la fenêtre) */
+    }
+
+    /* Donne plus d’espace à la section de droite (chart + tables) */
+    #chartSection {
+      min-height: 1000px;         /* Ajuste ici selon la taille voulue */
     }
 
     aside#symbolList {
@@ -369,7 +380,7 @@
         <strong>Automated trades</strong>
         <div id="autoHistoryList"></div>
       </div>
-      
+
       <!-- Trade history manuel -->
       <div id="tradeHistory">
         <strong>📜 Trade history</strong>
