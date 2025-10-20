@@ -302,110 +302,111 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // chart
   function drawChart(){
-    if(!ctx||chartData.length===0) return;
-    const padding=50;
-    const w=canvas.width-padding*2;
-    const h=canvas.height-padding*2;
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    const maxVal=Math.max(...chartData, ...trades.map(t=>t.entry));
-    const minVal=Math.min(...chartData, ...trades.map(t=>t.entry));
-    const range=maxVal-minVal||1;
+  if(!ctx||chartData.length===0) return;
+  const padding=50;
+  const w=canvas.width-padding*2;
+  const h=canvas.height-padding*2;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const maxVal=Math.max(...chartData, ...trades.map(t=>t.entry));
+  const minVal=Math.min(...chartData, ...trades.map(t=>t.entry));
+  const range=maxVal-minVal||1;
 
-    // axes
-    ctx.strokeStyle="#666"; ctx.lineWidth=1;
-    ctx.beginPath(); ctx.moveTo(padding,padding); ctx.lineTo(padding,canvas.height-padding); ctx.lineTo(canvas.width-padding,canvas.height-padding); ctx.stroke();
+  // axes
+  ctx.strokeStyle="#666"; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(padding,padding); ctx.lineTo(padding,canvas.height-padding); ctx.lineTo(canvas.width-padding,canvas.height-padding); ctx.stroke();
 
-    // y grid & labels
-    ctx.strokeStyle="#e6eef9"; ctx.fillStyle="#2b3a4a"; ctx.font="12px Inter, Arial"; ctx.textAlign="right"; ctx.textBaseline="middle";
-    for(let i=0;i<=5;i++){
-      const y=canvas.height-padding-(i/5)*h;
-      ctx.beginPath(); ctx.moveTo(padding,y); ctx.lineTo(canvas.width-padding,y); ctx.stroke();
-      const v=minVal+(i/5)*range; ctx.fillText(v.toFixed(2), padding-10, y);
-    }
-
-    // x labels
-    ctx.textAlign="center"; ctx.textBaseline="top";
-    const len=chartData.length; const step=Math.max(1,Math.ceil(len/6));
-    for(let i=0;i<len;i+=step){
-      const x=padding+(i/(len-1))*w;
-      const t=chartTimes[i]?new Date(chartTimes[i]*1000).toLocaleTimeString().slice(0,8):"";
-      ctx.fillText(t,x,canvas.height-padding+5);
-    }
-
-    // area chart
-    ctx.beginPath();
-    for(let i=0;i<len;i++){
-      const x=padding+(i/(len-1))*w;
-      const y=canvas.height-padding-((chartData[i]-minVal)/range)*h;
-      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-    }
-    ctx.lineTo(canvas.width-padding,canvas.height-padding);
-    ctx.lineTo(padding,canvas.height-padding);
-    ctx.closePath();
-    const fillGrad=ctx.createLinearGradient(0,padding,0,canvas.height-padding);
-    fillGrad.addColorStop(0,"rgba(0,123,255,0.35)");
-    fillGrad.addColorStop(1,"rgba(0,123,255,0.08)");
-    ctx.fillStyle=fillGrad; ctx.fill();
-
-    // line chart
-    ctx.beginPath();
-    for(let i=0;i<len;i++){
-      const x=padding+(i/(len-1))*w;
-      const y=canvas.height-padding-((chartData[i]-minVal)/range)*h;
-      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-    }
-    ctx.strokeStyle="#007bff"; ctx.lineWidth=2; ctx.stroke();
-
-    // trades et PNL
-    trades.forEach(tr=>{
-      if(tr.symbol!==currentSymbol) return;
-      const x=padding+((len-1)/(len-1))*w;
-      const y=canvas.height-padding-((tr.entry-minVal)/range)*h;
-
-      // ligne pointillée rouge pour prix d'entrée
-      ctx.setLineDash([6,4]);
-      ctx.strokeStyle="rgba(220,38,38,0.9)";
-      ctx.lineWidth=1.2; ctx.beginPath(); ctx.moveTo(padding,y); ctx.lineTo(canvas.width-padding,y); ctx.stroke();
-      ctx.setLineDash([]);
-
-      // triangle trade
-      ctx.fillStyle=tr.type==="BUY"?"green":"red";
-      ctx.beginPath();
-      if(tr.type==="BUY"){ ctx.moveTo(x,y-10); ctx.lineTo(x-8,y); ctx.lineTo(x+8,y); } 
-      else { ctx.moveTo(x,y+10); ctx.lineTo(x-8,y); ctx.lineTo(x+8,y); }
-      ctx.closePath(); ctx.fill();
-
-      // prix d'entrée attaché à la ligne
-      ctx.fillStyle="rgba(220,38,38,0.9)";
-      ctx.font="12px Inter, Arial";
-      ctx.textAlign="right";
-      ctx.textBaseline="bottom";
-      tr.entry = contractentry();
-      ctx.fillText(tr.entry.toFixed(2), canvas.width-padding-4, y-2);
-    });
-
-    // current PNL
-    if(chartData.length>0){
-      const lastPrice=chartData[len-1];
-      let pnl=0;
-      trades.forEach(tr=>{
-        const diff=tr.type==="BUY"?lastPrice-tr.entry:tr.entry-lastPrice;
-        pnl+=diff*tr.multiplier*tr.stake;
-      });
-      const yCur=canvas.height-padding-((lastPrice-minVal)/range)*h;
-      ctx.strokeStyle="#16a34a"; ctx.lineWidth=1.2;
-      ctx.beginPath(); ctx.moveTo(padding,yCur); ctx.lineTo(canvas.width-padding,yCur); ctx.stroke();
-
-      ctx.fillStyle="#16a34a";
-      ctx.font="bold 14px Inter, Arial";
-      ctx.textAlign="right";
-      ctx.textBaseline="bottom";
-      ctx.fillText("PNL: "+pnl.toFixed(2), canvas.width-padding-4, yCur-4);
-
-      // point vert sur la ligne
-      ctx.beginPath(); ctx.arc(canvas.width-padding,yCur,4,0,Math.PI*2); ctx.fill();
-    }
+  // y labels (grilles horizontales supprimées)
+  ctx.fillStyle="#2b3a4a"; ctx.font="12px Inter, Arial"; ctx.textAlign="right"; ctx.textBaseline="middle";
+  for(let i=0;i<=5;i++){
+    const y=canvas.height-padding-(i/5)*h;
+    const v=minVal+(i/5)*range; 
+    ctx.fillText(v.toFixed(2), padding-10, y);
   }
+
+  // x labels
+  ctx.textAlign="center"; ctx.textBaseline="top";
+  const len=chartData.length; const step=Math.max(1,Math.ceil(len/6));
+  for(let i=0;i<len;i+=step){
+    const x=padding+(i/(len-1))*w;
+    const t=chartTimes[i]?new Date(chartTimes[i]*1000).toLocaleTimeString().slice(0,8):"";
+    ctx.fillText(t,x,canvas.height-padding+5);
+  }
+
+  // area chart
+  ctx.beginPath();
+  for(let i=0;i<len;i++){
+    const x=padding+(i/(len-1))*w;
+    const y=canvas.height-padding-((chartData[i]-minVal)/range)*h;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.lineTo(canvas.width-padding,canvas.height-padding);
+  ctx.lineTo(padding,canvas.height-padding);
+  ctx.closePath();
+  const fillGrad=ctx.createLinearGradient(0,padding,0,canvas.height-padding);
+  fillGrad.addColorStop(0,"rgba(0,123,255,0.35)");
+  fillGrad.addColorStop(1,"rgba(0,123,255,0.08)");
+  ctx.fillStyle=fillGrad; ctx.fill();
+
+  // line chart
+  ctx.beginPath();
+  for(let i=0;i<len;i++){
+    const x=padding+(i/(len-1))*w;
+    const y=canvas.height-padding-((chartData[i]-minVal)/range)*h;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle="#007bff"; ctx.lineWidth=2; ctx.stroke();
+
+  // trades et PNL
+  trades.forEach(tr=>{
+    if(tr.symbol!==currentSymbol) return;
+    const x=padding+((len-1)/(len-1))*w;
+    const y=canvas.height-padding-((tr.entry-minVal)/range)*h;
+
+    // ligne pointillée rouge pour prix d'entrée
+    ctx.setLineDash([6,4]);
+    ctx.strokeStyle="rgba(220,38,38,0.9)";
+    ctx.lineWidth=1.2; ctx.beginPath(); ctx.moveTo(padding,y); ctx.lineTo(canvas.width-padding,y); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // triangle trade
+    ctx.fillStyle=tr.type==="BUY"?"green":"red";
+    ctx.beginPath();
+    if(tr.type==="BUY"){ ctx.moveTo(x,y-10); ctx.lineTo(x-8,y); ctx.lineTo(x+8,y); } 
+    else { ctx.moveTo(x,y+10); ctx.lineTo(x-8,y); ctx.lineTo(x+8,y); }
+    ctx.closePath(); ctx.fill();
+
+    // prix d'entrée attaché à la ligne
+    ctx.fillStyle="rgba(220,38,38,0.9)";
+    ctx.font="12px Inter, Arial";
+    ctx.textAlign="right";
+    ctx.textBaseline="bottom";
+    tr.entry = contractentry();
+    ctx.fillText(tr.entry.toFixed(2), canvas.width-padding-4, y-2);
+  });
+
+  // current PNL
+  if(chartData.length>0){
+    const lastPrice=chartData[len-1];
+    let pnl=0;
+    trades.forEach(tr=>{
+      const diff=tr.type==="BUY"?lastPrice-tr.entry:tr.entry-lastPrice;
+      pnl+=diff*tr.multiplier*tr.stake;
+    });
+    const yCur=canvas.height-padding-((lastPrice-minVal)/range)*h;
+    ctx.strokeStyle="#16a34a"; ctx.lineWidth=1.2;
+    ctx.beginPath(); ctx.moveTo(padding,yCur); ctx.lineTo(canvas.width-padding,yCur); ctx.stroke();
+
+    ctx.fillStyle="#16a34a";
+    ctx.font="bold 14px Inter, Arial";
+    ctx.textAlign="right";
+    ctx.textBaseline="bottom";
+    ctx.fillText("PNL: "+pnl.toFixed(2), canvas.width-padding-4, yCur-4);
+
+    // point vert sur la ligne
+    ctx.beginPath(); ctx.arc(canvas.width-padding,yCur,4,0,Math.PI*2); ctx.fill();
+  }
+}
+
 
   function contractentry()
   {  
