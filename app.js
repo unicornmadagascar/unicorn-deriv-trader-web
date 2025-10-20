@@ -753,74 +753,50 @@ closeBtnAll.onclick=()=>{
     }
   });
  
-    /* === 🧭 Nouveau Gauge de Profit/Loss === */
-  function initPLGauge() {
-    if (!plCanvas) return;
-    const ctx = plCanvas.getContext("2d");
-    const w = plCanvas.width = 120;
-    const h = plCanvas.height = 120;
-    drawPLGauge(0); // Initialisation à 0%
-  }
-
-  function drawPLGauge(value) {
-    if (!plCanvas) return;
-    const ctx = plCanvas.getContext("2d");
-    const w = plCanvas.width;
-    const h = plCanvas.height;
-    const centerX = w / 2;
-    const centerY = h / 2;
-    const radius = 45;
-
-    ctx.clearRect(0, 0, w, h);
-
-    // Fond du gauge
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-    ctx.strokeStyle = "#e5e7eb";
-    ctx.lineWidth = 10;
-    ctx.stroke();
-
-    // Arc dynamique
-    const endAngle = (-Math.PI / 2) + (Math.min(100, Math.max(-100, value)) / 100) * Math.PI * 2;
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, -Math.PI / 2, endAngle);
-    ctx.strokeStyle = value >= 0 ? "#22c55e" : "#ef4444";
-    ctx.lineWidth = 10;
-    ctx.stroke();
-
-    // Texte
-    ctx.fillStyle = "#111";
-    ctx.font = "14px Inter, Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("P/L", centerX, centerY - 14);
-    ctx.fillText(value.toFixed(1) + "%", centerX, centerY + 14);
-  }
-
-  // 🧮 Met à jour le P/L gauge selon les trades en cours
   function updatePLGauge() {
-    if (!trades || trades.length === 0) {
-      drawPLGauge(0);
-      return;
-    }
+  if(!plCanvas) return;
+  const gctx = plCanvas.getContext("2d");
+  gctx.clearRect(0, 0, plCanvas.width, plCanvas.height);
 
-    const lastPrice = chartData[chartData.length - 1] || 0;
-    let totalPnL = 0;
-    let totalStake = 0;
+  // Calcul du P/L
+  let pnl = 0;
+  const lastPrice = chartData[chartData.length-1] || 0;
+  trades.forEach(tr => {
+    const diff = tr.type === "BUY" ? lastPrice - tr.entry : tr.entry - lastPrice;
+    pnl += diff * tr.multiplier * tr.stake;
+  });
 
-    trades.forEach(tr => {
-      const diff = tr.type === "BUY" ? lastPrice - tr.entry : tr.entry - lastPrice;
-      const pnl = diff * tr.multiplier * tr.stake;
-      totalPnL += pnl;
-      totalStake += tr.stake;
-    });
+  // Fond du gauge selon le thème
+  const bgColor = document.body.classList.contains("dark") ? "#1e293b" : "#eee";
 
-    const pnlPercent = totalStake > 0 ? (totalPnL / totalStake) * 100 : 0;
-    drawPLGauge(pnlPercent);
-  }
+  // Cercle de fond
+  const radius = plCanvas.width/2 - 10;
+  gctx.beginPath();
+  gctx.arc(plCanvas.width/2, plCanvas.height/2, radius, 0, 2 * Math.PI);
+  gctx.strokeStyle = bgColor;
+  gctx.lineWidth = 12;
+  gctx.stroke();
 
-  // 🪄 On initialise le gauge P/L et on l’actualise régulièrement
-  initPLGauge();
-  setInterval(updatePLGauge, 1000);
+  // Trait du gauge (vert si positif, rouge si négatif)
+  const endAngle = -Math.PI/2 + Math.max(-100, Math.min(100, pnl)) / 100 * 2 * Math.PI;
+  gctx.beginPath();
+  gctx.arc(plCanvas.width/2, plCanvas.height/2, radius, -Math.PI/2, endAngle);
+  gctx.strokeStyle = pnl >= 0 ? "#16a34a" : "#dc2626";
+  gctx.lineWidth = 12;
+  gctx.stroke();
+
+  // Texte à l'intérieur du gauge
+  const textColor = document.body.classList.contains("dark") ? "#f1f5f9" : "#222";
+  gctx.fillStyle = textColor;
+  gctx.font = "12px Inter, Arial";
+  gctx.textAlign = "center";
+  gctx.textBaseline = "middle";
+  gctx.fillText("P/L", plCanvas.width/2, plCanvas.height/2 - 12);
+  gctx.fillText(pnl.toFixed(2), plCanvas.width/2, plCanvas.height/2 + 12);
+}
+
+// Mise à jour automatique toutes les 1s
+setInterval(updatePLGauge, 1000);
+
 
 });
