@@ -103,7 +103,7 @@
     }
 
     aside#symbolList {
-      width: 420px;
+      width: 220px;
       background-color: var(--bg-panel);
       border-right: 1px solid var(--border);
       overflow-y: auto;
@@ -111,36 +111,47 @@
       transition: 0.3s;
     }
 
-    /* Conteneurs des symboles */
-/* Conteneurs symboles – light par défaut */
+    /* Conteneurs symboles – light par défaut */
+./* Conteneurs symboles – light par défaut */
 .symbolItem {
   background: var(--bg-panel);   /* fond clair */
   color: var(--text-main);       /* texte sombre */
   border: 1px solid var(--border);
+  padding: 12px 14px;            /* hauteur plus grande */
+  margin-bottom: 10px;           /* espace vertical entre conteneurs */
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between; /* symbole à gauche, quote à droite */
+  align-items: center;
+  font-weight: 500;
+  cursor: pointer;
+  max-width: 360px;              /* largeur contrôlée */
   transition: all 0.3s ease;
 }
 
-/* Survol en light */
+/* Survol – light */
 .symbolItem:hover {
   background: var(--bg-accent);
 }
 
-/* Dark mode */
+/* Dark mode – applique bien body.dark */
 body.dark .symbolItem {
   background: #161b22;      /* fond sombre des conteneurs */
   color: #f8fafc;           /* texte blanc */
-  border: 1px solid #30363d; /* bordure sombre pour effet */
+  border: 1px solid #30363d; /* bordure sombre */
 }
 
-/* Survol en dark */
+/* Survol – dark */
 body.dark .symbolItem:hover {
-  background: #1e293b;       /* effet hover sombre */
+  background: #1e293b;
 }
 
-/* Quotes/prix */
+/* Quotes/prix alignés à droite */
 .symbolItem .lastPrice {
   color: inherit;  /* prend la couleur du texte du conteneur */
 }
+
+
 
     #chartSection {
       flex: 1;
