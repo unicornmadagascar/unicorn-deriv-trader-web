@@ -110,45 +110,43 @@
       transition: 0.3s;
     }
 
-    /*.symbolItem {
-      padding: 8px;
-      margin-bottom: 6px;
-      border-radius: 6px;
-      cursor: pointer;
-      background-color: var(--bg-accent);
-      transition: 0.2s;
-    } */
-
-    /* Mode dark */
-    body.dark-mode .symbolItem {
-      background: #1e293b; /* fond sombre */
-      color: #f8fafc;       /* texte clair */
-    }
-
+    /* Conteneurs des symboles - mode clair (par défaut) */
     .symbolItem {
-       display: flex;
-       justify-content: space-between; /* espace entre le nom et la quote */
-       align-items: center;
-       width: 180px; /* augmentez la largeur selon le besoin */
-       padding: 4px 8px; /* un petit padding pour le confort visuel */
-       background: #f8fafc;
-       border-radius: 8px;
+       background: #f8fafc;        /* fond clair */
+       color: #1e293b;             /* texte sombre */
+       padding: 8px 12px;
        margin-bottom: 6px;
+       border-radius: 8px;
+       border: 1px solid #e2e8f0; /* bordure claire */
+       display: flex;
+       justify-content: space-between;
+       align-items: center;
+       font-weight: 500;
        cursor: pointer;
-       background: #f8fafc;
-       color: #1e293b; /* texte sombre */
+       transition: all 0.3s ease;
     }
 
-
+    /* Survol */
     .symbolItem:hover {
-      background-color: var(--accent-light);
-      transform: scale(1.02);
-    }
+       background: #e2e8f0;
+   }
 
-    .symbolItem.active {
-      background-color: var(--accent);
-      color: white;
-    }
+   /* Mode dark */
+   body.dark-mode .symbolItem {
+      background: #1e293b;        /* fond sombre */
+      color: #f8fafc;             /* texte blanc */
+      border: 1px solid #334155;  /* bordure sombre pour effet */ 
+   }
+
+   /* Survol en dark */
+   body.dark-mode .symbolItem:hover {
+     background: #334155;
+   }
+
+   /* Si tu as des quotes ou prix flottants à droite */
+   .symbolItem .lastPrice {
+     color: inherit; /* prend la couleur du texte du conteneur */
+   }
 
     #chartSection {
       flex: 1;
