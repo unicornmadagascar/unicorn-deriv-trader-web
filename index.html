@@ -88,14 +88,9 @@
     }
 
     #symbolList {
-       width: 100%;          /* prend toute la largeur du parent */
-       display: flex;
-       flex-direction: column;
-       gap: 8px;
-       box-sizing: border-box;
-       padding: 10px;        /* espace intérieur */
-       flex-shrink: 0;
-       margin-top: 16px; /* augmentez la valeur selon l'espace souhaité */
+      flex-shrink: 0;
+      margin-top: 16px; /* augmentez la valeur selon l'espace souhaité */
+      width: 420px;
     }
 
     #chartSection {
@@ -108,7 +103,7 @@
     }
 
     aside#symbolList {
-      width: 220px;
+      width: 420px;
       background-color: var(--bg-panel);
       border-right: 1px solid var(--border);
       overflow-y: auto;
@@ -116,45 +111,36 @@
       transition: 0.3s;
     }
 
-    /* Conteneurs des symboles - mode clair (par défaut) */
-    .symbolItem {
-       background: #f8fafc;        /* fond clair */
-       color: #1e293b;             /* texte sombre */
-       padding: 8px 12px;
-       margin-bottom: 6px;
-       border-radius: 8px;
-       border: 1px solid #e2e8f0; /* bordure claire */
-       display: flex;
-       justify-content: space-between;
-       align-items: center;
-       font-weight: 500;
-       cursor: pointer;
-       transition: all 0.3s ease;
-       width: 100%;                 /* prend toute la largeur du parent */
-       box-sizing: border-box;      /* inclut padding dans largeur */
-    }
+    /* Conteneurs des symboles */
+/* Conteneurs symboles – light par défaut */
+.symbolItem {
+  background: var(--bg-panel);   /* fond clair */
+  color: var(--text-main);       /* texte sombre */
+  border: 1px solid var(--border);
+  transition: all 0.3s ease;
+}
 
-    /* Survol */
-    .symbolItem:hover {
-       background: #e2e8f0;
-    }
+/* Survol en light */
+.symbolItem:hover {
+  background: var(--bg-accent);
+}
 
-    /* Mode dark */
-    body.dark-mode .symbolItem {
-       background: #1e293b;        /* fond sombre */
-       color: #f8fafc;             /* texte blanc */
-       border: 1px solid #334155;  /* bordure sombre */
-   }
+/* Dark mode */
+body.dark .symbolItem {
+  background: #161b22;      /* fond sombre des conteneurs */
+  color: #f8fafc;           /* texte blanc */
+  border: 1px solid #30363d; /* bordure sombre pour effet */
+}
 
-   /* Survol en dark */
-   body.dark-mode .symbolItem:hover {
-      background: #334155;
-   }
+/* Survol en dark */
+body.dark .symbolItem:hover {
+  background: #1e293b;       /* effet hover sombre */
+}
 
-   /* Texte flottant à droite */
-  .symbolItem .lastPrice {
-     color: inherit; /* prend la couleur du texte du conteneur */
-   }
+/* Quotes/prix */
+.symbolItem .lastPrice {
+  color: inherit;  /* prend la couleur du texte du conteneur */
+}
 
     #chartSection {
       flex: 1;
