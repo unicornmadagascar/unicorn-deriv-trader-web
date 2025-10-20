@@ -291,7 +291,7 @@
 
     /* ✅ Ajustement de la hauteur de la table autoHistoryList */
     #autoHistoryList {
-      max-height: 250px; /* ancienne hauteur trop petite → augmentée */
+      max-height: 550px; /* ancienne hauteur trop petite → augmentée */
       overflow-y: auto;
       display: block;
     }
@@ -363,17 +363,17 @@
         <button id="closeBtnAll">CLOSE ALL</button>
         <div id="pnl">PnL: --</div>
       </div>
-
-      <!-- Trade history manuel -->
-      <div id="tradeHistory">
-        <strong>📜 Trade history</strong>
-        <div id="historyList"></div>
-      </div>
-
+      
       <!-- Trade history automatisé -->
       <div id="autoTradeHistory">
         <strong>Automated trades</strong>
         <div id="autoHistoryList"></div>
+      </div>
+      
+      <!-- Trade history manuel -->
+      <div id="tradeHistory">
+        <strong>📜 Trade history</strong>
+        <div id="historyList"></div>
       </div>
     </section>
   </main>
