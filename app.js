@@ -206,56 +206,6 @@ document.addEventListener("DOMContentLoaded", () => {
     autoTradeBody.appendChild(tr);
   }
 
-  // Gauge PNL
-  function PNLGauge(plCanvas)
-  {
-   if (plCanvas) {
-      const ctx = plCanvas.getContext("2d");
-      const centerX = plCanvas.width / 2;
-      const centerY = plCanvas.height / 2;
-      const radius = 60;
-
-      drawPLGauge(plValue = 0);
-
-      // Valeur de test (tu peux relier au vrai PnL)
-      let testPL = -20;
-      setInterval(() => {
-         drawPLGauge(testPL);
-         testPL += 10;
-         if (testPL > 60) testPL = -40;
-      }, 1000);
-   }
-  }
-
-  function drawPLGauge(plValue = 0) {
-    ctx.clearRect(0, 0, plCanvas.width, plCanvas.height);
-
-    // Couleur du gauge selon le profit
-    const color = plValue >= 0 ? "#16a34a" : "#dc2626";
-
-    // Cercle de fond
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-    ctx.strokeStyle = "#e5e7eb";
-    ctx.lineWidth = 10;
-    ctx.stroke();
-
-    // Arc dynamique P/L
-    const angle = (Math.min(Math.abs(plValue), 100) / 100) * Math.PI;
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, Math.PI, Math.PI + angle * (plValue >= 0 ? 1 : -1), plValue >= 0);
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 10;
-    ctx.stroke();
-
-    // Texte du P/L
-    ctx.fillStyle = color;
-    ctx.font = "bold 16px Inter, Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(`${plValue.toFixed(2)}%`, centerX, centerY);
-  }
-
   // canvas
   function initCanvas(){
     chartInner.innerHTML = "";
@@ -777,7 +727,6 @@ closeBtnAll.onclick=()=>{
   initSymbols();
   selectSymbol(volatilitySymbols[0]);
   initTable();
-  PNLGauge(plCanvas);
  // Ajoute les trades de test
   trades__.forEach(addTradeRow);
 
