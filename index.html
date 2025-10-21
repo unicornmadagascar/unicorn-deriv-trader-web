@@ -355,7 +355,7 @@
     }
 
     /* ✅ Style du conteneur du gauge P/L */
-    #plGaugeContainer {
+    /*#plGaugeContainer {
        display: flex;
        flex-direction: column;
        align-items: center;
@@ -365,7 +365,19 @@
        background: #f8fafc;
        border-radius: 12px;
        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
+    }*/
+
+    #plGaugeContainer {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin-top: 12px;
+      padding: 20px; /* plus de padding pour l’espace autour */
+      background: #f8fafc;
+      border-radius: 12px;
+      box-shadow: 0 1px 5px rgba(0,0,0,0.15);
+   }
 
     #plGauge {
       background: rgba(0,0,0,0.05);
@@ -416,7 +428,7 @@
      <aside id="symbolPanel">
        <div id="symbolList"></div> <!-- tes symboles -->
        <div id="plGaugeContainer">
-           <canvas id="plGauge" width="160" height="160"></canvas>
+           <canvas id="plGauge" width="230" height="230"></canvas>
            <div class="pl-label">P/L Gauge</div>
        </div>
     </aside>
