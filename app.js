@@ -456,155 +456,51 @@ document.addEventListener("DOMContentLoaded", () => {
       return entry;
   }
 
-  // 🔹 Fonction utilitaire pour envoyer en toute sécurité
-function safeSend(payload) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(payload));
-    } else {
-        // réessayer dans 300ms si pas encore ouvert
-        setTimeout(() => safeSend(payload), 300);
-    }
-}
-
-// =====================
-// 🔹 Connexion WebSocket
-// =====================
-  function connectWS(token) {
-    if (!token) {
-        console.error("❌ Aucun token fourni");
-        return;
-    }
-
-    ws = new WebSocket(WS_URL);
-
-    ws.onopen = () => {
-        console.log("🔗 WebSocket connected");
-        safeSend({ authorize: token });
-    };
-
-    ws.onmessage = (msg) => {
-        let data;
-        try {
-            data = JSON.parse(msg.data);
-        } catch (err) {
-            console.error("Invalid JSON from WS:", err, msg.data);
-            return;
-        }
-
-        // --- Gestion erreur API ---
-        if (data.error) {
-            console.error("API error:", data.error);
-            return;
-        }
-
-        // --- Authorization ---
-        if (data.msg_type === "authorize") {
-            const loginid = data?.authorize?.loginid;
-            if (loginid) {
-                isAuthorized = true;
-                console.log("✅ Authorized:", loginid);
-                fetchTotalPL(); // première récupération
-                // Rafraîchissement automatique toutes les 5 secondes
-                if (refreshInterval) clearInterval(refreshInterval);
-                refreshInterval = setInterval(fetchTotalPL, 5000);
-            } else {
-                console.warn("Authorize message received but no loginid:", data);
-            }
-            return;
-        }
-
-        // --- Profit table (Multiplier) ---
-        if (data.msg_type === "profit_table" || data.profit_table) {
-            let total = 0;
-
-            // Cas 1 : transactions Multiplier
-            if (Array.isArray(data.profit_table?.transactions)) {
-                total = data.profit_table.transactions.reduce((sum, tx) => sum + parseFloat(tx.profit || 0), 0);
-            }
-            // Cas 2 : profit unique
-            else if (typeof data.profit_table?.profit === "string" || typeof data.profit_table?.profit === "number") {
-                total = parseFloat(data.profit_table.profit) || 0;
-            }
-            // Cas 3 : fallback portfolio
-            else if (Array.isArray(data.portfolio?.contracts)) {
-                total = data.portfolio.contracts.reduce((sum, c) => sum + parseFloat(c?.profit || 0), 0);
-            }
-
-            totalPL = Number.isFinite(total) ? total : 0;
-            console.log("💰 Total P/L:", totalPL.toFixed(2), "USD");
-            updatePLGaugeDisplay(totalPL);
-            return;
-        }
-    };
-
-    ws.onclose = () => {
-        console.log("⚠️ WebSocket disconnected");
-        isAuthorized = false;
-        if (refreshInterval) clearInterval(refreshInterval);
-    };
-
-    ws.onerror = (err) => {
-        console.error("❌ WebSocket error:", err);
-    };
-  }
-
-// =====================
-// 🔹 Récupération du P/L total
-// =====================
-  function fetchTotalPL() {
-    if (!isAuthorized || !ws || ws.readyState !== WebSocket.OPEN) return;
-
-    safeSend({
-        profit_table: 1,
-        description: 1,
-        limit: 50
-    });
-  }
-
-// =====================
-// 🔹 Démarrage avec token
-// =====================
-  function startConnectionWithToken(token) {
-     connectWS(token);
-  }
-
-// =====================
-// 🔹 Affichage du gauge P/L
-// =====================
+// Fonction pour mettre à jour le gauge
   function updatePLGaugeDisplay(pl) {
-    console.log("🔹 updatePLGaugeDisplay called with:", pl);
     const gauge = document.getElementById("plGauge");
     const ctx = gauge?.getContext("2d");
     if (!ctx) return;
 
+    // Clear canvas
     ctx.clearRect(0, 0, gauge.width, gauge.height);
 
-    const radius = gauge.width / 2 - 10;
     const centerX = gauge.width / 2;
     const centerY = gauge.height / 2;
+    const radius = gauge.width / 2 - 15;
 
-    // Fond du gauge
+    // Fond du gauge (cercle gris)
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
     ctx.strokeStyle = "#e5e7eb";
     ctx.lineWidth = 12;
     ctx.stroke();
 
-    // Couleur du P/L
-    const angle = -Math.PI / 2 + Math.min(Math.max(pl / 100, -1), 1) * Math.PI;
+    // Cercle coloré selon le P/L
+    // Ici, on normalise à ±1000 USD pour l'affichage
+    const maxPL = 1000;
+    const normalized = Math.min(Math.max(pl / maxPL, -1), 1);
+    const angle = -Math.PI / 2 + normalized * Math.PI;
+
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, -Math.PI / 2, angle);
     ctx.strokeStyle = pl >= 0 ? "#16a34a" : "#dc2626";
     ctx.lineWidth = 12;
     ctx.stroke();
 
-    // Texte central
-    ctx.fillStyle = document.body.classList.contains("dark") ? "#fff" : "#111";
-    ctx.font = "bold 13px Inter";
+    // Texte au centre
+    ctx.fillStyle = "#111";
+    ctx.font = "bold 14px Inter";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("Total P/L", centerX, centerY - 12);
-    ctx.fillText(pl.toFixed(2) + " USD", centerX, centerY + 10);
+    ctx.fillText("Total P/L", centerX, centerY - 10);
+    ctx.fillText(pl.toFixed(2) + " USD", centerX, centerY + 15);
+  }
+
+// Fonction test : simule le P/L changeant
+  function simulatePL() {
+    totalPL = Math.random() * 2000 - 1000; // valeur entre -1000 et +1000
+    updatePLGaugeDisplay(totalPL);
   }
 
   function canvasMouseMove(e){
@@ -907,4 +803,10 @@ closeBtnAll.onclick=()=>{
       e.target.closest("tr").remove();
     }
   });
+
+  // Lance la simulation toutes les 2 secondes
+  setInterval(simulatePL, 2000);
+
+  // Premier affichage
+  simulatePL();
 });
