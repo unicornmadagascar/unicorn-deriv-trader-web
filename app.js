@@ -456,69 +456,82 @@ document.addEventListener("DOMContentLoaded", () => {
       return entry;
   }
 
-  // 🔹 Fonction de connexion WebSocket
-  function connectWS(token) {
+  // =======================
+// FONCTION SAFE SEND
+// =======================
+function safeSend(payload) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(payload));
+    } else {
+        setTimeout(() => safeSend(payload), 100);
+    }
+}
+
+// =======================
+// CONNECT WEBSOCKET
+// =======================
+function connectWS(token) {
     ws = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=1089");
 
     ws.onopen = () => {
-        console.log("🔗 WebSocket connected");
-        ws.send(JSON.stringify({ authorize: token }));
-        // Demande le portfolio après autorisation
-        setTimeout(() => {
-            ws.send(JSON.stringify({ "portfolio": 1, "active_symbols_only": 1 }));
-        }, 500);
+        setStatus("Connected, authorizing...");
+        safeSend({ authorize: token });
     };
 
     ws.onmessage = (msg) => {
         let data;
-        try { data = JSON.parse(msg.data); } catch(e) { return; }
+        try { data = JSON.parse(msg.data); } catch(e){ return; }
 
         // Autorisation
         if (data.msg_type === "authorize" && data.authorize?.loginid) {
             isAuthorized = true;
             console.log("✅ Authorized:", data.authorize.loginid);
+            fetchPortfolioPL(); // première récupération du P/L
         }
 
         // Mise à jour des contrats ouverts
         if (data.msg_type === "portfolio") {
-            let total = 0;
-            if (Array.isArray(data.portfolio?.contracts)) {
-                total = data.portfolio.contracts.reduce((sum, c) => {
-                    const p = parseFloat(c?.profit);
-                    return sum + (Number.isFinite(p) ? p : 0);
-                }, 0);
-            }
-            totalPL = total;
-            console.log("💰 Total P/L (open contracts):", totalPL);
-            updatePLGaugeDisplay(totalPL);
+            updateTotalPLFromPortfolio(data.portfolio);
         }
 
-        // Si l’API renvoie tick/proposal_open_contract, on peut aussi recalculer le P/L
+        // Recalcul à chaque tick de contrat ouvert
         if (data.msg_type === "proposal_open_contract") {
             fetchPortfolioPL();
         }
     };
 
     ws.onclose = () => {
-        console.log("⚠️ WebSocket disconnected");
+        console.warn("⚠️ WebSocket disconnected");
         isAuthorized = false;
+        setStatus("Disconnected");
     };
-  }
+}
 
-// 🔹 Fonction sécurisée pour envoyer des messages
- function safeSend(payload) {
-    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
-    else setTimeout(() => safeSend(payload), 300);
-  }
-
-// 🔹 Fonction pour demander le portfolio
-  function fetchPortfolioPL() {
+// =======================
+// FETCH PORTFOLIO P/L
+// =======================
+function fetchPortfolioPL() {
     if (!isAuthorized || !ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ "portfolio": 1, "active_symbols_only": 1 }));
-  }
+    safeSend({ "portfolio": 1, "active_symbols_only": 1 });
+}
 
-// 🔹 Gauge P/L
-  function updatePLGaugeDisplay(pl) {
+// =======================
+// CALCUL DU P/L TOTAL
+// =======================
+function updateTotalPLFromPortfolio(portfolio) {
+    if (!portfolio || !Array.isArray(portfolio.contracts)) return;
+    totalPL = portfolio.contracts.reduce((sum, c) => {
+        const p = parseFloat(c?.profit);
+        return sum + (Number.isFinite(p) ? p : 0);
+    }, 0);
+    console.log("💰 Total P/L:", totalPL.toFixed(2));
+    updatePLGaugeDisplay(totalPL);
+}
+
+// =======================
+// GAUGE P/L
+// =======================
+function updatePLGaugeDisplay(pl) {
     const gauge = document.getElementById("plGauge");
     if (!gauge) return;
     const ctx = gauge.getContext("2d");
@@ -539,7 +552,7 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.stroke();
 
     // Cercle P/L
-    const maxPL = 1000;
+    const maxPL = 1000; // ajustable selon ton usage
     const normalized = Math.min(Math.max(pl / maxPL, -1), 1);
     const angle = -Math.PI / 2 + normalized * Math.PI;
 
@@ -559,8 +572,15 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.fillStyle = pl >= 0 ? "#16a34a" : "#dc2626";
     ctx.font = "bold 18px Inter";
     ctx.fillText(pl.toFixed(2) + " USD", centerX, centerY + 15);
-  }
+}
 
+// =======================
+// STATUS UTILE
+// =======================
+function setStatus(text) {
+    const statusEl = document.getElementById("status");
+    if (statusEl) statusEl.textContent = text;
+}
 
   function canvasMouseMove(e){
     if(!canvas||chartData.length===0) return;
