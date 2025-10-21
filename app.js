@@ -30,6 +30,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const plCanvas = document.getElementById("plGauge");
 
   let ws = null;
+  let isAuthorized = false;
+  let totalPL = 0;
   let authorized = false;
   let currentSymbol = null;
   let lastPrices = {};
@@ -453,84 +455,112 @@ document.addEventListener("DOMContentLoaded", () => {
       return entry;
   }
 
-  // --- Connexion WebSocket ---
-  function connectWS(token){
-    ws = new WebSocket(WS_URL);
+  // 🔹 Fonction de connexion WebSocket
+  function connectWS(token) {
+    ws = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=1089");
 
     ws.onopen = () => {
-      console.log("🔌 Connected to Deriv API");
-      ws.send(JSON.stringify({ authorize: token }));
+      console.log("🔗 WebSocket connected");
+      safeSend({ authorize: token });
     };
 
     ws.onmessage = (msg) => {
       const data = JSON.parse(msg.data);
+      console.log("📩 Message reçu:", data);
+
+      if (data.error) {
+        console.error("❌ Erreur:", data.error.message);
+        return;
+      }
 
      // ✅ Autorisation réussie
      if (data.msg_type === "authorize") {
-       console.log("✅ Authorized:", data.authorize.loginid);
-       // Demande du P/L total au démarrage
-       fetchTotalPL(ws);
+      const loginid = data?.authorize?.loginid;
+      if (loginid) {
+        isAuthorized = true;
+        console.log("✅ Authorized:", loginid);
+        fetchTotalPL();
+        // (Optionnel) Actualiser toutes les 5 secondes
+        setInterval(fetchTotalPL, 5000);
+      }
      }
 
-     // ✅ Réception du portefeuille pour calcul P/L total
-     if (data.msg_type === "portfolio") {
-       let totalPL = 0;
-
-       if (data.portfolio && data.portfolio.contracts){
-         data.portfolio.contracts.forEach(contract => {
-           totalPL += parseFloat(contract.profit || 0);
-         });
-       }
-
-       updatePLGauge(totalPL);
+     // ✅ Réponse du P/L total
+     if (data.msg_type === "profit_table") {
+       totalPL = data.profit_table?.profit?.reduce((acc, t) => acc + parseFloat(t.profit || 0), 0);
+       console.log("💰 Total P/L:", totalPL.toFixed(2), "USD");
+       updatePLGaugeDisplay(totalPL);
      }
+    };
 
-     // 📈 Si tu as d'autres réponses (proposals, ticks, trades…), garde ton code ici
-   };
-
-   ws.onclose = () => {
-     console.log("⚠️ Disconnected — reconnecting in 3s...");
-     setTimeout(() => connectWS(token), 3000);
-   };
+    ws.onclose = () => {
+      console.warn("⚠️ WebSocket disconnected");
+      isAuthorized = false;
+    };
   }
 
-  // --- Requête du P/L total ---
-  function fetchTotalPL(ws) {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ portfolio: 1 }));
+  // 🔹 Fonction d’envoi sécurisée (évite l’erreur CONNECTING)
+  function safeSend(payload) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(payload));
+    } else {
+      setTimeout(() => safeSend(payload), 300);
+    }
   }
 
-  // --- Fonction d’affichage du Gauge ---
-  function updatePLGauge(totalPL = 0) {
-    if (!plCanvas) return;
-    const gctx = plCanvas.getContext("2d");
-    gctx.clearRect(0, 0, plCanvas.width, plCanvas.height);
+  // 🔹 Fonction de récupération du P/L total
+  function fetchTotalPL() {
+    if (!isAuthorized || !ws || ws.readyState !== WebSocket.OPEN) return;
+    safeSend({
+      profit_table: 1,
+      description: 1,
+      limit: 50
+    });
+  }
 
-    const isDark = document.body.classList.contains("dark");
-    const textColor = isDark ? "#f8fafc" : "#1e293b";
-    const baseCircle = isDark ? "#334155" : "#e2e8f0";
+  // 🔹 Démarrage de la connexion avec le token
+  function startConnectionWithToken(token) {
+   if (!token) {
+      console.error("❌ Aucun token fourni");
+      return;
+   }
+   connectWS(token);
+  }
 
-    const radius = plCanvas.width / 2 - 10;
-    gctx.beginPath();
-    gctx.arc(plCanvas.width / 2, plCanvas.height / 2, radius, 0, 2 * Math.PI);
-    gctx.strokeStyle = baseCircle;
-    gctx.lineWidth = 12;
-    gctx.stroke();
+  // 🔹 Mise à jour du gauge ou affichage P/L
+  function updatePLGaugeDisplay(pl) {
+    const gauge = document.getElementById("plGauge");
+    const ctx = gauge?.getContext("2d");
+    if (!ctx) return;
 
-    const normalized = Math.max(-100, Math.min(100, totalPL));
-    const endAngle = -Math.PI / 2 + (normalized / 100) * 2 * Math.PI;
-    gctx.beginPath();
-    gctx.arc(plCanvas.width / 2, plCanvas.height / 2, radius, -Math.PI / 2, endAngle);
-    gctx.strokeStyle = totalPL >= 0 ? "#16a34a" : "#dc2626";
-    gctx.lineWidth = 12;
-    gctx.stroke();
+    ctx.clearRect(0, 0, gauge.width, gauge.height);
 
-    gctx.fillStyle = textColor;
-    gctx.font = "12px Inter, Arial";
-    gctx.textAlign = "center";
-    gctx.textBaseline = "middle";
-    gctx.fillText("P/L Total", plCanvas.width / 2, plCanvas.height / 2 - 12);
-    gctx.fillText(totalPL.toFixed(2) + " USD", plCanvas.width / 2, plCanvas.height / 2 + 12);
+    const radius = gauge.width / 2 - 10;
+    const centerX = gauge.width / 2;
+    const centerY = gauge.height / 2;
+
+    // Fond du gauge
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+    ctx.strokeStyle = "#e5e7eb";
+    ctx.lineWidth = 12;
+    ctx.stroke();
+
+    // Couleur du P/L (vert si positif, rouge si négatif)
+    const angle = -Math.PI / 2 + Math.min(Math.max(pl / 100, -1), 1) * Math.PI;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, -Math.PI / 2, angle);
+    ctx.strokeStyle = pl >= 0 ? "#16a34a" : "#dc2626";
+    ctx.lineWidth = 12;
+    ctx.stroke();
+
+    // Texte au centre
+    ctx.fillStyle = document.body.classList.contains("dark") ? "#fff" : "#111";
+    ctx.font = "bold 13px Inter";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("Total P/L", centerX, centerY - 12);
+    ctx.fillText(pl.toFixed(2) + " USD", centerX, centerY + 10);
   }
 
   function canvasMouseMove(e){
@@ -833,11 +863,9 @@ closeBtnAll.onclick=()=>{
     }
   });
 
-  // --- Mise à jour automatique toutes les 5 secondes ---
-  setInterval(fetchTotalPL, 5000);
-
-  // --- Lancer la connexion ---
-  // ⚠️ Remplace "VOTRE_TOKEN_ICI" par ton token Deriv
-  connectWS(tokenInput.value.trim());
-
+  // ✅ Démarrage automatique après saisie du token
+  document.getElementById("connectBtn")?.addEventListener("click", () => {
+    const token = document.getElementById("tokenInput")?.value.trim();
+    startConnectionWithToken(token);
+  });
 });
