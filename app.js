@@ -572,6 +572,7 @@ function safeSend(payload) {
 // 🔹 Affichage du gauge P/L
 // =====================
   function updatePLGaugeDisplay(pl) {
+    console.log("🔹 updatePLGaugeDisplay called with:", pl);
     const gauge = document.getElementById("plGauge");
     const ctx = gauge?.getContext("2d");
     if (!ctx) return;
