@@ -462,21 +462,27 @@ function updatePLGaugeDisplay(pl) {
     const ctx = gauge.getContext("2d");
     if (!ctx) return;
 
-    // Nettoie le canvas
-    ctx.clearRect(0, 0, gauge.width, gauge.height);
-
     const centerX = gauge.width / 2;
     const centerY = gauge.height / 2;
     const radius = gauge.width / 2 - 20;
 
-    // Fond du gauge
+    // Détecte le mode
+    const isDark = document.body.classList.contains("dark");
+
+    // Fond du canvas selon le mode
+    ctx.fillStyle = isDark
+        ? "rgba(22,22,26,0.9)"   // foncé pour dark mode
+        : "rgba(255,255,255,0.9)"; // clair pour light mode
+    ctx.fillRect(0, 0, gauge.width, gauge.height);
+
+    // Cercle gris de fond
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-    ctx.strokeStyle = "#e5e7eb";
+    ctx.strokeStyle = isDark ? "#2c2f36" : "#e5e7eb";
     ctx.lineWidth = 12;
     ctx.stroke();
 
-    // Cercle coloré selon P/L
+    // Cercle P/L coloré
     const maxPL = 1000;
     const normalized = Math.min(Math.max(pl / maxPL, -1), 1);
     const angle = -Math.PI / 2 + normalized * Math.PI;
@@ -486,18 +492,18 @@ function updatePLGaugeDisplay(pl) {
     ctx.strokeStyle = pl >= 0 ? "#16a34a" : "#dc2626";
     ctx.lineWidth = 12;
     ctx.shadowColor = pl >= 0 ? "#16a34a" : "#dc2626";
-    ctx.shadowBlur = 10; // effet glow
+    ctx.shadowBlur = 8;
     ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // Texte au centre : label
-    ctx.fillStyle = "#475569";
+    // Texte label
+    ctx.fillStyle = isDark ? "#f0f4f8" : "#475569";
     ctx.font = "bold 14px Inter";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("Total P/L", centerX, centerY - 10);
 
-    // Texte au centre : valeur
+    // Texte valeur
     ctx.fillStyle = pl >= 0 ? "#16a34a" : "#dc2626";
     ctx.font = "bold 18px Inter";
     ctx.fillText(pl.toFixed(2) + " USD", centerX, centerY + 15);
