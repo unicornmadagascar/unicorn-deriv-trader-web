@@ -465,33 +465,94 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     ws.onmessage = (msg) => {
-      const data = JSON.parse(msg.data);
-      console.log("📩 Message reçu:", data);
+    let data;
+    try {
+      data = JSON.parse(msg.data);
+    } catch (err) {
+      console.error("Invalid JSON from WS:", err, msg.data);
+      return;
+    }
 
-      if (data.error) {
-        console.error("❌ Erreur:", data.error.message);
-        return;
-      }
+    // --- erreur renvoyée par l'API ---
+    if (data.error) {
+      console.error("API error:", data.error);
+      return;
+    }
 
-     // ✅ Autorisation réussie
-     if (data.msg_type === "authorize") {
+    // --- Authorization handling (existant) ---
+    if (data.msg_type === "authorize") {
       const loginid = data?.authorize?.loginid;
       if (loginid) {
         isAuthorized = true;
         console.log("✅ Authorized:", loginid);
-        fetchTotalPL();
-        // (Optionnel) Actualiser toutes les 5 secondes
-        setInterval(fetchTotalPL, 5000);
+        fetchTotalPL(); // lance la première requête
+        // optionnel : setInterval(fetchTotalPL, 5000);
+      } else {
+        console.warn("Authorize message received but no loginid:", data);
       }
-     }
+      return;
+    }
 
-     // ✅ Réponse du P/L total
-     if (data.msg_type === "profit_table") {
-       totalPL = data.profit_table?.profit?.reduce((acc, t) => acc + parseFloat(t.profit || 0), 0);
-       console.log("💰 Total P/L:", totalPL.toFixed(2), "USD");
-       updatePLGaugeDisplay(totalPL);
-     }
-    };
+    // --- Si API renvoie profit_table (historique/profit) ---
+    if (data.msg_type === "profit_table" || data.profit_table) {
+      // La structure peut varier ; essayons différentes possibilités
+      let total = 0;
+
+      // cas 1 : data.profit_table.profit est un tableau d'objets { profit: "12.34" }
+      if (Array.isArray(data.profit_table?.profit)) {
+        total = data.profit_table.profit.reduce((sum, item) => {
+          const p = parseFloat(item?.profit);
+          return sum + (Number.isFinite(p) ? p : 0);
+        }, 0);
+      }
+      // cas 2 : l'API peut renvoyer un champ 'profit' (single) ou 'total_profit'
+      else if (typeof data.profit_table?.profit === "string" || typeof data.profit_table?.profit === "number") {
+        const p = parseFloat(data.profit_table.profit);
+        total = Number.isFinite(p) ? p : 0;
+      }
+      // fallback : portfolio (open contracts) — addition des champs profit si présent
+      else if (data.msg_type === "portfolio" && Array.isArray(data.portfolio?.contracts)) {
+        total = data.portfolio.contracts.reduce((s, c) => {
+          const p = parseFloat(c?.profit);
+          return s + (Number.isFinite(p) ? p : 0);
+        }, 0);
+      } else {
+        // si structure inattendue, essaye d'extraire tout champ numérique présent
+        total = 0;
+        // (optionnel) console.log pour debug
+        // console.log("profit_table structure inattendue:", data);
+      }
+
+      // Normaliser total à nombre
+      totalPL = Number.isFinite(total) ? total : 0;
+
+      // Log sécurisé (évite .toFixed si totalPL non numérique)
+      console.log("💰 Total P/L:", (Number.isFinite(totalPL) ? totalPL.toFixed(2) : "0.00"), "USD");
+
+      // Met à jour le gauge / UI
+      updatePLGaugeDisplay(totalPL);
+
+      return;
+    }
+
+    // --- Si l'API envoie 'portfolio' séparément ---
+    if (data.msg_type === "portfolio") {
+      let total = 0;
+      if (Array.isArray(data.portfolio?.contracts)) {
+        total = data.portfolio.contracts.reduce((s, c) => {
+          const p = parseFloat(c?.profit);
+          return s + (Number.isFinite(p) ? p : 0);
+        }, 0);
+      }
+      totalPL = Number.isFinite(total) ? total : 0;
+      console.log("💰 Total P/L (from portfolio):", (Number.isFinite(totalPL) ? totalPL.toFixed(2) : "0.00"), "USD");
+      updatePLGaugeDisplay(totalPL);
+      return;
+    }
+
+    // --- autres messages (tick, proposal_open_contract...) tu peux les laisser ici ---
+    // ...
+   };
 
     ws.onclose = () => {
       console.warn("⚠️ WebSocket disconnected");
