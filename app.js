@@ -458,7 +458,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 🔹 Fonction de connexion WebSocket
   function connectWS(token) {
-    ws = new WebSocket(WS_URL);
+    ws = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=1089");
 
     ws.onopen = () => {
         console.log("🔗 WebSocket connected");
@@ -467,22 +467,33 @@ document.addEventListener("DOMContentLoaded", () => {
 
     ws.onmessage = (msg) => {
         let data;
-        try { data = JSON.parse(msg.data); } catch(e) { return; }
+        try { data = JSON.parse(msg.data); } catch (e) { return; }
 
-        // Autorisation
+        console.log("API Response:", data); // Log de la réponse de l'API
+
         if (data.msg_type === "authorize" && data.authorize?.loginid) {
             isAuthorized = true;
             console.log("✅ Authorized:", data.authorize.loginid);
-            fetchTotalPL();
+            fetchTotalPL(); // Lance la récupération du P/L
         }
 
-        // Réception profit_table
+        // Traitement du profit_table
         if (data.msg_type === "profit_table" || data.profit_table) {
             let total = 0;
+
+            // Vérification de la structure de profit_table
             if (Array.isArray(data.profit_table?.profit)) {
-                total = data.profit_table.profit.reduce((sum, item) => sum + parseFloat(item?.profit || 0), 0);
+                total = data.profit_table.profit.reduce((sum, item) => {
+                    const p = parseFloat(item?.profit);
+                    return sum + (Number.isFinite(p) ? p : 0);
+                }, 0);
+            } else if (typeof data.profit_table?.profit === "string" || typeof data.profit_table?.profit === "number") {
+                const p = parseFloat(data.profit_table.profit);
+                total = Number.isFinite(p) ? p : 0;
             }
+
             totalPL = Number.isFinite(total) ? total : 0;
+            console.log("💰 Total P/L:", totalPL);
             updatePLGaugeDisplay(totalPL);
         }
     };
@@ -493,16 +504,6 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
-  // 🔹 Envoi sécurisé pour éviter l'erreur CONNECTING
-  function safeSend(payload) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(payload));
-    } else {
-        setTimeout(() => safeSend(payload), 300);
-    }
-  }
-
-  // 🔹 Récupération du P/L total
   function fetchTotalPL() {
     if (!isAuthorized || !ws || ws.readyState !== WebSocket.OPEN) return;
     safeSend({
@@ -512,7 +513,14 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 🔹 Mise à jour du gauge P/L
+  function safeSend(payload) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(payload));
+    } else {
+        setTimeout(() => safeSend(payload), 300);
+    }
+  }
+
   function updatePLGaugeDisplay(pl) {
     const gauge = document.getElementById("plGauge");
     if (!gauge) return;
@@ -522,20 +530,22 @@ document.addEventListener("DOMContentLoaded", () => {
     const centerX = gauge.width / 2;
     const centerY = gauge.height / 2;
     const radius = gauge.width / 2 - 20;
+
+    // Mode sombre ou clair
     const isDark = document.body.classList.contains("dark");
 
-    // Fond
+    // Fond du gauge
     ctx.fillStyle = isDark ? "rgba(22,22,26,0.9)" : "rgba(255,255,255,0.9)";
     ctx.fillRect(0, 0, gauge.width, gauge.height);
 
-    // Cercle gris de fond
+    // Cercle de fond
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
     ctx.strokeStyle = isDark ? "#2c2f36" : "#e5e7eb";
     ctx.lineWidth = 12;
     ctx.stroke();
 
-    // Cercle coloré P/L
+    // Cercle P/L
     const maxPL = 1000;
     const normalized = Math.min(Math.max(pl / maxPL, -1), 1);
     const angle = -Math.PI / 2 + normalized * Math.PI;
@@ -556,11 +566,12 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.textBaseline = "middle";
     ctx.fillText("Total P/L", centerX, centerY - 10);
 
-    // Texte valeur
+    // Texte de la valeur
     ctx.fillStyle = pl >= 0 ? "#16a34a" : "#dc2626";
     ctx.font = "bold 18px Inter";
     ctx.fillText(pl.toFixed(2) + " USD", centerX, centerY + 15);
   }
+
 
   function canvasMouseMove(e){
     if(!canvas||chartData.length===0) return;
