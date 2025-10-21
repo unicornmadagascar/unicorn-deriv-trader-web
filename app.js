@@ -500,7 +500,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     ws.onclose = () => {
-        console.warn("⚠️ WebSocket disconnected");
+        console.log("⚠️ WebSocket disconnected");
         isAuthorized = false;
     };
   }
