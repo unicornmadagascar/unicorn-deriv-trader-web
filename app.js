@@ -469,7 +469,7 @@ document.addEventListener("DOMContentLoaded", () => {
      if (data.msg_type === "authorize") {
        console.log("✅ Authorized:", data.authorize.loginid);
        // Demande du P/L total au démarrage
-       fetchTotalPL();
+       fetchTotalPL(ws);
      }
 
      // ✅ Réception du portefeuille pour calcul P/L total
@@ -489,13 +489,13 @@ document.addEventListener("DOMContentLoaded", () => {
    };
 
    ws.onclose = () => {
-     console.warn("⚠️ Disconnected — reconnecting in 3s...");
+     console.log("⚠️ Disconnected — reconnecting in 3s...");
      setTimeout(() => connectWS(token), 3000);
    };
   }
 
   // --- Requête du P/L total ---
-  function fetchTotalPL() {
+  function fetchTotalPL(ws) {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     ws.send(JSON.stringify({ portfolio: 1 }));
   }
@@ -838,6 +838,6 @@ closeBtnAll.onclick=()=>{
 
   // --- Lancer la connexion ---
   // ⚠️ Remplace "VOTRE_TOKEN_ICI" par ton token Deriv
-  connectWS("wgf8TFDsJ8Ecvze");
+  connectWS(tokenInput.value.trim());
 
 });
