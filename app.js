@@ -456,23 +456,76 @@ document.addEventListener("DOMContentLoaded", () => {
       return entry;
   }
 
-// Fonction pour mettre à jour le gauge
-function updatePLGaugeDisplay(pl) {
+  // 🔹 Fonction de connexion WebSocket
+  function connectWS(token) {
+    ws = new WebSocket(WS_URL);
+
+    ws.onopen = () => {
+        console.log("🔗 WebSocket connected");
+        safeSend({ authorize: token });
+    };
+
+    ws.onmessage = (msg) => {
+        let data;
+        try { data = JSON.parse(msg.data); } catch(e) { return; }
+
+        // Autorisation
+        if (data.msg_type === "authorize" && data.authorize?.loginid) {
+            isAuthorized = true;
+            console.log("✅ Authorized:", data.authorize.loginid);
+            fetchTotalPL();
+        }
+
+        // Réception profit_table
+        if (data.msg_type === "profit_table" || data.profit_table) {
+            let total = 0;
+            if (Array.isArray(data.profit_table?.profit)) {
+                total = data.profit_table.profit.reduce((sum, item) => sum + parseFloat(item?.profit || 0), 0);
+            }
+            totalPL = Number.isFinite(total) ? total : 0;
+            updatePLGaugeDisplay(totalPL);
+        }
+    };
+
+    ws.onclose = () => {
+        console.warn("⚠️ WebSocket disconnected");
+        isAuthorized = false;
+    };
+  }
+
+  // 🔹 Envoi sécurisé pour éviter l'erreur CONNECTING
+  function safeSend(payload) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(payload));
+    } else {
+        setTimeout(() => safeSend(payload), 300);
+    }
+  }
+
+  // 🔹 Récupération du P/L total
+  function fetchTotalPL() {
+    if (!isAuthorized || !ws || ws.readyState !== WebSocket.OPEN) return;
+    safeSend({
+        profit_table: 1,
+        description: 1,
+        limit: 50
+    });
+  }
+
+  // 🔹 Mise à jour du gauge P/L
+  function updatePLGaugeDisplay(pl) {
     const gauge = document.getElementById("plGauge");
+    if (!gauge) return;
     const ctx = gauge.getContext("2d");
     if (!ctx) return;
 
     const centerX = gauge.width / 2;
     const centerY = gauge.height / 2;
     const radius = gauge.width / 2 - 20;
-
-    // Détecte le mode
     const isDark = document.body.classList.contains("dark");
 
-    // Fond du canvas selon le mode
-    ctx.fillStyle = isDark
-        ? "rgba(22,22,26,0.9)"   // foncé pour dark mode
-        : "rgba(255,255,255,0.9)"; // clair pour light mode
+    // Fond
+    ctx.fillStyle = isDark ? "rgba(22,22,26,0.9)" : "rgba(255,255,255,0.9)";
     ctx.fillRect(0, 0, gauge.width, gauge.height);
 
     // Cercle gris de fond
@@ -482,7 +535,7 @@ function updatePLGaugeDisplay(pl) {
     ctx.lineWidth = 12;
     ctx.stroke();
 
-    // Cercle P/L coloré
+    // Cercle coloré P/L
     const maxPL = 1000;
     const normalized = Math.min(Math.max(pl / maxPL, -1), 1);
     const angle = -Math.PI / 2 + normalized * Math.PI;
@@ -507,13 +560,7 @@ function updatePLGaugeDisplay(pl) {
     ctx.fillStyle = pl >= 0 ? "#16a34a" : "#dc2626";
     ctx.font = "bold 18px Inter";
     ctx.fillText(pl.toFixed(2) + " USD", centerX, centerY + 15);
-}
-
-// Simulation du P/L pour test
-function simulatePL() {
-    totalPL = Math.random() * 2000 - 1000;
-    updatePLGaugeDisplay(totalPL);
-}
+  }
 
   function canvasMouseMove(e){
     if(!canvas||chartData.length===0) return;
@@ -754,7 +801,7 @@ closeBtnAll.onclick=()=>{
     const token=tokenInput.value.trim();
     if(!token){ setStatus("Simulation Mode"); logHistory("Running in simulation (no token)"); return; }
     ws=new WebSocket(WS_URL);
-    //startConnectionWithToken(token);
+    connectWS(token);
     setStatus("Connecting..."); 
     ws.onopen=()=>{ setStatus("Connected, authorizing..."); ws.send(JSON.stringify({ authorize: token })); };
     ws.onclose=()=>{ setStatus("Disconnected"); logHistory("WS closed"); };
@@ -815,7 +862,4 @@ closeBtnAll.onclick=()=>{
       e.target.closest("tr").remove();
     }
   });
-
-  setInterval(simulatePL, 2000);
-  simulatePL();
 });
