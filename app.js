@@ -453,6 +453,86 @@ document.addEventListener("DOMContentLoaded", () => {
       return entry;
   }
 
+  // --- Connexion WebSocket ---
+  function connectWS(token){
+    ws = new WebSocket(WS_URL);
+
+    ws.onopen = () => {
+      console.log("🔌 Connected to Deriv API");
+      ws.send(JSON.stringify({ authorize: token }));
+    };
+
+    ws.onmessage = (msg) => {
+      const data = JSON.parse(msg.data);
+
+     // ✅ Autorisation réussie
+     if (data.msg_type === "authorize") {
+       console.log("✅ Authorized:", data.authorize.loginid);
+       // Demande du P/L total au démarrage
+       fetchTotalPL();
+     }
+
+     // ✅ Réception du portefeuille pour calcul P/L total
+     if (data.msg_type === "portfolio") {
+       let totalPL = 0;
+
+       if (data.portfolio && data.portfolio.contracts){
+         data.portfolio.contracts.forEach(contract => {
+           totalPL += parseFloat(contract.profit || 0);
+         });
+       }
+
+       updatePLGauge(totalPL);
+     }
+
+     // 📈 Si tu as d'autres réponses (proposals, ticks, trades…), garde ton code ici
+   };
+
+   ws.onclose = () => {
+     console.warn("⚠️ Disconnected — reconnecting in 3s...");
+     setTimeout(() => connectWS(token), 3000);
+   };
+  }
+
+  // --- Requête du P/L total ---
+  function fetchTotalPL() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ portfolio: 1 }));
+  }
+
+  // --- Fonction d’affichage du Gauge ---
+  function updatePLGauge(totalPL = 0) {
+    if (!plCanvas) return;
+    const gctx = plCanvas.getContext("2d");
+    gctx.clearRect(0, 0, plCanvas.width, plCanvas.height);
+
+    const isDark = document.body.classList.contains("dark");
+    const textColor = isDark ? "#f8fafc" : "#1e293b";
+    const baseCircle = isDark ? "#334155" : "#e2e8f0";
+
+    const radius = plCanvas.width / 2 - 10;
+    gctx.beginPath();
+    gctx.arc(plCanvas.width / 2, plCanvas.height / 2, radius, 0, 2 * Math.PI);
+    gctx.strokeStyle = baseCircle;
+    gctx.lineWidth = 12;
+    gctx.stroke();
+
+    const normalized = Math.max(-100, Math.min(100, totalPL));
+    const endAngle = -Math.PI / 2 + (normalized / 100) * 2 * Math.PI;
+    gctx.beginPath();
+    gctx.arc(plCanvas.width / 2, plCanvas.height / 2, radius, -Math.PI / 2, endAngle);
+    gctx.strokeStyle = totalPL >= 0 ? "#16a34a" : "#dc2626";
+    gctx.lineWidth = 12;
+    gctx.stroke();
+
+    gctx.fillStyle = textColor;
+    gctx.font = "12px Inter, Arial";
+    gctx.textAlign = "center";
+    gctx.textBaseline = "middle";
+    gctx.fillText("P/L Total", plCanvas.width / 2, plCanvas.height / 2 - 12);
+    gctx.fillText(totalPL.toFixed(2) + " USD", plCanvas.width / 2, plCanvas.height / 2 + 12);
+  }
+
   function canvasMouseMove(e){
     if(!canvas||chartData.length===0) return;
     const rect=canvas.getBoundingClientRect();
@@ -752,51 +832,12 @@ closeBtnAll.onclick=()=>{
       e.target.closest("tr").remove();
     }
   });
- 
-  function updatePLGauge() {
-  if(!plCanvas) return;
-  const gctx = plCanvas.getContext("2d");
-  gctx.clearRect(0, 0, plCanvas.width, plCanvas.height);
 
-  // Calcul du P/L
-  let pnl = 0;
-  const lastPrice = chartData[chartData.length-1] || 0;
-  trades.forEach(tr => {
-    const diff = tr.type === "BUY" ? lastPrice - tr.entry : tr.entry - lastPrice;
-    pnl += diff * tr.multiplier * tr.stake;
-  });
+  // --- Mise à jour automatique toutes les 5 secondes ---
+  setInterval(fetchTotalPL, 5000);
 
-  // Fond du gauge selon le thème
-  const bgColor = document.body.classList.contains("dark") ? "#1e293b" : "#eee";
-
-  // Cercle de fond
-  const radius = plCanvas.width/2 - 10;
-  gctx.beginPath();
-  gctx.arc(plCanvas.width/2, plCanvas.height/2, radius, 0, 2 * Math.PI);
-  gctx.strokeStyle = bgColor;
-  gctx.lineWidth = 12;
-  gctx.stroke();
-
-  // Trait du gauge (vert si positif, rouge si négatif)
-  const endAngle = -Math.PI/2 + Math.max(-100, Math.min(100, pnl)) / 100 * 2 * Math.PI;
-  gctx.beginPath();
-  gctx.arc(plCanvas.width/2, plCanvas.height/2, radius, -Math.PI/2, endAngle);
-  gctx.strokeStyle = pnl >= 0 ? "#16a34a" : "#dc2626";
-  gctx.lineWidth = 12;
-  gctx.stroke();
-
-  // Texte à l'intérieur du gauge
-  const textColor = document.body.classList.contains("dark") ? "#f1f5f9" : "#222";
-  gctx.fillStyle = textColor;
-  gctx.font = "12px Inter, Arial";
-  gctx.textAlign = "center";
-  gctx.textBaseline = "middle";
-  gctx.fillText("P/L", plCanvas.width/2, plCanvas.height/2 - 12);
-  gctx.fillText(pnl.toFixed(2), plCanvas.width/2, plCanvas.height/2 + 12);
-}
-
-// Mise à jour automatique toutes les 1s
-setInterval(updatePLGauge, 1000);
-
+  // --- Lancer la connexion ---
+  // ⚠️ Remplace "VOTRE_TOKEN_ICI" par ton token Deriv
+  connectWS("wgf8TFDsJ8Ecvze");
 
 });
