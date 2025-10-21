@@ -457,27 +457,26 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
 // Fonction pour mettre à jour le gauge
-  function updatePLGaugeDisplay(pl) {
+function updatePLGaugeDisplay(pl) {
     const gauge = document.getElementById("plGauge");
-    const ctx = gauge?.getContext("2d");
+    const ctx = gauge.getContext("2d");
     if (!ctx) return;
 
-    // Clear canvas
+    // Nettoie le canvas
     ctx.clearRect(0, 0, gauge.width, gauge.height);
 
     const centerX = gauge.width / 2;
     const centerY = gauge.height / 2;
-    const radius = gauge.width / 2 - 15;
+    const radius = gauge.width / 2 - 20;
 
-    // Fond du gauge (cercle gris)
+    // Fond du gauge
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
     ctx.strokeStyle = "#e5e7eb";
     ctx.lineWidth = 12;
     ctx.stroke();
 
-    // Cercle coloré selon le P/L
-    // Ici, on normalise à ±1000 USD pour l'affichage
+    // Cercle coloré selon P/L
     const maxPL = 1000;
     const normalized = Math.min(Math.max(pl / maxPL, -1), 1);
     const angle = -Math.PI / 2 + normalized * Math.PI;
@@ -486,22 +485,29 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.arc(centerX, centerY, radius, -Math.PI / 2, angle);
     ctx.strokeStyle = pl >= 0 ? "#16a34a" : "#dc2626";
     ctx.lineWidth = 12;
+    ctx.shadowColor = pl >= 0 ? "#16a34a" : "#dc2626";
+    ctx.shadowBlur = 10; // effet glow
     ctx.stroke();
+    ctx.shadowBlur = 0;
 
-    // Texte au centre
-    ctx.fillStyle = "#111";
+    // Texte au centre : label
+    ctx.fillStyle = "#475569";
     ctx.font = "bold 14px Inter";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("Total P/L", centerX, centerY - 10);
-    ctx.fillText(pl.toFixed(2) + " USD", centerX, centerY + 15);
-  }
 
-// Fonction test : simule le P/L changeant
-  function simulatePL() {
-    totalPL = Math.random() * 2000 - 1000; // valeur entre -1000 et +1000
+    // Texte au centre : valeur
+    ctx.fillStyle = pl >= 0 ? "#16a34a" : "#dc2626";
+    ctx.font = "bold 18px Inter";
+    ctx.fillText(pl.toFixed(2) + " USD", centerX, centerY + 15);
+}
+
+// Simulation du P/L pour test
+function simulatePL() {
+    totalPL = Math.random() * 2000 - 1000;
     updatePLGaugeDisplay(totalPL);
-  }
+}
 
   function canvasMouseMove(e){
     if(!canvas||chartData.length===0) return;
@@ -804,9 +810,6 @@ closeBtnAll.onclick=()=>{
     }
   });
 
-  // Lance la simulation toutes les 2 secondes
   setInterval(simulatePL, 2000);
-
-  // Premier affichage
   simulatePL();
 });

@@ -369,27 +369,34 @@
 
     #plGaugeContainer {
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      margin-top: 12px;
-      padding: 20px; /* plus de padding pour l’espace autour */
-      background: #f8fafc;
-      border-radius: 12px;
-      box-shadow: 0 1px 5px rgba(0,0,0,0.15);
+      margin-top: 20px;
+      padding: 20px;
+      background: linear-gradient(135deg, #f0f4f8, #ffffff);
+      border-radius: 16px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+      transition: all 0.3s ease;
    }
 
-    #plGauge {
-      background: rgba(0,0,0,0.05);
-      border-radius: 50%;
-    } 
+   #plGaugeContainer:hover {
+      transform: scale(1.03);
+      box-shadow: 0 12px 25px rgba(0,0,0,0.12);
+   }
 
-    .pl-label {
+   #plGauge {
+      border-radius: 50%;
+      background: radial-gradient(circle at center, rgba(255,255,255,0.9), rgba(245,247,250,0.6));
+      box-shadow: inset 0 4px 12px rgba(0,0,0,0.05);
+   }
+
+
+    /*.pl-label {
        margin-top: 6px;
        font-size: 13px;
        color: #475569;
        font-weight: 500;
-    }
+    }*/
 
     #symbolPanel {
        display: flex;
@@ -429,7 +436,7 @@
        <div id="symbolList"></div> <!-- tes symboles -->
        <div id="plGaugeContainer">
            <canvas id="plGauge" width="230" height="230"></canvas>
-           <div class="pl-label">P/L Gauge</div>
+           <!-- <div class="pl-label">P/L Gauge</div> -->
        </div>
     </aside>
 
