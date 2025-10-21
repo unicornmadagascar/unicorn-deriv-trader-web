@@ -456,81 +456,9 @@ document.addEventListener("DOMContentLoaded", () => {
       return entry;
   }
 
-  // =======================
-// FONCTION SAFE SEND
-// =======================
-function safeSend(payload) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(payload));
-    } else {
-        setTimeout(() => safeSend(payload), 100);
-    }
-}
-
-// =======================
-// CONNECT WEBSOCKET
-// =======================
-function connectWS(token) {
-    ws = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=1089");
-
-    ws.onopen = () => {
-        setStatus("Connected, authorizing...");
-        safeSend({ authorize: token });
-    };
-
-    ws.onmessage = (msg) => {
-        let data;
-        try { data = JSON.parse(msg.data); } catch(e){ return; }
-
-        // Autorisation
-        if (data.msg_type === "authorize" && data.authorize?.loginid) {
-            isAuthorized = true;
-            console.log("✅ Authorized:", data.authorize.loginid);
-            fetchPortfolioPL(); // première récupération du P/L
-        }
-
-        // Mise à jour des contrats ouverts
-        if (data.msg_type === "portfolio") {
-            updateTotalPLFromPortfolio(data.portfolio);
-        }
-
-        // Recalcul à chaque tick de contrat ouvert
-        if (data.msg_type === "proposal_open_contract") {
-            fetchPortfolioPL();
-        }
-    };
-
-    ws.onclose = () => {
-        console.warn("⚠️ WebSocket disconnected");
-        isAuthorized = false;
-        setStatus("Disconnected");
-    };
-}
-
-// =======================
-// FETCH PORTFOLIO P/L
-// =======================
-function fetchPortfolioPL() {
-    if (!isAuthorized || !ws || ws.readyState !== WebSocket.OPEN) return;
-    safeSend({ "portfolio": 1, "active_symbols_only": 1 });
-}
-
-// =======================
-// CALCUL DU P/L TOTAL
-// =======================
-function updateTotalPLFromPortfolio(portfolio) {
-    if (!portfolio || !Array.isArray(portfolio.contracts)) return;
-    totalPL = portfolio.contracts.reduce((sum, c) => {
-        const p = parseFloat(c?.profit);
-        return sum + (Number.isFinite(p) ? p : 0);
-    }, 0);
-    console.log("💰 Total P/L:", totalPL.toFixed(2));
-    updatePLGaugeDisplay(totalPL);
-}
-
-// =======================
-// GAUGE P/L
-// =======================
+// ====================
+// Gauge P/L
+// ====================
 function updatePLGaugeDisplay(pl) {
     const gauge = document.getElementById("plGauge");
     if (!gauge) return;
@@ -544,25 +472,25 @@ function updatePLGaugeDisplay(pl) {
 
     ctx.clearRect(0, 0, gauge.width, gauge.height);
 
-    // Cercle de fond
+    // Fond du cercle
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
     ctx.strokeStyle = isDark ? "#2c2f36" : "#e5e7eb";
     ctx.lineWidth = 12;
     ctx.stroke();
 
-    // Cercle P/L
-    const maxPL = 1000; // ajustable selon ton usage
+    // Arc P/L
+    const maxPL = 1000; // normalisation
     const normalized = Math.min(Math.max(pl / maxPL, -1), 1);
     const angle = -Math.PI / 2 + normalized * Math.PI;
 
     ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, -Math.PI/2, angle);
+    ctx.arc(centerX, centerY, radius, -Math.PI / 2, angle);
     ctx.strokeStyle = pl >= 0 ? "#16a34a" : "#dc2626";
     ctx.lineWidth = 12;
     ctx.stroke();
 
-    // Texte
+    // Texte interne
     ctx.fillStyle = isDark ? "#f0f4f8" : "#475569";
     ctx.font = "bold 14px Inter";
     ctx.textAlign = "center";
@@ -574,12 +502,71 @@ function updatePLGaugeDisplay(pl) {
     ctx.fillText(pl.toFixed(2) + " USD", centerX, centerY + 15);
 }
 
-// =======================
-// STATUS UTILE
-// =======================
-function setStatus(text) {
-    const statusEl = document.getElementById("status");
-    if (statusEl) statusEl.textContent = text;
+// ====================
+// Récupération P/L depuis portfolio
+// ====================
+function fetchPortfolioPL(ws, authorized) {
+    if(!authorized || !ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ portfolio:1, active_symbols_only:1 }));
+}
+
+function updateTotalPLFromPortfolio(portfolio){
+    if(!portfolio || !Array.isArray(portfolio.contracts)) return;
+    let total = portfolio.contracts.reduce((sum, c)=>{
+        const p = parseFloat(c?.profit);
+        return sum + (Number.isFinite(p)?p:0);
+    },0);
+    totalPL = total;
+
+    // Mise à jour du gauge
+    updatePLGaugeDisplay(totalPL);
+}
+
+// ====================
+// Fonction de connexion sécurisée
+// ====================
+function connectWS(token, wsInstance){
+    if(!wsInstance) return console.error("WebSocket manquant");
+    const ws = wsInstance;
+
+    function safeSend(payload){
+        if(ws.readyState === WebSocket.OPEN){
+            ws.send(JSON.stringify(payload));
+        } else {
+            setTimeout(() => safeSend(payload), 100);
+        }
+    }
+
+    ws.onopen = () => {
+        setStatus("Connected, authorizing...");
+        safeSend({ authorize: token });
+    };
+
+    ws.onmessage = (msg) => {
+        let data;
+        try { data = JSON.parse(msg.data); } catch(e){ return; }
+
+        if(data.msg_type === "authorize"){
+            if(!data.authorize?.loginid){
+                setStatus("Simulation Mode (Token invalid)");
+                logHistory("Token not authorized");
+                return;
+            }
+            authorized = true;
+            setStatus(`Connected: ${data.authorize.loginid}`);
+            logHistory("Authorized: "+data.authorize.loginid);
+
+            // récupère P/L
+            fetchPortfolioPL(ws, authorized);
+        }
+
+        if(data.msg_type === "portfolio"){
+            updateTotalPLFromPortfolio(data.portfolio);
+        }
+    };
+
+    ws.onclose = () => { setStatus("Disconnected"); authorized=false; logHistory("WS closed"); };
+    ws.onerror = e => logHistory("WS error "+JSON.stringify(e));
 }
 
   function canvasMouseMove(e){
@@ -821,7 +808,7 @@ closeBtnAll.onclick=()=>{
     const token=tokenInput.value.trim();
     if(!token){ setStatus("Simulation Mode"); logHistory("Running in simulation (no token)"); return; }
     ws=new WebSocket(WS_URL);
-    //connectWS(token);
+    connectWS(token,ws);
     setStatus("Connecting..."); 
     ws.onopen=()=>{ setStatus("Connected, authorizing..."); ws.send(JSON.stringify({ authorize: token })); };
     ws.onclose=()=>{ setStatus("Disconnected"); logHistory("WS closed"); };
@@ -882,12 +869,4 @@ closeBtnAll.onclick=()=>{
       e.target.closest("tr").remove();
     }
   });
-
-
-  // 🔹 Bouton Connect
-document.getElementById("connectBtn")?.addEventListener("click", () => {
-    const token = document.getElementById("tokenInput")?.value.trim();
-    if (!token) return alert("Enter your Deriv API token");
-    connectWS(token);
-});
 });
