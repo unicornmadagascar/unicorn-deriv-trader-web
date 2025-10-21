@@ -32,6 +32,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let ws = null;
   let isAuthorized = false;
   let totalPL = 0;
+  let refreshInterval;
   let authorized = false;
   let currentSymbol = null;
   let lastPrices = {};
@@ -455,140 +456,121 @@ document.addEventListener("DOMContentLoaded", () => {
       return entry;
   }
 
-  // 🔹 Fonction de connexion WebSocket
+  // 🔹 Fonction utilitaire pour envoyer en toute sécurité
+function safeSend(payload) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(payload));
+    } else {
+        // réessayer dans 300ms si pas encore ouvert
+        setTimeout(() => safeSend(payload), 300);
+    }
+}
+
+// =====================
+// 🔹 Connexion WebSocket
+// =====================
   function connectWS(token) {
-    ws = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=1089");
+    if (!token) {
+        console.error("❌ Aucun token fourni");
+        return;
+    }
+
+    ws = new WebSocket(WS_URL);
 
     ws.onopen = () => {
-      console.log("🔗 WebSocket connected");
-      safeSend({ authorize: token });
+        console.log("🔗 WebSocket connected");
+        safeSend({ authorize: token });
     };
 
     ws.onmessage = (msg) => {
-    let data;
-    try {
-      data = JSON.parse(msg.data);
-    } catch (err) {
-      console.error("Invalid JSON from WS:", err, msg.data);
-      return;
-    }
+        let data;
+        try {
+            data = JSON.parse(msg.data);
+        } catch (err) {
+            console.error("Invalid JSON from WS:", err, msg.data);
+            return;
+        }
 
-    // --- erreur renvoyée par l'API ---
-    if (data.error) {
-      console.error("API error:", data.error);
-      return;
-    }
+        // --- Gestion erreur API ---
+        if (data.error) {
+            console.error("API error:", data.error);
+            return;
+        }
 
-    // --- Authorization handling (existant) ---
-    if (data.msg_type === "authorize") {
-      const loginid = data?.authorize?.loginid;
-      if (loginid) {
-        isAuthorized = true;
-        console.log("✅ Authorized:", loginid);
-        fetchTotalPL(); // lance la première requête
-        // optionnel : setInterval(fetchTotalPL, 5000);
-      } else {
-        console.warn("Authorize message received but no loginid:", data);
-      }
-      return;
-    }
+        // --- Authorization ---
+        if (data.msg_type === "authorize") {
+            const loginid = data?.authorize?.loginid;
+            if (loginid) {
+                isAuthorized = true;
+                console.log("✅ Authorized:", loginid);
+                fetchTotalPL(); // première récupération
+                // Rafraîchissement automatique toutes les 5 secondes
+                if (refreshInterval) clearInterval(refreshInterval);
+                refreshInterval = setInterval(fetchTotalPL, 5000);
+            } else {
+                console.warn("Authorize message received but no loginid:", data);
+            }
+            return;
+        }
 
-    // --- Si API renvoie profit_table (historique/profit) ---
-    if (data.msg_type === "profit_table" || data.profit_table) {
-      // La structure peut varier ; essayons différentes possibilités
-      let total = 0;
+        // --- Profit table (Multiplier) ---
+        if (data.msg_type === "profit_table" || data.profit_table) {
+            let total = 0;
 
-      // cas 1 : data.profit_table.profit est un tableau d'objets { profit: "12.34" }
-      if (Array.isArray(data.profit_table?.profit)) {
-        total = data.profit_table.profit.reduce((sum, item) => {
-          const p = parseFloat(item?.profit);
-          return sum + (Number.isFinite(p) ? p : 0);
-        }, 0);
-      }
-      // cas 2 : l'API peut renvoyer un champ 'profit' (single) ou 'total_profit'
-      else if (typeof data.profit_table?.profit === "string" || typeof data.profit_table?.profit === "number") {
-        const p = parseFloat(data.profit_table.profit);
-        total = Number.isFinite(p) ? p : 0;
-      }
-      // fallback : portfolio (open contracts) — addition des champs profit si présent
-      else if (data.msg_type === "portfolio" && Array.isArray(data.portfolio?.contracts)) {
-        total = data.portfolio.contracts.reduce((s, c) => {
-          const p = parseFloat(c?.profit);
-          return s + (Number.isFinite(p) ? p : 0);
-        }, 0);
-      } else {
-        // si structure inattendue, essaye d'extraire tout champ numérique présent
-        total = 0;
-        // (optionnel) console.log pour debug
-        // console.log("profit_table structure inattendue:", data);
-      }
+            // Cas 1 : transactions Multiplier
+            if (Array.isArray(data.profit_table?.transactions)) {
+                total = data.profit_table.transactions.reduce((sum, tx) => sum + parseFloat(tx.profit || 0), 0);
+            }
+            // Cas 2 : profit unique
+            else if (typeof data.profit_table?.profit === "string" || typeof data.profit_table?.profit === "number") {
+                total = parseFloat(data.profit_table.profit) || 0;
+            }
+            // Cas 3 : fallback portfolio
+            else if (Array.isArray(data.portfolio?.contracts)) {
+                total = data.portfolio.contracts.reduce((sum, c) => sum + parseFloat(c?.profit || 0), 0);
+            }
 
-      // Normaliser total à nombre
-      totalPL = Number.isFinite(total) ? total : 0;
-
-      // Log sécurisé (évite .toFixed si totalPL non numérique)
-      console.log("💰 Total P/L:", (Number.isFinite(totalPL) ? totalPL.toFixed(2) : "0.00"), "USD");
-
-      // Met à jour le gauge / UI
-      updatePLGaugeDisplay(totalPL);
-
-      return;
-    }
-
-    // --- Si l'API envoie 'portfolio' séparément ---
-    if (data.msg_type === "portfolio") {
-      let total = 0;
-      if (Array.isArray(data.portfolio?.contracts)) {
-        total = data.portfolio.contracts.reduce((s, c) => {
-          const p = parseFloat(c?.profit);
-          return s + (Number.isFinite(p) ? p : 0);
-        }, 0);
-      }
-      totalPL = Number.isFinite(total) ? total : 0;
-      console.log("💰 Total P/L (from portfolio):", (Number.isFinite(totalPL) ? totalPL.toFixed(2) : "0.00"), "USD");
-      updatePLGaugeDisplay(totalPL);
-      return;
-    }
-
-    // --- autres messages (tick, proposal_open_contract...) tu peux les laisser ici ---
-    // ...
-   };
+            totalPL = Number.isFinite(total) ? total : 0;
+            console.log("💰 Total P/L:", totalPL.toFixed(2), "USD");
+            updatePLGaugeDisplay(totalPL);
+            return;
+        }
+    };
 
     ws.onclose = () => {
-      console.warn("⚠️ WebSocket disconnected");
-      isAuthorized = false;
+        console.log("⚠️ WebSocket disconnected");
+        isAuthorized = false;
+        if (refreshInterval) clearInterval(refreshInterval);
+    };
+
+    ws.onerror = (err) => {
+        console.error("❌ WebSocket error:", err);
     };
   }
 
-  // 🔹 Fonction d’envoi sécurisée (évite l’erreur CONNECTING)
-  function safeSend(payload) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(payload));
-    } else {
-      setTimeout(() => safeSend(payload), 300);
-    }
-  }
-
-  // 🔹 Fonction de récupération du P/L total
+// =====================
+// 🔹 Récupération du P/L total
+// =====================
   function fetchTotalPL() {
     if (!isAuthorized || !ws || ws.readyState !== WebSocket.OPEN) return;
+
     safeSend({
-      profit_table: 1,
-      description: 1,
-      limit: 50
+        profit_table: 1,
+        description: 1,
+        limit: 50
     });
   }
 
-  // 🔹 Démarrage de la connexion avec le token
+// =====================
+// 🔹 Démarrage avec token
+// =====================
   function startConnectionWithToken(token) {
-   if (!token) {
-      console.error("❌ Aucun token fourni");
-      return;
-   }
-   connectWS(token);
+     connectWS(token);
   }
 
-  // 🔹 Mise à jour du gauge ou affichage P/L
+// =====================
+// 🔹 Affichage du gauge P/L
+// =====================
   function updatePLGaugeDisplay(pl) {
     const gauge = document.getElementById("plGauge");
     const ctx = gauge?.getContext("2d");
@@ -607,7 +589,7 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.lineWidth = 12;
     ctx.stroke();
 
-    // Couleur du P/L (vert si positif, rouge si négatif)
+    // Couleur du P/L
     const angle = -Math.PI / 2 + Math.min(Math.max(pl / 100, -1), 1) * Math.PI;
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, -Math.PI / 2, angle);
@@ -615,7 +597,7 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.lineWidth = 12;
     ctx.stroke();
 
-    // Texte au centre
+    // Texte central
     ctx.fillStyle = document.body.classList.contains("dark") ? "#fff" : "#111";
     ctx.font = "bold 13px Inter";
     ctx.textAlign = "center";
@@ -863,7 +845,8 @@ closeBtnAll.onclick=()=>{
     const token=tokenInput.value.trim();
     if(!token){ setStatus("Simulation Mode"); logHistory("Running in simulation (no token)"); return; }
     ws=new WebSocket(WS_URL);
-    setStatus("Connecting...");
+    startConnectionWithToken(token);
+    setStatus("Connecting..."); 
     ws.onopen=()=>{ setStatus("Connected, authorizing..."); ws.send(JSON.stringify({ authorize: token })); };
     ws.onclose=()=>{ setStatus("Disconnected"); logHistory("WS closed"); };
     ws.onerror=e=>{ logHistory("WS error "+JSON.stringify(e)); };
@@ -922,11 +905,5 @@ closeBtnAll.onclick=()=>{
     if (e.target.classList.contains("deleteRowBtn")) {
       e.target.closest("tr").remove();
     }
-  });
-
-  // ✅ Démarrage automatique après saisie du token
-  document.getElementById("connectBtn")?.addEventListener("click", () => {
-    const token = document.getElementById("tokenInput")?.value.trim();
-    startConnectionWithToken(token);
   });
 });
