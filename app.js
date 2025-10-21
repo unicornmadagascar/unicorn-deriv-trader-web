@@ -462,39 +462,40 @@ document.addEventListener("DOMContentLoaded", () => {
 
     ws.onopen = () => {
         console.log("🔗 WebSocket connected");
-        safeSend({ authorize: token });
+        ws.send(JSON.stringify({ authorize: token }));
+        // Demande le portfolio après autorisation
+        setTimeout(() => {
+            ws.send(JSON.stringify({ "portfolio": 1, "active_symbols_only": 1 }));
+        }, 500);
     };
 
     ws.onmessage = (msg) => {
         let data;
-        try { data = JSON.parse(msg.data); } catch (e) { return; }
+        try { data = JSON.parse(msg.data); } catch(e) { return; }
 
-        console.log("API Response:", data); // Log de la réponse de l'API
-
+        // Autorisation
         if (data.msg_type === "authorize" && data.authorize?.loginid) {
             isAuthorized = true;
             console.log("✅ Authorized:", data.authorize.loginid);
-            fetchTotalPL(); // Lance la récupération du P/L
         }
 
-        // Traitement du profit_table
-        if (data.msg_type === "profit_table" || data.profit_table) {
+        // Mise à jour des contrats ouverts
+        if (data.msg_type === "portfolio") {
             let total = 0;
-
-            // Vérification de la structure de profit_table
-            if (Array.isArray(data.profit_table?.profit)) {
-                total = data.profit_table.profit.reduce((sum, item) => {
-                    const p = parseFloat(item?.profit);
+            if (Array.isArray(data.portfolio?.contracts)) {
+                total = data.portfolio.contracts.reduce((sum, c) => {
+                    const p = parseFloat(c?.profit);
                     return sum + (Number.isFinite(p) ? p : 0);
                 }, 0);
-            } else if (typeof data.profit_table?.profit === "string" || typeof data.profit_table?.profit === "number") {
-                const p = parseFloat(data.profit_table.profit);
-                total = Number.isFinite(p) ? p : 0;
             }
-
-            totalPL = Number.isFinite(total) ? total : 0;
-            console.log("💰 Total P/L:", totalPL);
+            totalPL = total;
+            console.log("💰 Total P/L (open contracts):", totalPL);
             updatePLGaugeDisplay(totalPL);
+        }
+
+        // Si l’API renvoie tick/proposal_open_contract, on peut aussi recalculer le P/L
+        if (data.msg_type === "proposal_open_contract") {
+            fetchPortfolioPL();
         }
     };
 
@@ -504,23 +505,19 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
-  function fetchTotalPL() {
+// 🔹 Fonction sécurisée pour envoyer des messages
+ function safeSend(payload) {
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
+    else setTimeout(() => safeSend(payload), 300);
+  }
+
+// 🔹 Fonction pour demander le portfolio
+  function fetchPortfolioPL() {
     if (!isAuthorized || !ws || ws.readyState !== WebSocket.OPEN) return;
-    safeSend({
-        profit_table: 1,
-        description: 1,
-        limit: 50
-    });
+    ws.send(JSON.stringify({ "portfolio": 1, "active_symbols_only": 1 }));
   }
 
-  function safeSend(payload) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(payload));
-    } else {
-        setTimeout(() => safeSend(payload), 300);
-    }
-  }
-
+// 🔹 Gauge P/L
   function updatePLGaugeDisplay(pl) {
     const gauge = document.getElementById("plGauge");
     if (!gauge) return;
@@ -530,13 +527,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const centerX = gauge.width / 2;
     const centerY = gauge.height / 2;
     const radius = gauge.width / 2 - 20;
-
-    // Mode sombre ou clair
     const isDark = document.body.classList.contains("dark");
 
-    // Fond du gauge
-    ctx.fillStyle = isDark ? "rgba(22,22,26,0.9)" : "rgba(255,255,255,0.9)";
-    ctx.fillRect(0, 0, gauge.width, gauge.height);
+    ctx.clearRect(0, 0, gauge.width, gauge.height);
 
     // Cercle de fond
     ctx.beginPath();
@@ -551,22 +544,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const angle = -Math.PI / 2 + normalized * Math.PI;
 
     ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, -Math.PI / 2, angle);
+    ctx.arc(centerX, centerY, radius, -Math.PI/2, angle);
     ctx.strokeStyle = pl >= 0 ? "#16a34a" : "#dc2626";
     ctx.lineWidth = 12;
-    ctx.shadowColor = pl >= 0 ? "#16a34a" : "#dc2626";
-    ctx.shadowBlur = 8;
     ctx.stroke();
-    ctx.shadowBlur = 0;
 
-    // Texte label
+    // Texte
     ctx.fillStyle = isDark ? "#f0f4f8" : "#475569";
     ctx.font = "bold 14px Inter";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("Total P/L", centerX, centerY - 10);
 
-    // Texte de la valeur
     ctx.fillStyle = pl >= 0 ? "#16a34a" : "#dc2626";
     ctx.font = "bold 18px Inter";
     ctx.fillText(pl.toFixed(2) + " USD", centerX, centerY + 15);
@@ -812,7 +801,7 @@ closeBtnAll.onclick=()=>{
     const token=tokenInput.value.trim();
     if(!token){ setStatus("Simulation Mode"); logHistory("Running in simulation (no token)"); return; }
     ws=new WebSocket(WS_URL);
-    connectWS(token);
+    //connectWS(token);
     setStatus("Connecting..."); 
     ws.onopen=()=>{ setStatus("Connected, authorizing..."); ws.send(JSON.stringify({ authorize: token })); };
     ws.onclose=()=>{ setStatus("Disconnected"); logHistory("WS closed"); };
@@ -873,4 +862,12 @@ closeBtnAll.onclick=()=>{
       e.target.closest("tr").remove();
     }
   });
+
+
+  // 🔹 Bouton Connect
+document.getElementById("connectBtn")?.addEventListener("click", () => {
+    const token = document.getElementById("tokenInput")?.value.trim();
+    if (!token) return alert("Enter your Deriv API token");
+    connectWS(token);
+});
 });
