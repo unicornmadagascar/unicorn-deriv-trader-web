@@ -846,7 +846,7 @@ closeBtnAll.onclick=()=>{
     const token=tokenInput.value.trim();
     if(!token){ setStatus("Simulation Mode"); logHistory("Running in simulation (no token)"); return; }
     ws=new WebSocket(WS_URL);
-    startConnectionWithToken(token);
+    //startConnectionWithToken(token);
     setStatus("Connecting..."); 
     ws.onopen=()=>{ setStatus("Connected, authorizing..."); ws.send(JSON.stringify({ authorize: token })); };
     ws.onclose=()=>{ setStatus("Disconnected"); logHistory("WS closed"); };
