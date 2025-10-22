@@ -477,27 +477,37 @@ function drawChart() {
     ctx.fill();
   }
 
-  // --- 🔴 Ajout : affichage des prix d’entrée des contrats Deriv ---
+  // --- 🔴 Entrées des contrats (avec triangle + label à droite) ---
   getEntryPrices((entries) => {
     entries.forEach((price, i) => {
       const y = canvas.height - padding - ((price - minVal) / range) * h;
+      const xEnd = canvas.width - padding;
 
-      // ligne horizontale pour chaque entry
+      // ligne horizontale
       ctx.setLineDash([4, 3]);
-      ctx.strokeStyle = "rgba(255,0,0,0.4)";
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(255,0,0,0.6)";
+      ctx.lineWidth = 1.3;
       ctx.beginPath();
       ctx.moveTo(padding, y);
-      ctx.lineTo(canvas.width - padding, y);
+      ctx.lineTo(xEnd - 12, y); // ligne jusqu'au triangle
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // texte à gauche
+      // petit triangle rouge collé à droite
+      ctx.beginPath();
+      ctx.moveTo(xEnd - 12, y - 5);
+      ctx.lineTo(xEnd, y);
+      ctx.lineTo(xEnd - 12, y + 5);
+      ctx.closePath();
       ctx.fillStyle = "rgba(255,0,0,0.8)";
-      ctx.font = "11px Inter, Arial";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      ctx.fillText("Entry " + (i + 1) + ": " + price.toFixed(2), padding + 6, y - 2);
+      ctx.fill();
+
+      // label juste au-dessus du triangle
+      ctx.fillStyle = "rgba(255,0,0,0.9)";
+      ctx.font = "14px Inter, Arial";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "bottom";
+      ctx.fillText(`Entry ${i + 1}: ${price.toFixed(2)}`, xEnd - 4, y - 8);
     });
   });
 }
