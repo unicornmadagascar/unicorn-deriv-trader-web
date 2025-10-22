@@ -458,12 +458,57 @@ document.addEventListener("DOMContentLoaded", () => {
       return entry;
   }
 
+function initPLGauge() {
+  const canvas = document.getElementById("plGauge");
+  if (!canvas) return;
+
+  // scale canvas for high DPI screens
+  function scaleCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = canvas.clientWidth || canvas.width;
+    const cssH = canvas.clientHeight || canvas.height;
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // keep drawing coordinates in CSS pixels
+    // redraw current value after resize
+    drawGauge(ctx, canvas.width / (2 * dpr), canvas.height / (2 * dpr), Math.min(cssW, cssH) / 2 - 15, currentPL);
+  }
+
+  // redessine au changement de theme (tu as un bouton #themeToggle)
+  const themeToggle = document.getElementById("themeToggle");
+  if (themeToggle) {
+    themeToggle.addEventListener("click", () => {
+      // short timeout to allow DOM class toggling to take effect
+      setTimeout(() => {
+        const ctx = canvas.getContext("2d");
+        drawGauge(ctx, canvas.width / (2 * (window.devicePixelRatio||1)), canvas.height / (2 * (window.devicePixelRatio||1)), Math.min(canvas.clientWidth, canvas.clientHeight) / 2 - 15, currentPL);
+      }, 50);
+    });
+  }
+
+  window.addEventListener("resize", () => {
+    // small debounce
+    clearTimeout(canvas._resizeTimer);
+    canvas._resizeTimer = setTimeout(scaleCanvas, 120);
+  });
+
+  // initial scale/draw
+  scaleCanvas();
+}
+
+// smooth update entry point (keeps animation)
 function updatePLGaugeDisplay(pl) {
   const gauge = document.getElementById("plGauge");
   if (!gauge) return;
   const ctx = gauge.getContext("2d");
-  const w = gauge.width, h = gauge.height;
-  const cx = w / 2, cy = h / 2, r = w / 2 - 15;
+  if (!ctx) return;
+
+  // Convert canvas pixel sizes to CSS pixel centers for drawing
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = gauge.width / dpr;
+  const cssH = gauge.height / dpr;
+  const cx = cssW / 2, cy = cssH / 2, r = Math.min(cssW, cssH) / 2 - 15;
 
   // Animation douce
   if (!gaugeAnimating) {
@@ -488,70 +533,107 @@ function updatePLGaugeDisplay(pl) {
   }
 }
 
+// drawGauge: respects dark mode, draws background, arc, needle, and labels
 function drawGauge(ctx, cx, cy, r, pl) {
-  ctx.clearRect(0, 0, cx * 2, cy * 2);
+  // clear using CSS pixels: ctx is already scaled to CSS px by initPLGauge
+  const w = cx * 2, h = cy * 2;
+  ctx.clearRect(0, 0, w, h);
 
-  // Couleur de fond
-  const bgColor = document.body.classList.contains("dark") ? "#374151" : "#e5e7eb";
+  // Determine theme
+  const isDark = document.body.classList.contains("dark");
+
+  // Colors (tweakable)
+  const bgCircleStroke = isDark ? "#374151" : "#e5e7eb";
+  const textColor = isDark ? "#f9fafb" : "#111827";
+  const profitPrimary = isDark ? "#4ade80" : "#16a34a";
+  const profitSecondary = isDark ? "#16a34a" : "#4ade80";
+  const lossPrimary = isDark ? "#f87171" : "#ef4444";
+  const lossSecondary = isDark ? "#ef4444" : "#f87171";
+
+  // Optional subtle filled background in the canvas to match container
+  ctx.fillStyle = isDark ? "transparent" : "transparent"; // keep transparent so CSS bg shows
+  // ctx.fillRect(0, 0, w, h); // disabled to let CSS backgrounds show through
+
+  // Draw outer neutral ring
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, 2 * Math.PI);
   ctx.lineWidth = 14;
-  ctx.strokeStyle = bgColor;
+  ctx.strokeStyle = bgCircleStroke;
   ctx.stroke();
 
-  // Arc coloré selon P/L
-  const maxPL = 100;
+  // Compute arc angle from pl: map [-maxPL, +maxPL] to start..end
+  const maxPL = 100; // visual normalization range (change if needed)
   const clamped = Math.max(Math.min(pl, maxPL), -maxPL);
-  const percent = (clamped + maxPL) / (2 * maxPL);
-  const angle = -Math.PI / 2 + percent * 2 * Math.PI;
+  const percent = (clamped + maxPL) / (2 * maxPL); // 0..1
+  const startAngle = -Math.PI / 2;
+  const endAngle = startAngle + percent * 2 * Math.PI;
 
-  const grad = ctx.createLinearGradient(0, 0, cx * 2, cy * 2);
-  grad.addColorStop(0, pl >= 0 ? "#16a34a" : "#dc2626");
-  grad.addColorStop(1, pl >= 0 ? "#4ade80" : "#f87171");
+  // Create dynamic gradient across the arc
+  const grad = ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
+  if (pl >= 0) {
+    grad.addColorStop(0, profitPrimary);
+    grad.addColorStop(1, profitSecondary);
+  } else {
+    grad.addColorStop(0, lossPrimary);
+    grad.addColorStop(1, lossSecondary);
+  }
 
+  // Draw the colored arc (from top to computed endAngle)
   ctx.beginPath();
-  ctx.arc(cx, cy, r, -Math.PI / 2, angle);
+  ctx.arc(cx, cy, r, startAngle, endAngle);
   ctx.strokeStyle = grad;
   ctx.lineWidth = 14;
   ctx.lineCap = "round";
   ctx.stroke();
 
-  // Aiguille
-  drawNeedle(ctx, cx, cy, r - 12, angle, pl);
+  // Draw needle (angle at endAngle)
+  drawNeedle(ctx, cx, cy, r - 12, endAngle, pl, isDark);
 
-  // Texte central
-  ctx.font = "bold 16px Inter";
+  // Central texts
+  ctx.font = "600 14px Inter";
+  ctx.fillStyle = textColor;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillStyle = document.body.classList.contains("dark") ? "#f9fafb" : "#111";
-  ctx.fillText("Total P/L", cx, cy - 22);
+  ctx.fillText("Total P/L", cx, cy - 20);
 
-  ctx.font = "bold 22px Inter";
-  ctx.fillStyle = pl >= 0 ? "#22c55e" : "#ef4444";
-  ctx.fillText(`${pl.toFixed(2)} USD`, cx, cy + 10);
+  ctx.font = "700 20px Inter";
+  ctx.fillStyle = pl >= 0 ? profitPrimary : lossPrimary;
+  const display = Number.isFinite(pl) ? pl.toFixed(2) + " USD" : "0.00 USD";
+  ctx.fillText(display, cx, cy + 10);
 }
 
-function drawNeedle(ctx, cx, cy, length, angle, pl) {
-  const needleColor = pl >= 0 ? "#22c55e" : "#ef4444";
+// drawNeedle: draws a thin needle with subtle shadow and center cap
+function drawNeedle(ctx, cx, cy, length, angle, pl, isDark) {
+  const needleColor = pl >= 0 ? (isDark ? "#bbf7d0" : "#16a34a") : (isDark ? "#fecaca" : "#ef4444");
 
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate(angle);
+
+  // needle stem
   ctx.beginPath();
-  ctx.moveTo(0, 0);
+  ctx.moveTo(0, 8); // small tail for visual balance
   ctx.lineTo(0, -length);
   ctx.lineWidth = 3;
   ctx.strokeStyle = needleColor;
-  ctx.shadowColor = needleColor + "80";
+  ctx.shadowColor = needleColor;
   ctx.shadowBlur = 6;
   ctx.stroke();
+
   ctx.restore();
 
-  // Point central
+  // center cap
   ctx.beginPath();
-  ctx.arc(cx, cy, 5, 0, 2 * Math.PI);
+  ctx.arc(cx, cy, 6, 0, 2 * Math.PI);
   ctx.fillStyle = needleColor;
   ctx.fill();
+
+  // subtle ring around cap
+  ctx.beginPath();
+  ctx.arc(cx, cy, 9, 0, 2 * Math.PI);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
+  ctx.stroke();
 }
 
   function canvasMouseMove(e){
@@ -856,8 +938,9 @@ closeBtnAll.onclick=()=>{
   });
 
   // Exemple test simple
+  let pl = 0;
   setInterval(() => {
-    const fakePL = (Math.random() - 0.5) * 200; // simule un P/L entre -100 et +100
-    updatePLGaugeDisplay(fakePL);
-}, 1500);
+    pl = Math.random() * 200 - 100; // entre -100 et +100
+    updatePLGaugeDisplay(pl);
+  }, 1500);
 });
