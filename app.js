@@ -456,117 +456,113 @@ document.addEventListener("DOMContentLoaded", () => {
       return entry;
   }
 
-// ====================
-// Gauge P/L
-// ====================
-function updatePLGaugeDisplay(pl) {
-    const gauge = document.getElementById("plGauge");
-    if (!gauge) return;
-    const ctx = gauge.getContext("2d");
-    if (!ctx) return;
+// === NOUVELLE FONCTION connectWS ===
+function connectWS(ws, token) {
+  ws.onopen = () => {
+    setStatus("Connected, authorizing...");
+    safeSend(ws, { authorize: token });
+  };
 
-    const centerX = gauge.width / 2;
-    const centerY = gauge.height / 2;
-    const radius = gauge.width / 2 - 20;
-    const isDark = document.body.classList.contains("dark");
+  ws.onmessage = (msg) => {
+    const data = JSON.parse(msg.data);
 
-    ctx.clearRect(0, 0, gauge.width, gauge.height);
-
-    // Fond du cercle
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-    ctx.strokeStyle = isDark ? "#2c2f36" : "#e5e7eb";
-    ctx.lineWidth = 12;
-    ctx.stroke();
-
-    // Arc P/L
-    const maxPL = 1000; // normalisation
-    const normalized = Math.min(Math.max(pl / maxPL, -1), 1);
-    const angle = -Math.PI / 2 + normalized * Math.PI;
-
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, -Math.PI / 2, angle);
-    ctx.strokeStyle = pl >= 0 ? "#16a34a" : "#dc2626";
-    ctx.lineWidth = 12;
-    ctx.stroke();
-
-    // Texte interne
-    ctx.fillStyle = isDark ? "#f0f4f8" : "#475569";
-    ctx.font = "bold 14px Inter";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("Total P/L", centerX, centerY - 10);
-
-    ctx.fillStyle = pl >= 0 ? "#16a34a" : "#dc2626";
-    ctx.font = "bold 18px Inter";
-    ctx.fillText(pl.toFixed(2) + " USD", centerX, centerY + 15);
-}
-
-// ====================
-// Récupération P/L depuis portfolio
-// ====================
-function fetchPortfolioPL(ws, authorized) {
-    if(!authorized || !ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ portfolio:1, active_symbols_only:1 }));
-}
-
-function updateTotalPLFromPortfolio(portfolio){
-    if(!portfolio || !Array.isArray(portfolio.contracts)) return;
-    let total = portfolio.contracts.reduce((sum, c)=>{
-        const p = parseFloat(c?.profit);
-        return sum + (Number.isFinite(p)?p:0);
-    },0);
-    totalPL = total;
-
-    // Mise à jour du gauge
-    updatePLGaugeDisplay(totalPL);
-}
-
-// ====================
-// Fonction de connexion sécurisée
-// ====================
-function connectWS(token, wsInstance){
-    if(!wsInstance) return console.error("WebSocket manquant");
-    const ws = wsInstance;
-
-    function safeSend(payload){
-        if(ws.readyState === WebSocket.OPEN){
-            ws.send(JSON.stringify(payload));
-        } else {
-            setTimeout(() => safeSend(payload), 100);
-        }
+    if (data.error) {
+      console.error("❌ API error:", data.error.message);
+      return;
     }
 
-    ws.onopen = () => {
-        setStatus("Connected, authorizing...");
-        safeSend({ authorize: token });
-    };
+    // ✅ Quand autorisé
+    if (data.msg_type === "authorize") {
+      isAuthorized = true;
+      const loginid = data.authorize.loginid;
+      setStatus(`Connected: ${loginid}`);
+      logHistory("Authorized: " + loginid);
 
-    ws.onmessage = (msg) => {
-        let data;
-        try { data = JSON.parse(msg.data); } catch(e){ return; }
+      // Abonne-toi au portefeuille pour P/L total
+      safeSend(ws, { portfolio: 1, subscribe: 1 });
+      // Optionnel : demande aussi le profit_table
+      safeSend(ws, { profit_table: 1, limit: 50 });
+      return;
+    }
 
-        if(data.msg_type === "authorize"){
-            if(!data.authorize?.loginid){
-                setStatus("Simulation Mode (Token invalid)");
-                logHistory("Token not authorized");
-                return;
-            }
-            authorized = true;
-            setStatus(`Connected: ${data.authorize.loginid}`);
-            logHistory("Authorized: "+data.authorize.loginid);
+    // ✅ Si message "portfolio" reçu
+    if (data.msg_type === "portfolio" && data.portfolio?.contracts) {
+      const total = data.portfolio.contracts.reduce((sum, c) => {
+        const p = parseFloat(c.profit);
+        return sum + (Number.isFinite(p) ? p : 0);
+      }, 0);
+      totalPL = total;
+      updatePLGaugeDisplay(totalPL);
+      return;
+    }
 
-            // récupère P/L
-            fetchPortfolioPL(ws, authorized);
-        }
+    // ✅ Si message "profit_table" reçu
+    if (data.msg_type === "profit_table" && Array.isArray(data.profit_table?.transactions)) {
+      const total = data.profit_table.transactions.reduce((sum, t) => {
+        const p = parseFloat(t.profit);
+        return sum + (Number.isFinite(p) ? p : 0);
+      }, 0);
+      totalPL = total;
+      updatePLGaugeDisplay(totalPL);
+      return;
+    }
+  };
 
-        if(data.msg_type === "portfolio"){
-            updateTotalPLFromPortfolio(data.portfolio);
-        }
-    };
+  ws.onclose = () => {
+    setStatus("Disconnected");
+    isAuthorized = false;
+    logHistory("WS closed");
+  };
 
-    ws.onclose = () => { setStatus("Disconnected"); authorized=false; logHistory("WS closed"); };
-    ws.onerror = e => logHistory("WS error "+JSON.stringify(e));
+  ws.onerror = (e) => {
+    logHistory("WS error " + JSON.stringify(e));
+  };
+}
+
+// === ENVOI SÉCURISÉ ===
+function safeSend(ws, payload) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    setTimeout(() => safeSend(ws, payload), 300);
+  } else {
+    ws.send(JSON.stringify(payload));
+  }
+}
+
+// === GAUGE P/L ===
+function updatePLGaugeDisplay(pl) {
+  const gauge = document.getElementById("plGauge");
+  if (!gauge) return;
+  const ctx = gauge.getContext("2d");
+  const w = gauge.width, h = gauge.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const centerX = w / 2, centerY = h / 2, radius = w / 2 - 10;
+
+  // Fond
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+  ctx.strokeStyle = getComputedStyle(document.body).classList.contains("dark") ? "#1f2937" : "#e5e7eb";
+  ctx.lineWidth = 14;
+  ctx.stroke();
+
+  // Couleur P/L
+  const maxAngle = Math.PI * 1.5;
+  const value = Math.max(Math.min(pl / 100, 1), -1);
+  const angle = -Math.PI / 2 + value * maxAngle;
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius, -Math.PI / 2, angle);
+  ctx.strokeStyle = pl >= 0 ? "#22c55e" : "#ef4444";
+  ctx.lineWidth = 14;
+  ctx.lineCap = "round";
+  ctx.stroke();
+
+  // Texte au centre
+  ctx.fillStyle = document.body.classList.contains("dark") ? "#fff" : "#111";
+  ctx.font = "bold 15px Inter";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("Total P/L", centerX, centerY - 12);
+  ctx.fillText(pl.toFixed(2) + " USD", centerX, centerY + 14);
 }
 
   function canvasMouseMove(e){
