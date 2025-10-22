@@ -32,6 +32,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let ws = null;
   let isAuthorized = false;
   let totalPL = 0;
+  let currentPL = 0;
+  let gaugeAnimating = false;
   let refreshInterval;
   let authorized = false;
   let currentSymbol = null;
