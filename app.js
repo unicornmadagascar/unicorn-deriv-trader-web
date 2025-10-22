@@ -415,57 +415,76 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
-   let ws = new WebSocket(WS_URL);
+   const ws = new WebSocket(WS_URL);
    let contracts = {};
    let authorized = false;
+   let portfolioReceived = false;
+
+   const token = tokenInput.value.trim();
+
+   if (!token) {
+     logHistory("Please, verify your token, and try again.");
+     return;
+   }
 
    ws.onopen = () => {
-    ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" }));
+    ws.send(JSON.stringify({ authorize: token }));
    };
 
    ws.onmessage = (msg) => {
-     const data = JSON.parse(msg.data);
+    const data = JSON.parse(msg.data);
 
-     // 1️⃣ Autorisation → récupérer les contrats ouverts
-     if (data.msg_type === "authorize" && !authorized) {
+    // Étape 1️⃣ : autorisation OK → on demande le portefeuille
+    if (data.msg_type === "authorize" && !authorized) {
       authorized = true;
       ws.send(JSON.stringify({ portfolio: 1 }));
-     }
+    }
 
-     // 2️⃣ Liste des contrats ouverts → abonnement live
-     if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0) {
-      for (const c of data.portfolio.contracts) {
+    // Étape 2️⃣ : réception du portefeuille (liste des contrats ouverts)
+    if (data.msg_type === "portfolio" && data.portfolio) {
+      portfolioReceived = true;
+
+      const contractsList = data.portfolio.contracts || [];
+      if (contractsList.length === 0) {
+        if (typeof onUpdate === "function") onUpdate(0);
+        return;
+      }
+
+      for (const c of contractsList) {
         contracts[c.contract_id] = 0;
+
+        // On s’abonne en continu à chaque contrat ouvert
         ws.send(JSON.stringify({
           proposal_open_contract: 1,
           contract_id: c.contract_id,
           subscribe: 1
         }));
       }
-     }
+    }
 
-     // 3️⃣ Mise à jour du profit à chaque tick
-     if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
-       const poc = data.proposal_open_contract;
-       contracts[poc.contract_id] = parseFloat(poc.profit);
+    // Étape 3️⃣ : réception des updates tick par tick
+    if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
+      const poc = data.proposal_open_contract;
 
-       // Calcul du P/L total
-       const totalPL = Object.values(contracts).reduce((a, b) => a + b, 0);
+      // Vérifie que le contrat est encore actif
+      if (poc.is_expired || poc.is_sold) {
+        delete contracts[poc.contract_id];
+      } else {
+        contracts[poc.contract_id] = parseFloat(poc.profit);
+      }
 
-       // Envoie la mise à jour au callback
-       if (typeof onUpdate === "function") onUpdate(totalPL);
-     }
+      // Calcule le P/L total
+      const totalPL = Object.values(contracts).reduce((a, b) => a + b, 0);
 
-     // 4️⃣ Aucun contrat ouvert
-     if (data.msg_type === "portfolio" && (!data.portfolio?.contracts || data.portfolio.contracts.length === 0)) {
-       if (typeof onUpdate === "function") onUpdate(0);
-     }
+      // Callback → gauge mis à jour à chaque tick
+      if (typeof onUpdate === "function") onUpdate(totalPL);
+    }
    };
 
    ws.onerror = (err) => console.error("WebSocket error:", err);
    ws.onclose = () => console.log("Disconnected from Deriv WebSocket.");
 
-   return ws; // on retourne le WebSocket pour pouvoir le fermer plus tard
+   return ws;
   }
 
   function updatePLGaugeDisplay(pl) {
