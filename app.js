@@ -424,6 +424,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
    if (!token) {
      logHistory("Please, verify your token, and try again.");
+     ws.close();
      return;
    }
 
@@ -906,7 +907,9 @@ closeBtnAll.onclick=()=>{
   initPLGauge();
 
   // Lancer le flux P/L live → met à jour le gauge à chaque tick
-  ws = contractentry(totalPL => {
-    updatePLGaugeDisplay(totalPL);
-  });
+  setInterval(() => {
+     ws = contractentry(totalPL => {
+      updatePLGaugeDisplay(totalPL);
+    });
+  }, 5000);
 });
