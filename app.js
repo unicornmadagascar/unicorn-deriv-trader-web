@@ -307,7 +307,53 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // chart
-  function drawChart() {
+  // --- Nouvelle fonction pour récupérer les prix d’entrée des contrats ouverts ---
+function getEntryPrices(callback) {
+  let ws = new WebSocket(WS_URL);
+  let entryPrices = [];
+  let totalContracts = 0;
+  let receivedContracts = 0;
+
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" }));
+  };
+
+  ws.onmessage = (msg) => {
+    const data = JSON.parse(msg.data);
+
+    if (data.msg_type === "authorize") {
+      ws.send(JSON.stringify({ portfolio: 1 }));
+    }
+
+    if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0) {
+      const contracts = data.portfolio.contracts;
+      totalContracts = contracts.length;
+
+      for (const c of contracts) {
+        ws.send(JSON.stringify({
+          proposal_open_contract: 1,
+          contract_id: c.contract_id
+        }));
+      }
+    }
+
+    if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
+      const poc = data.proposal_open_contract;
+      const entry = parseFloat(poc.entry_spot || poc.buy_price || 0);
+      entryPrices.push(entry);
+      receivedContracts++;
+
+      if (receivedContracts === totalContracts) {
+        ws.close();
+        callback(entryPrices);
+      }
+    }
+  };
+}
+
+
+// --- Ta fonction drawChart modifiée avec affichage des Entry Prices ---
+function drawChart() {
   if (!ctx || chartData.length === 0) return;
   const padding = 50;
   const w = canvas.width - padding * 2;
@@ -343,7 +389,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const step = Math.max(1, Math.ceil(len / 6));
   for (let i = 0; i < len; i += step) {
     const x = padding + (i / (len - 1)) * w;
-    const t = chartTimes[i] ? new Date(chartTimes[i] * 1000).toLocaleTimeString().slice(0, 8) : "";
+    const t = chartTimes[i]
+      ? new Date(chartTimes[i] * 1000).toLocaleTimeString().slice(0, 8)
+      : "";
     ctx.fillText(t, x, canvas.height - padding + 5);
   }
 
@@ -352,7 +400,8 @@ document.addEventListener("DOMContentLoaded", () => {
   for (let i = 0; i < len; i++) {
     const x = padding + (i / (len - 1)) * w;
     const y = canvas.height - padding - ((chartData[i] - minVal) / range) * h;
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
   }
   ctx.lineTo(canvas.width - padding, canvas.height - padding);
   ctx.lineTo(padding, canvas.height - padding);
@@ -368,19 +417,19 @@ document.addEventListener("DOMContentLoaded", () => {
   for (let i = 0; i < len; i++) {
     const x = padding + (i / (len - 1)) * w;
     const y = canvas.height - padding - ((chartData[i] - minVal) / range) * h;
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
   }
   ctx.strokeStyle = "#007bff";
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // trades (sans labels PNL)
+  // trades (inchangés)
   trades.forEach(tr => {
     if (tr.symbol !== currentSymbol) return;
     const x = padding + ((len - 1) / (len - 1)) * w;
     const y = canvas.height - padding - ((tr.entry - minVal) / range) * h;
 
-    // ligne pointillée rouge pour prix d'entrée
     ctx.setLineDash([6, 4]);
     ctx.strokeStyle = "rgba(220,38,38,0.9)";
     ctx.lineWidth = 1.2;
@@ -390,7 +439,6 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // triangle trade
     ctx.fillStyle = tr.type === "BUY" ? "green" : "red";
     ctx.beginPath();
     if (tr.type === "BUY") {
@@ -405,16 +453,14 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.closePath();
     ctx.fill();
 
-    // prix d'entrée attaché à la ligne
     ctx.fillStyle = "rgba(220,38,38,0.9)";
     ctx.font = "12px Inter, Arial";
     ctx.textAlign = "right";
     ctx.textBaseline = "bottom";
-    tr.entry = contractentry();
     ctx.fillText(tr.entry.toFixed(2), canvas.width - padding - 4, y - 2);
   });
 
-  // ligne du prix actuel (sans label PNL)
+  // ligne du prix actuel
   if (chartData.length > 0) {
     const lastPrice = chartData[len - 1];
     const yCur = canvas.height - padding - ((lastPrice - minVal) / range) * h;
@@ -425,13 +471,36 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.lineTo(canvas.width - padding, yCur);
     ctx.stroke();
 
-    // point vert sur la ligne
     ctx.beginPath();
     ctx.arc(canvas.width - padding, yCur, 4, 0, Math.PI * 2);
     ctx.fillStyle = "#16a34a";
     ctx.fill();
   }
- }
+
+  // --- 🔴 Ajout : affichage des prix d’entrée des contrats Deriv ---
+  getEntryPrices((entries) => {
+    entries.forEach((price, i) => {
+      const y = canvas.height - padding - ((price - minVal) / range) * h;
+
+      // ligne horizontale pour chaque entry
+      ctx.setLineDash([4, 3]);
+      ctx.strokeStyle = "rgba(255,0,0,0.4)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(padding, y);
+      ctx.lineTo(canvas.width - padding, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // texte à gauche
+      ctx.fillStyle = "rgba(255,0,0,0.8)";
+      ctx.font = "11px Inter, Arial";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText("Entry " + (i + 1) + ": " + price.toFixed(2), padding + 6, y - 2);
+    });
+  });
+}
 
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
