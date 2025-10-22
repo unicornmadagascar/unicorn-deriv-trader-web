@@ -456,113 +456,100 @@ document.addEventListener("DOMContentLoaded", () => {
       return entry;
   }
 
-// === NOUVELLE FONCTION connectWS ===
-function connectWS(ws, token) {
-  ws.onopen = () => {
-    setStatus("Connected, authorizing...");
-    safeSend(ws, { authorize: token });
-  };
-
-  ws.onmessage = (msg) => {
-    const data = JSON.parse(msg.data);
-
-    if (data.error) {
-      console.error("❌ API error:", data.error.message);
-      return;
-    }
-
-    // ✅ Quand autorisé
-    if (data.msg_type === "authorize") {
-      isAuthorized = true;
-      const loginid = data.authorize.loginid;
-      setStatus(`Connected: ${loginid}`);
-      logHistory("Authorized: " + loginid);
-
-      // Abonne-toi au portefeuille pour P/L total
-      safeSend(ws, { portfolio: 1, subscribe: 1 });
-      // Optionnel : demande aussi le profit_table
-      safeSend(ws, { profit_table: 1, limit: 50 });
-      return;
-    }
-
-    // ✅ Si message "portfolio" reçu
-    if (data.msg_type === "portfolio" && data.portfolio?.contracts) {
-      const total = data.portfolio.contracts.reduce((sum, c) => {
-        const p = parseFloat(c.profit);
-        return sum + (Number.isFinite(p) ? p : 0);
-      }, 0);
-      totalPL = total;
-      updatePLGaugeDisplay(totalPL);
-      return;
-    }
-
-    // ✅ Si message "profit_table" reçu
-    if (data.msg_type === "profit_table" && Array.isArray(data.profit_table?.transactions)) {
-      const total = data.profit_table.transactions.reduce((sum, t) => {
-        const p = parseFloat(t.profit);
-        return sum + (Number.isFinite(p) ? p : 0);
-      }, 0);
-      totalPL = total;
-      updatePLGaugeDisplay(totalPL);
-      return;
-    }
-  };
-
-  ws.onclose = () => {
-    setStatus("Disconnected");
-    isAuthorized = false;
-    logHistory("WS closed");
-  };
-
-  ws.onerror = (e) => {
-    logHistory("WS error " + JSON.stringify(e));
-  };
-}
-
-// === ENVOI SÉCURISÉ ===
-function safeSend(ws, payload) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    setTimeout(() => safeSend(ws, payload), 300);
-  } else {
-    ws.send(JSON.stringify(payload));
-  }
-}
-
-// === GAUGE P/L ===
 function updatePLGaugeDisplay(pl) {
   const gauge = document.getElementById("plGauge");
   if (!gauge) return;
   const ctx = gauge.getContext("2d");
   const w = gauge.width, h = gauge.height;
-  ctx.clearRect(0, 0, w, h);
+  const cx = w / 2, cy = h / 2, r = w / 2 - 15;
 
-  const centerX = w / 2, centerY = h / 2, radius = w / 2 - 10;
+  // Animation douce
+  if (!gaugeAnimating) {
+    gaugeAnimating = true;
+    const start = currentPL;
+    const diff = pl - start;
+    const steps = 25;
+    let i = 0;
+    const animate = () => {
+      i++;
+      const val = start + (diff * i) / steps;
+      drawGauge(ctx, cx, cy, r, val);
+      if (i < steps) requestAnimationFrame(animate);
+      else {
+        currentPL = pl;
+        gaugeAnimating = false;
+      }
+    };
+    animate();
+  } else {
+    drawGauge(ctx, cx, cy, r, pl);
+  }
+}
 
-  // Fond
+function drawGauge(ctx, cx, cy, r, pl) {
+  ctx.clearRect(0, 0, cx * 2, cy * 2);
+
+  // Couleur de fond
+  const bgColor = document.body.classList.contains("dark") ? "#374151" : "#e5e7eb";
   ctx.beginPath();
-  ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-  ctx.strokeStyle = getComputedStyle(document.body).classList.contains("dark") ? "#1f2937" : "#e5e7eb";
+  ctx.arc(cx, cy, r, 0, 2 * Math.PI);
   ctx.lineWidth = 14;
+  ctx.strokeStyle = bgColor;
   ctx.stroke();
 
-  // Couleur P/L
-  const maxAngle = Math.PI * 1.5;
-  const value = Math.max(Math.min(pl / 100, 1), -1);
-  const angle = -Math.PI / 2 + value * maxAngle;
+  // Arc coloré selon P/L
+  const maxPL = 100;
+  const clamped = Math.max(Math.min(pl, maxPL), -maxPL);
+  const percent = (clamped + maxPL) / (2 * maxPL);
+  const angle = -Math.PI / 2 + percent * 2 * Math.PI;
+
+  const grad = ctx.createLinearGradient(0, 0, cx * 2, cy * 2);
+  grad.addColorStop(0, pl >= 0 ? "#16a34a" : "#dc2626");
+  grad.addColorStop(1, pl >= 0 ? "#4ade80" : "#f87171");
+
   ctx.beginPath();
-  ctx.arc(centerX, centerY, radius, -Math.PI / 2, angle);
-  ctx.strokeStyle = pl >= 0 ? "#22c55e" : "#ef4444";
+  ctx.arc(cx, cy, r, -Math.PI / 2, angle);
+  ctx.strokeStyle = grad;
   ctx.lineWidth = 14;
   ctx.lineCap = "round";
   ctx.stroke();
 
-  // Texte au centre
-  ctx.fillStyle = document.body.classList.contains("dark") ? "#fff" : "#111";
-  ctx.font = "bold 15px Inter";
+  // Aiguille
+  drawNeedle(ctx, cx, cy, r - 12, angle, pl);
+
+  // Texte central
+  ctx.font = "bold 16px Inter";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText("Total P/L", centerX, centerY - 12);
-  ctx.fillText(pl.toFixed(2) + " USD", centerX, centerY + 14);
+  ctx.fillStyle = document.body.classList.contains("dark") ? "#f9fafb" : "#111";
+  ctx.fillText("Total P/L", cx, cy - 22);
+
+  ctx.font = "bold 22px Inter";
+  ctx.fillStyle = pl >= 0 ? "#22c55e" : "#ef4444";
+  ctx.fillText(`${pl.toFixed(2)} USD`, cx, cy + 10);
+}
+
+function drawNeedle(ctx, cx, cy, length, angle, pl) {
+  const needleColor = pl >= 0 ? "#22c55e" : "#ef4444";
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, -length);
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = needleColor;
+  ctx.shadowColor = needleColor + "80";
+  ctx.shadowBlur = 6;
+  ctx.stroke();
+  ctx.restore();
+
+  // Point central
+  ctx.beginPath();
+  ctx.arc(cx, cy, 5, 0, 2 * Math.PI);
+  ctx.fillStyle = needleColor;
+  ctx.fill();
 }
 
   function canvasMouseMove(e){
@@ -804,7 +791,7 @@ closeBtnAll.onclick=()=>{
     const token=tokenInput.value.trim();
     if(!token){ setStatus("Simulation Mode"); logHistory("Running in simulation (no token)"); return; }
     ws=new WebSocket(WS_URL);
-    connectWS(token,ws);
+    //connectWS(ws,token);
     setStatus("Connecting..."); 
     ws.onopen=()=>{ setStatus("Connected, authorizing..."); ws.send(JSON.stringify({ authorize: token })); };
     ws.onclose=()=>{ setStatus("Disconnected"); logHistory("WS closed"); };
@@ -865,4 +852,10 @@ closeBtnAll.onclick=()=>{
       e.target.closest("tr").remove();
     }
   });
+
+  // Exemple test simple
+  setInterval(() => {
+    const fakePL = (Math.random() - 0.5) * 200; // simule un P/L entre -100 et +100
+    updatePLGaugeDisplay(fakePL);
+}, 1500);
 });
