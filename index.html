@@ -542,6 +542,11 @@
       localStorage.setItem("theme", isDark ? "dark" : "light");
     });
 
+    // Quand le thème change → on redessine le gauge
+    document.getElementById("themeToggle").addEventListener("click", () => {
+      updatePLGaugeDisplay(currentPL);
+   });
+
     // ⚙️ Bouton Launch Automation
     const launchAutomationBtn = document.getElementById("launchAutomation");
     launchAutomationBtn.addEventListener("click", () => {
