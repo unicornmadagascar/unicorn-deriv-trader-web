@@ -406,6 +406,7 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.font="bold 14px Inter, Arial";
     ctx.textAlign="right";
     ctx.textBaseline="bottom";
+
     ctx.fillText("PNL: "+pnl.toFixed(2), canvas.width-padding-4, yCur-4);
 
     // point vert sur la ligne
@@ -485,7 +486,7 @@ document.addEventListener("DOMContentLoaded", () => {
    ws.onerror = (err) => console.error("WebSocket error:", err);
    ws.onclose = () => console.log("Disconnected from Deriv WebSocket.");
 
-   return ws;
+   return totalPL;
   }
 
   function updatePLGaugeDisplay(pl) {
@@ -908,7 +909,7 @@ closeBtnAll.onclick=()=>{
 
   // Lancer le flux P/L live → met à jour le gauge à chaque tick
   setInterval(() => {
-     ws = contractentry(totalPL => {
+    contractentry(totalPL => {
       updatePLGaugeDisplay(totalPL);
     });
   }, 5000);
