@@ -402,11 +402,11 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.strokeStyle="#16a34a"; ctx.lineWidth=1.2;
     ctx.beginPath(); ctx.moveTo(padding,yCur); ctx.lineTo(canvas.width-padding,yCur); ctx.stroke();
 
-    ctx.fillStyle="#16a34a";
-    ctx.font="bold 14px Inter, Arial";
-    ctx.textAlign="right";
-    ctx.textBaseline="bottom";
     contractentry(totalPL => {
+      ctx.fillStyle="#16a34a";
+      ctx.font="bold 14px Inter, Arial";
+      ctx.textAlign="right";
+      ctx.textBaseline="bottom";
       ctx.fillText("PNL: " + totalPL.toFixed(2), canvas.width-padding-4, yCur-4);
     });
     // point vert sur la ligne
