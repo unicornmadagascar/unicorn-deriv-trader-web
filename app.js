@@ -458,67 +458,34 @@ document.addEventListener("DOMContentLoaded", () => {
       return entry;
   }
 
-// Fonction d'affichage du gauge
-function updatePLGaugeDisplay(plValue) {
-  if (!plCtx) return;
-  currentPL = plValue;
+function updatePLGaugeDisplay(pl) {
+  const gauge = document.getElementById("plGauge");
+  if (!gauge) return;
+  const ctx = gauge.getContext("2d");
+  const w = gauge.width, h = gauge.height;
+  const cx = w / 2, cy = h / 2, r = w / 2 - 15;
 
-  const canvas = plCanvas;
-  const ctx = plCtx;
-  const width = canvas.width;
-  const height = canvas.height;
-  const radius = Math.min(width, height) / 2 - 10;
-
-  ctx.clearRect(0, 0, width, height);
-
-  // 🔆 Vérifie si le thème actuel est dark
-  const isDark = document.body.classList.contains("dark");
-
-  // Couleurs selon le thème
-  const bgColor = isDark ? "#1e293b" : "#f8fafc"; // fond du gauge
-  const textColor = isDark ? "#e6edf3" : "#1e293b"; // texte central
-  const profitColor = isDark ? "#22c55e" : "#16a34a"; // vert
-  const lossColor = isDark ? "#ef4444" : "#dc2626";   // rouge
-  const ringColor = isDark ? "#334155" : "#e2e8f0";   // anneau neutre
-
-  // Fond du canvas
-  ctx.fillStyle = bgColor;
-  ctx.fillRect(0, 0, width, height);
-
-  // Dessin du cercle de fond
-  ctx.beginPath();
-  ctx.arc(width / 2, height / 2, radius, 0, 2 * Math.PI);
-  ctx.strokeStyle = ringColor;
-  ctx.lineWidth = 12;
-  ctx.stroke();
-
-  // Détermine la couleur selon P/L
-  const color = plValue >= 0 ? profitColor : lossColor;
-
-  // Dessin du gauge principal
-  const startAngle = Math.PI * 0.75;
-  const endAngle = Math.PI * 2.25;
-  const range = endAngle - startAngle;
-  const normalized = Math.max(-100, Math.min(100, plValue)); // clamp [-100, 100]
-  const progress = (normalized + 100) / 200;
-
-  ctx.beginPath();
-  ctx.arc(width / 2, height / 2, radius, startAngle, startAngle + range * progress);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 12;
-  ctx.lineCap = "round";
-  ctx.stroke();
-
-  // Texte au centre
-  ctx.fillStyle = textColor;
-  ctx.font = "bold 18px Inter";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(`${plValue.toFixed(2)} USD`, width / 2, height / 2);
-
-  // Label sous le texte
-  ctx.font = "13px Inter";
-  ctx.fillText("Total P/L", width / 2, height / 2 + 22);
+  // Animation douce
+  if (!gaugeAnimating) {
+    gaugeAnimating = true;
+    const start = currentPL;
+    const diff = pl - start;
+    const steps = 25;
+    let i = 0;
+    const animate = () => {
+      i++;
+      const val = start + (diff * i) / steps;
+      drawGauge(ctx, cx, cy, r, val);
+      if (i < steps) requestAnimationFrame(animate);
+      else {
+        currentPL = pl;
+        gaugeAnimating = false;
+      }
+    };
+    animate();
+  } else {
+    drawGauge(ctx, cx, cy, r, pl);
+  }
 }
 
 function drawGauge(ctx, cx, cy, r, pl) {
@@ -890,7 +857,7 @@ closeBtnAll.onclick=()=>{
 
   // Exemple test simple
   setInterval(() => {
-    const fakePL = (Math.random() - 0.5) * 200;
+    const fakePL = (Math.random() - 0.5) * 200; // simule un P/L entre -100 et +100
     updatePLGaugeDisplay(fakePL);
-  }, 1500);
+}, 1500);
 });
