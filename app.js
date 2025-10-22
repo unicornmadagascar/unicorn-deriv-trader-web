@@ -399,11 +399,12 @@ document.addEventListener("DOMContentLoaded", () => {
       pnl+=diff*tr.multiplier*tr.stake;
     });
     const yCur=canvas.height-padding-((lastPrice-minVal)/range)*h;
-    ctx.strokeStyle="#16a34a"; ctx.lineWidth=1.2;
+    ctx.strokeStyle=parseFloat(totalPL.toFixed(2)) <= 0 ? "#c22d13ff" : "#16a34a";
+    ctx.lineWidth=1.2;
     ctx.beginPath(); ctx.moveTo(padding,yCur); ctx.lineTo(canvas.width-padding,yCur); ctx.stroke();
 
     contractentry(totalPL => {
-      ctx.fillStyle="#16a34a";
+      ctx.fillStyle = parseFloat(totalPL.toFixed(2)) <= 0 ? "#c22d13ff" : "#16a34a";
       ctx.font="bold 14px Inter, Arial";
       ctx.textAlign="right";
       ctx.textBaseline="bottom";
