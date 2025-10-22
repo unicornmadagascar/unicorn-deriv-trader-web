@@ -406,9 +406,9 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.font="bold 14px Inter, Arial";
     ctx.textAlign="right";
     ctx.textBaseline="bottom";
-
-    ctx.fillText("PNL: "+pnl.toFixed(2), canvas.width-padding-4, yCur-4);
-
+    contractentry(totalPL => {
+      ctx.fillText("PNL: " + totalPL.toFixed(2), canvas.width-padding-4, yCur-4);
+    });
     // point vert sur la ligne
     ctx.beginPath(); ctx.arc(canvas.width-padding,yCur,4,0,Math.PI*2); ctx.fill();
   }
