@@ -458,10 +458,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return entry;
   }
 
-// =======================
-// 🔹 Fonction principale pour mettre à jour le gauge
-// =======================
-function updatePLGaugeDisplay(pl) {
+  function updatePLGaugeDisplay(pl) {
   const gauge = document.getElementById("plGauge");
   if (!gauge) return;
   const ctx = gauge.getContext("2d");
@@ -491,13 +488,12 @@ function updatePLGaugeDisplay(pl) {
   }
 }
 
-// =======================
-// 🔹 Fonction pour dessiner le gauge
-// =======================
 function drawGauge(ctx, cx, cy, r, pl) {
-  ctx.clearRect(0, 0, cx * 2, cy * 2);
+  // Fond canvas assorti au mode
+  ctx.fillStyle = document.body.classList.contains("dark") ? "#1e293b" : "#f8fafc";
+  ctx.fillRect(0, 0, cx * 2, cy * 2);
 
-  // Couleur de fond selon mode
+  // Couleur de l’arc de fond
   const bgColor = document.body.classList.contains("dark") ? "#374151" : "#e5e7eb";
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, 2 * Math.PI);
@@ -537,9 +533,6 @@ function drawGauge(ctx, cx, cy, r, pl) {
   ctx.fillText(`${pl.toFixed(2)} USD`, cx, cy + 10);
 }
 
-// =======================
-// 🔹 Fonction pour dessiner l’aiguille
-// =======================
 function drawNeedle(ctx, cx, cy, length, angle, pl) {
   const needleColor = pl >= 0 ? "#22c55e" : "#ef4444";
 
@@ -563,9 +556,7 @@ function drawNeedle(ctx, cx, cy, length, angle, pl) {
   ctx.fill();
 }
 
-// =======================
-// 🔹 Observer pour gérer le dark mode
-// =======================
+// Observer pour redessiner le gauge lors du changement de mode
 const gaugeObserver = new MutationObserver(() => {
   const gauge = document.getElementById("plGauge");
   if (!gauge) return;
@@ -573,16 +564,13 @@ const gaugeObserver = new MutationObserver(() => {
   drawGauge(ctx, gauge.width / 2, gauge.height / 2, gauge.width / 2 - 15, currentPL);
 });
 
-// Observe les changements de classe sur le body
 gaugeObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
 
-// =======================
-// 🔹 Initialisation (facultatif)
-// =======================
+// Initialisation
 function initPLGauge() {
   const gauge = document.getElementById("plGauge");
   if (!gauge) return;
-  updatePLGaugeDisplay(0); // démarre à 0
+  updatePLGaugeDisplay(0);
 }
 
   function canvasMouseMove(e){

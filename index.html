@@ -380,7 +380,7 @@
       transition: all 0.3s ease;
    }*/
 
-   #plGaugeContainer {
+   /*#plGaugeContainer {
       display: flex;
       align-items: center;
       justify-content: center;
@@ -390,11 +390,24 @@
       box-shadow: 0 8px 20px rgba(0,0,0,0.08);
       transition: all 0.3s ease;
       background: var(--gauge-bg);
-   }
+   }*/
+
+   #plGaugeContainer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-top: 12px;
+    padding: 10px;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    background: #f8fafc; /* clair par défaut */
+    transition: background 0.3s;
+  }
 
    body.dark #plGaugeContainer {
      --gauge-bg: #161b22; /* fond sombre pour dark mode */
-   }
+   } 
 
   body:not(.dark) #plGaugeContainer {
      --gauge-bg: linear-gradient(135deg, #f0f4f8, #ffffff);
