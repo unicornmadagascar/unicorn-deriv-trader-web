@@ -887,10 +887,7 @@ closeBtnAll.onclick=()=>{
   initPLGauge();
 
   // Lancer le flux P/L live → met à jour le gauge à chaque tick
-  setInterval(() => {
-     ws = contractentry(totalPL => {
-       updatePLGaugeDisplay(totalPL);
-     });
-  },1000);
-  
+  ws = contractentry(totalPL => {
+    updatePLGaugeDisplay(totalPL);
+  });
 });
