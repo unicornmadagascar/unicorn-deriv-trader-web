@@ -411,51 +411,61 @@ document.addEventListener("DOMContentLoaded", () => {
     // point vert sur la ligne
     ctx.beginPath(); ctx.arc(canvas.width-padding,yCur,4,0,Math.PI*2); ctx.fill();
   }
-}
+ }
 
+  // === P/L LIVE FUNCTION ===
+  function contractentry(onUpdate) {
+   let ws = new WebSocket(WS_URL);
+   let contracts = {};
+   let authorized = false;
 
-  function contractentry()
-  {  
-      ws = new WebSocket(WS_URL);
-      ws.onopen = () => {
-         ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" }));
-      };
+   ws.onopen = () => {
+    ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" }));
+   };
 
-      ws.onmessage = (msg) => {
-         const data = JSON.parse(msg.data);
+   ws.onmessage = (msg) => {
+     const data = JSON.parse(msg.data);
 
-         if (data.msg_type === "authorize"){
-           // Get open positions
-           ws.send(JSON.stringify({ portfolio: 1 }));
-         }
+     // 1️⃣ Autorisation → récupérer les contrats ouverts
+     if (data.msg_type === "authorize" && !authorized) {
+      authorized = true;
+      ws.send(JSON.stringify({ portfolio: 1 }));
+     }
 
-         // For each contract, get entry info
-         if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0){
-            const contracts = data.portfolio.contracts;
-            logHistory("Found " + contracts.length + " open contracts.");
+     // 2️⃣ Liste des contrats ouverts → abonnement live
+     if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0) {
+      for (const c of data.portfolio.contracts) {
+        contracts[c.contract_id] = 0;
+        ws.send(JSON.stringify({
+          proposal_open_contract: 1,
+          contract_id: c.contract_id,
+          subscribe: 1
+        }));
+      }
+     }
 
-            for (const c of contracts) {
-               ws.send(JSON.stringify({
-                  proposal_open_contract: 1,
-                  contract_id: c.contract_id
-               }));
-            }
-         }
+     // 3️⃣ Mise à jour du profit à chaque tick
+     if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
+       const poc = data.proposal_open_contract;
+       contracts[poc.contract_id] = parseFloat(poc.profit);
 
-         // Show entry price for each
-         if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract){
-            const poc = data.proposal_open_contract;
-            logHistory("🆔 Contract " + poc.contract_id);
-            logHistory("  ↳ Entry Price: " + poc.entry_spot);
-            logHistory("  ↳ Buy Price: " + poc.buy_price);
-            logHistory("  ↳ Current Spot: " + poc.current_spot);
-            logHistory("  ↳ Profit: " + poc.profit);
-            logHistory("--------------------------------");
-            entry = poc.entry_spot;
-         }
-      };
+       // Calcul du P/L total
+       const totalPL = Object.values(contracts).reduce((a, b) => a + b, 0);
 
-      return entry;
+       // Envoie la mise à jour au callback
+       if (typeof onUpdate === "function") onUpdate(totalPL);
+     }
+
+     // 4️⃣ Aucun contrat ouvert
+     if (data.msg_type === "portfolio" && (!data.portfolio?.contracts || data.portfolio.contracts.length === 0)) {
+       if (typeof onUpdate === "function") onUpdate(0);
+     }
+   };
+
+   ws.onerror = (err) => console.error("WebSocket error:", err);
+   ws.onclose = () => console.log("Disconnected from Deriv WebSocket.");
+
+   return ws; // on retourne le WebSocket pour pouvoir le fermer plus tard
   }
 
   function updatePLGaugeDisplay(pl) {
@@ -869,7 +879,7 @@ closeBtnAll.onclick=()=>{
 
   // Supprimer une ligne individuelle
   autoTradeBody.addEventListener("click", (e) => {
-    if (e.target.classList.contains("deleteRowBtn")) {
+    if (e.target.classList.contains("deleteRowBtn")){
       e.target.closest("tr").remove();
     }
   });
@@ -877,10 +887,8 @@ closeBtnAll.onclick=()=>{
   initPLGauge();
 
   // Test : variation du P/L toutes les secondes
-  let testPL = -50;
-  setInterval(() => {
-    testPL += 10;
-    if (testPL > 100) testPL = -100;
-    updatePLGaugeDisplay(testPL);
-  }, 1000);
+  // Lancer le flux P/L live → met à jour le gauge à chaque tick
+ws = contractentry(totalPL => {
+  updatePLGaugeDisplay(totalPL);
+});
 });
