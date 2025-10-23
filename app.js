@@ -1138,8 +1138,16 @@ closeBtnAll.onclick=()=>{
   initSymbols();
   selectSymbol(volatilitySymbols[0]);
   initTable();
+  initPLGauge();
 
- /* ========================================================
+  // Lancer le flux P/L live → met à jour le gauge à chaque tick
+  setInterval(() => {
+    contractentry(totalPL => {
+      updatePLGaugeDisplay(totalPL);
+    });
+  }, 5000);
+
+   /* ========================================================
    🟢 DELETE / CLOSE CONTRACT
   ======================================================== */
   document.addEventListener("click", (e) => {
@@ -1158,15 +1166,6 @@ closeBtnAll.onclick=()=>{
         }
     }
   });
-
-  initPLGauge();
-
-  // Lancer le flux P/L live → met à jour le gauge à chaque tick
-  setInterval(() => {
-    contractentry(totalPL => {
-      updatePLGaugeDisplay(totalPL);
-    });
-  }, 5000);
   
   // 🔹 Rafraîchissement automatique toutes les 10 secondes
   setInterval(() => {
