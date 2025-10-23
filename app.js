@@ -211,6 +211,129 @@ document.addEventListener("DOMContentLoaded", () => {
     autoTradeBody.appendChild(tr);
   }
 
+  // 1️⃣ Récupère la liste des contrats ouverts
+  function fetchOpenContracts(ws) {
+     ws.send(JSON.stringify({ portfolio: 1 }));
+  }
+
+  // 2️⃣ Détails d’un contrat (avec abonnement pour suivi temps réel)
+  function subscribeContractDetails(ws, contract_id) {
+     ws.send(JSON.stringify({ proposal_open_contract: 1, contract_id, subscribe: 1 }));
+  }
+
+  // 3️⃣ Ferme un contrat (SELL)
+  function closeContract(ws, contract_id) {
+     ws.send(JSON.stringify({ sell: contract_id, price: 0 })); // prix = 0 → ordre au marché
+     console.log(`🚪 Closing contract ${contract_id}...`);
+  }
+
+  // === 🧠 GESTION DES RÉPONSES ===
+
+  // Gère la liste du portefeuille
+  function handlePortfolio(data) {
+    if (!data.portfolio || !data.portfolio.contracts) return;
+    const contracts = data.portfolio.contracts;
+
+    // Vide le tableau
+    document.getElementById("autoTradeBody").innerHTML = "";
+
+    // Pour chaque contrat → s’abonner à ses détails
+    contracts.forEach(c => subscribeContractDetails(ws, c.contract_id));
+  }
+
+  // Gère les infos détaillées des contrats ouverts
+function handleContractDetails(data) {
+   const c = data.proposal_open_contract;
+   if (!c || !c.contract_id) return;
+
+   // Si le contrat est clôturé → on le retire du tableau
+   if (c.is_sold) {
+     const row = document.querySelector(`[data-contract='${c.contract_id}']`);
+     if (row) row.remove();
+     console.log(`✅ Contract ${c.contract_id} closed.`);
+     return;
+   }
+
+   // Sinon → on affiche ou met à jour la ligne correspondante
+   const existing = document.querySelector(`[data-contract='${c.contract_id}']`);
+   const trade = {
+    time: new Date(c.date_start * 1000).toLocaleTimeString(),
+    contract_id: c.contract_id,
+    type: c.is_buy ? "BUY" : "SELL",
+    stake: c.buy_price || 0,
+    multiplier: c.multiplier || "-",
+    entry_spot: c.entry_tick || "-",
+    tp: c.take_profit || "-",
+    sl: c.stop_loss || "-",
+    profit:
+      c.profit !== undefined
+        ? (c.profit >= 0 ? `+${c.profit.toFixed(2)}` : c.profit.toFixed(2))
+        : "-"
+   };
+
+   if (!existing) {
+    const tr = document.createElement("tr");
+    tr.dataset.contract = c.contract_id;
+    tr.innerHTML = `
+      <td><input type="checkbox" class="rowSelect"></td>
+      <td>${trade.time}</td>
+      <td>${trade.contract_id}</td>
+      <td class="${trade.type === "BUY" ? "buy" : "sell"}">${trade.type}</td>
+      <td>${Number(trade.stake).toFixed(2)}</td>
+      <td>${trade.multiplier}</td>
+      <td>${trade.entry_spot}</td>
+      <td>${trade.tp}</td>
+      <td>${trade.sl}</td>
+      <td>${trade.profit}</td>
+      <td>
+        <button class="deleteRowBtn" 
+          style="background:#ef4444; border:none; color:white; border-radius:4px; padding:2px 6px; cursor:pointer;">
+          Close
+        </button>
+      </td>
+    `;
+     document.getElementById("autoTradeBody").appendChild(tr);
+   } else {
+     // Met à jour la ligne existante
+     existing.cells[9].textContent = trade.profit;
+   }
+ } 
+
+ // === 🧱 CONNEXION ET EVENTS ===
+ function connectDerivForOpenContracts() {
+    ws = new WebSocket(WS_URL);
+
+    ws.onopen = () => {
+      console.log("🔗 Connected to Deriv");
+      ws.send(JSON.stringify({ authorize: token }));
+    };
+
+     ws.onmessage = (msg) => {
+     const data = JSON.parse(msg.data);
+
+     switch (data.msg_type) {
+        case "authorize":
+          console.log("✅ Authorized. Fetching open contracts...");
+          fetchOpenContracts(ws);
+          break;
+        case "portfolio":
+          handlePortfolio(data);
+          break;
+        case "proposal_open_contract":
+          handleContractDetails(data);
+          break;
+        case "sell":
+          console.log("💰 Sell response:", data);
+          break;
+        default:
+          break;
+      }
+    };
+
+    ws.onerror = (err) => console.error("❌ WS error", err);
+    ws.onclose = () => console.warn("🔴 WS closed");
+  }
+
   // canvas
   function initCanvas(){
     chartInner.innerHTML = "";
@@ -523,7 +646,6 @@ function drawChart() {
 
    if (!token) {
      logHistory("Please, verify your token, and try again.");
-     ws.close();
      return;
    }
 
@@ -978,7 +1100,7 @@ closeBtnAll.onclick=()=>{
   selectSymbol(volatilitySymbols[0]);
   initTable();
  // Ajoute les trades de test
-  trades__.forEach(addTradeRow);
+  /*trades__.forEach(addTradeRow);
 
   // Gestion du "Select All"
   const selectAll = document.getElementById("selectAll");
@@ -1001,6 +1123,24 @@ closeBtnAll.onclick=()=>{
     if (e.target.classList.contains("deleteRowBtn")){
       e.target.closest("tr").remove();
     }
+  });*/
+
+  // === 🧹 ÉVÉNEMENTS SUR LES BOUTONS DELETE ===
+  document.addEventListener("click", (e) => {
+   // Si l’utilisateur clique sur un bouton Close
+   if (e.target.classList.contains("deleteRowBtn")) {
+    const tr = e.target.closest("tr");
+    const checkbox = tr.querySelector(".rowSelect");
+    const contract_id = tr.dataset.contract;
+
+    // On ne ferme que si la case est cochée
+    if (checkbox && checkbox.checked) {
+      closeContract(ws, contract_id);
+      tr.remove(); // suppression immédiate de la ligne
+    } else {
+      alert("☑️ Veuillez cocher la case avant de fermer ce contrat.");
+    }
+   }
   });
 
   initPLGauge();
