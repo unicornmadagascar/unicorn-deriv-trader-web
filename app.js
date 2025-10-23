@@ -138,64 +138,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Table
-  function initTable() {
-  autoHistoryList.innerHTML = `
-    <table class="trade-table" id="autoTradeTable">
-      <thead>
-        <tr>
-          <th><input type="checkbox" id="selectAll"></th>
-          <th>Time of Trade</th>
-          <th>Contract ID</th>
-          <th>Contract Type</th>
-          <th>Stake</th>
-          <th>Multiplier</th>
-          <th>Entry Spot</th>
-          <th>TP (%)</th>
-          <th>SL (%)</th>
-          <th>Profit</th>
-          <th>Action</th>
-        </tr>
-      </thead>
-      <tbody id="autoTradeBody"></tbody>
-    </table>
-    <button id="deleteSelected" style="margin-top:8px; background:#dc2626; color:white; border:none; padding:6px 10px; border-radius:6px; cursor:pointer;">
-      🗑 Delete Selected
-    </button>
-   `;
-
-    const autoTradeBody = document.getElementById("autoTradeBody");
-  }
-
-  // --- 🔹 Ajouter une ligne dans le tableau ---
-  function addTradeRow(trade) {
-    let tr = document.createElement("tr");
-    tr.dataset.contract = trade.contract_id;
-    tr.innerHTML = `
-      <td><input type="checkbox" class="rowSelect"></td>
-      <td>${trade.time}</td>
-      <td>${trade.contract_id}</td>
-      <td class="${trade.type === "BUY" ? "buy" : "sell"}">${trade.type}</td>
-      <td>${Number(trade.stake).toFixed(2)}</td>
-      <td>${trade.multiplier}</td>
-      <td>${trade.entry_spot}</td>
-      <td>${trade.tp}</td>
-      <td>${trade.sl}</td>
-      <td>${trade.profit}</td>
-      <td>
-        <button class="deleteRowBtn" style="background:#ef4444; border:none; color:white; border-radius:4px; padding:2px 6px; cursor:pointer;">Close</button>
-      </td>
-    `;
-    autoTradeBody.appendChild(tr);
-  }
-
-  // --- 🔹 Fermer un contrat ---
-  function closeContract(contract_id) {
-    if (ws && ws.readyState === WebSocket.OPEN && authorized) {
-      ws.send(JSON.stringify({ sell: contract_id, price: 0 }));
-      console.log("🚪 Closing contract:", contract_id);
-      setTimeout(() => ws.send(JSON.stringify({ portfolio: 1 })), 1000);
-    }
-  }
 
   // canvas
   function initCanvas(){
@@ -1031,10 +973,127 @@ connectBtn.onclick = () => {
    connectBtn.textContent = "Disconnect";
   };
 
+  /* ==========================================================
+   🧩 Gestion du portefeuille Deriv (Contrats ouverts)
+========================================================== */
+
+function fetchOpenContracts() {
+  if (ws && ws.readyState === WebSocket.OPEN && authorized) {
+    ws.send(JSON.stringify({ portfolio: 1 }));
+  }
+}
+
+// 🔁 Abonnement temps réel d’un contrat
+function subscribeContractDetails(contract_id) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      proposal_open_contract: 1,
+      contract_id,
+      subscribe: 1
+    }));
+  }
+}
+
+// 💰 Fermer un contrat
+function closeContract(contract_id) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ sell: contract_id, price: 0 }));
+    console.log("🚪 Closing contract:", contract_id);
+  }
+}
+
+// 🧱 Initialisation du tableau
+function initTable() {
+  autoHistoryList.innerHTML = `
+    <table class="trade-table" id="autoTradeTable">
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="selectAll"></th>
+          <th>Time</th>
+          <th>Contract ID</th>
+          <th>Type</th>
+          <th>Stake</th>
+          <th>Multiplier</th>
+          <th>Entry Spot</th>
+          <th>TP</th>
+          <th>SL</th>
+          <th>Profit</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="autoTradeBody"></tbody>
+    </table>
+  `;
+}
+initTable();
+
+// 🧠 Quand on reçoit un portfolio
+function handlePortfolio(data) {
+  const contracts = data?.portfolio?.contracts;
+  if (!contracts || !contracts.length) {
+    console.log("ℹ️ Aucun contrat ouvert.");
+    return;
+  }
+
+  const tbody = document.getElementById("autoTradeBody");
+  tbody.innerHTML = "";
+
+  contracts.forEach(c => {
+    const trade = {
+      time: new Date((c.purchase_time || Date.now()) * 1000).toLocaleTimeString(),
+      contract_id: c.contract_id,
+      type: c.contract_type.includes("CALL") ? "BUY" : "SELL",
+      stake: parseFloat(c.buy_price || 0).toFixed(2),
+      multiplier: c.multiplier || "-",
+      entry_spot: c.entry_tick ?? "-",
+      tp: c.take_profit ?? "-",
+      sl: c.stop_loss ?? "-",
+      profit: "-"
+    };
+
+    const tr = document.createElement("tr");
+    tr.dataset.contract = c.contract_id;
+    tr.innerHTML = `
+      <td><input type="checkbox" class="rowSelect"></td>
+      <td>${trade.time}</td>
+      <td>${trade.contract_id}</td>
+      <td class="${trade.type === "BUY" ? "buy" : "sell"}">${trade.type}</td>
+      <td>${trade.stake}</td>
+      <td>${trade.multiplier}</td>
+      <td>${trade.entry_spot}</td>
+      <td>${trade.tp}</td>
+      <td>${trade.sl}</td>
+      <td class="profitCell">${trade.profit}</td>
+      <td><button class="deleteRowBtn" style="background:#dc2626;color:#fff;border:none;padding:2px 6px;border-radius:4px;cursor:pointer;">Close</button></td>
+    `;
+    tbody.appendChild(tr);
+
+    // 🔁 Souscription en temps réel
+    subscribeContractDetails(c.contract_id);
+  });
+}
+
+// 🔄 Mise à jour du profit en temps réel
+function handleContractDetails(data) {
+  const c = data.proposal_open_contract;
+  if (!c || !c.contract_id) return;
+
+  const tr = document.querySelector(`[data-contract='${c.contract_id}']`);
+  if (!tr) return;
+
+  if (c.is_sold) {
+    tr.remove();
+    console.log(`✅ Contract ${c.contract_id} closed`);
+    return;
+  }
+
+  const profit = c.profit !== undefined ? c.profit.toFixed(2) : "-";
+  tr.querySelector(".profitCell").textContent = profit;
+}
 
   initSymbols();
   selectSymbol(volatilitySymbols[0]);
-  initTable();
+  //initTable();
   initPLGauge();
 
   // Lancer le flux P/L live → met à jour le gauge à chaque tick
@@ -1072,7 +1131,5 @@ connectBtn.onclick = () => {
      document.getElementById("selectAll").checked = false;
    }
   });
-
-  // --- 🔹 Rafraîchissement automatique toutes les 10s (optionnel) ---
 
 });
