@@ -1112,10 +1112,5 @@ connectBtn.onclick = () => {
 // ===============================================================
 // 🔁 Rafraîchissement automatique du portefeuille toutes les 10s
 // ===============================================================
-setInterval(() => {
-  if (ws && ws.readyState === WebSocket.OPEN && authorized) {
-    ws.send(JSON.stringify({ portfolio: 1 }));
-  }
-}, 10000);
 
 });
