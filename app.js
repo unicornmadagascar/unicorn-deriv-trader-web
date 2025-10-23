@@ -304,10 +304,10 @@ document.addEventListener("DOMContentLoaded", () => {
   function connectDeriv(ws) {
     //ws = new WebSocket(WS_URL);
 
-    //ws.onopen = () => {
-    //  console.log("🔗 Connected");
-    //  ws.send(JSON.stringify({ authorize: token }));
-    //};
+    ws.onopen = () => {
+      console.log("🔗 Connected");
+      ws.send(JSON.stringify({ authorize: token }));
+    };
 
     ws.onmessage = (msg) => {
       const data = JSON.parse(msg.data);
@@ -332,9 +332,8 @@ document.addEventListener("DOMContentLoaded", () => {
    };
 
     ws.onerror = (err) => console.error("❌ WebSocket error:", err);
-    ws.onclose = () => console.warn("🔴 Disconnected");
+    ws.onclose = () => console.log("🔴 Disconnected");
   }
-
 
   // canvas
   function initCanvas(){
@@ -1065,7 +1064,7 @@ closeBtnAll.onclick=()=>{
     const token=tokenInput.value.trim();
     if(!token){ setStatus("Simulation Mode"); logHistory("Running in simulation (no token)"); return; }
     ws=new WebSocket(WS_URL);
-    connectDeriv(ws);;
+    connectDeriv(ws);
     setStatus("Connecting..."); 
     ws.onopen=()=>{ setStatus("Connected, authorizing..."); ws.send(JSON.stringify({ authorize: token })); };
     ws.onclose=()=>{ setStatus("Disconnected"); logHistory("WS closed"); };
@@ -1128,6 +1127,8 @@ closeBtnAll.onclick=()=>{
       updatePLGaugeDisplay(totalPL);
     });
   }, 5000);
+  
+  ws = null;
 
   setInterval(() => {
      connectDeriv(ws);
