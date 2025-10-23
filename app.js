@@ -1151,4 +1151,10 @@ closeBtnAll.onclick=()=>{
       updatePLGaugeDisplay(totalPL);
     });
   }, 5000);
+
+  setInterval(() => {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    fetchOpenContracts(ws);
+  }
+}, 10000);
 });
