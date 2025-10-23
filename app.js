@@ -922,6 +922,7 @@ closeBtnAll.onclick=()=>{
   }
 
 connectBtn.onclick = () => {
+  // 🔹 Si déjà connecté → déconnexion
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.close();
     ws = null;
@@ -931,34 +932,36 @@ connectBtn.onclick = () => {
     return;
   }
 
-   const token = tokenInput.value.trim();
-   if (!token) {
-     setStatus("Simulation Mode");
-     logHistory("Running in simulation (no token)");
-     return;
-   }
+  // 🔹 Si pas de token
+  const token = tokenInput.value.trim();
+  if (!token) {
+    setStatus("Simulation Mode");
+    logHistory("Running in simulation (no token)");
+    return;
+  }
 
-   ws = new WebSocket(WS_URL);
-   setStatus("Connecting...");
+  // 🔹 Nouvelle connexion
+  ws = new WebSocket(WS_URL);
+  setStatus("Connecting...");
 
-   ws.onopen = () => {
-     setStatus("Connected, authorizing...");
-     ws.send(JSON.stringify({ authorize: token }));
-   };
+  ws.onopen = () => {
+    setStatus("Connected, authorizing...");
+    ws.send(JSON.stringify({ authorize: token }));
+  };
 
-   ws.onclose = () => { 
-    setStatus("Disconnected"); 
-    logHistory("WS closed"); 
-    authorized = false; 
-   };
+  ws.onclose = () => {
+    setStatus("Disconnected");
+    logHistory("WS closed");
+    authorized = false;
+  };
 
-   ws.onerror = e => logHistory("WS error "+JSON.stringify(e));
+  ws.onerror = e => logHistory("WS error " + JSON.stringify(e));
 
-    ws.onmessage = msg => {
+  ws.onmessage = msg => {
     const data = JSON.parse(msg.data);
 
-     // Authorization
-     if (data.msg_type === "authorize") {
+    // 🔸 1. AUTHORIZATION
+    if (data.msg_type === "authorize") {
       if (!data.authorize?.loginid) {
         setStatus("Simulation Mode (Token invalid)");
         logHistory("Token not authorized");
@@ -967,66 +970,62 @@ connectBtn.onclick = () => {
       authorized = true;
       setStatus(`Connected: ${data.authorize.loginid}`);
       logHistory("Authorized: " + data.authorize.loginid);
-      ws.send(JSON.stringify({ balance:1, subscribe:1 }));
+
+      // ✅ Souscription balance et ticks
+      ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
       volatilitySymbols.forEach(sym => subscribeTicks(sym));
+
+      // ✅ Demande du portfolio (important)
       ws.send(JSON.stringify({ portfolio: 1, subscribe: 1 }));
-     }
-
-     // Balance
-     if (data.msg_type === "balance" && data.balance) {
-      const bal = parseFloat(data.balance.balance||0).toFixed(2);
-      const cur = data.balance.currency||"USD";
-      userBalance.textContent = `💰 Balance: ${bal} ${cur}`;
-      logHistory(`Balance updated: ${bal} ${cur}`);
-     }
-
-     // Tick
-     if (data.msg_type === "tick" && data.tick) handleTick(data.tick);
-
-     // New trade confirmed
-     if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
-      const poc = data.proposal_open_contract;
-      logHistory(`Trade confirmed: Entry = ${poc.entry_spot}`);
-      drawChart();
-      const trade = {
-        time: new Date((poc.date_start || Date.now())*1000).toLocaleTimeString(),
-        contract_id: poc.contract_id,
-        type: poc.contract_type.includes("CALL") ? "BUY" : "SELL",
-        stake: parseFloat(poc.buy_price || 0),
-        multiplier: poc.multiplier || "-",
-        entry_spot: poc.entry_tick ?? "-",
-        tp: poc.take_profit ?? "-",
-        sl: poc.stop_loss ?? "-",
-        profit: poc.profit !== undefined ? (poc.profit>=0?`+${poc.profit.toFixed(2)}`:poc.profit.toFixed(2)) : "-"
-      };
-      addTradeRow(trade);
     }
 
-     // Portfolio update
-     if (data.msg_type === "portfolio" && data.portfolio) {
-       const contracts = data.portfolio.contracts || [];
-       autoTradeBody.innerHTML = ""; // clear table
-       contracts.forEach(c => {
-         const trade = {
-           time: new Date((c.purchase_time || Date.now())*1000).toLocaleTimeString(),
-           contract_id: c.contract_id,
-           type: c.contract_type.includes("CALL") ? "BUY" : "SELL",
-           stake: parseFloat(c.buy_price || 0),
-           multiplier: c.multiplier || "-",
-           entry_spot: c.entry_tick ?? "-",
-           tp: c.take_profit ?? "-",
-           sl: c.stop_loss ?? "-",
-           profit: c.profit !== undefined ? (c.profit>=0?`+${c.profit.toFixed(2)}`:c.profit.toFixed(2)) : "-"
-         };
-         addTradeRow(trade);
-       });
-     }
+    // 🔸 2. BALANCE
+    if (data.msg_type === "balance" && data.balance) {
+      const bal = parseFloat(data.balance.balance || 0).toFixed(2);
+      const cur = data.balance.currency || "USD";
+      userBalance.textContent = `💰 Balance: ${bal} ${cur}`;
+      logHistory(`Balance updated: ${bal} ${cur}`);
+    }
 
-     // Sell response
-     if (data.msg_type === "sell" && data.sell) {
-       console.log("💰 Sell response:", data.sell.contract_id);
-       ws.send(JSON.stringify({ portfolio: 1 }));
-     }
+    // 🔸 3. TICKS
+    if (data.msg_type === "tick" && data.tick) handleTick(data.tick);
+
+    // 🔸 4. PORTFOLIO
+    if (data.msg_type === "portfolio" && data.portfolio) {
+      const contracts = data.portfolio.contracts || [];
+      const autoTradeBody = document.getElementById("autoTradeBody");
+      autoTradeBody.innerHTML = ""; // on vide avant MAJ
+
+      contracts.forEach(c => {
+        const trade = {
+          time: new Date((c.purchase_time || Date.now()) * 1000).toLocaleTimeString(),
+          contract_id: c.contract_id,
+          type: c.contract_type.includes("CALL") ? "BUY" : "SELL",
+          stake: parseFloat(c.buy_price || 0),
+          multiplier: c.multiplier || "-",
+          entry_spot: c.entry_tick ?? "-",
+          tp: c.take_profit ?? "-",
+          sl: c.stop_loss ?? "-",
+          profit: c.profit !== undefined
+            ? (c.profit >= 0 ? `+${c.profit.toFixed(2)}` : c.profit.toFixed(2))
+            : "-"
+        };
+        addTradeRow(trade);
+      });
+    }
+
+    // 🔸 5. CONFIRMATION NOUVEAU TRADE
+    if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
+      const poc = data.proposal_open_contract;
+      logHistory(`Trade confirmed: Entry = ${poc.entry_spot}`);
+      ws.send(JSON.stringify({ portfolio: 1 })); // 🔁 Recharge portfolio
+    }
+
+    // 🔸 6. SELL RESPONSE
+    if (data.msg_type === "sell" && data.sell) {
+      logHistory(`Closed contract: ${data.sell.contract_id}`);
+      ws.send(JSON.stringify({ portfolio: 1 })); // 🔁 Recharge
+    }
    };
 
    connectBtn.textContent = "Disconnect";
