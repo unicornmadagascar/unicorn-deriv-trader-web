@@ -162,6 +162,8 @@ document.addEventListener("DOMContentLoaded", () => {
       🗑 Delete Selected
     </button>
    `;
+
+    const autoTradeBody = document.getElementById("autoTradeBody");
   }
 
   // --- 🔹 Ajouter une ligne dans le tableau ---
@@ -1034,7 +1036,6 @@ connectBtn.onclick = () => {
   initSymbols();
   selectSymbol(volatilitySymbols[0]);
   initTable();
-  const autoTradeBody = document.getElementById("autoTradeBody");
   initPLGauge();
 
   // Lancer le flux P/L live → met à jour le gauge à chaque tick
