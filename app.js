@@ -1074,10 +1074,5 @@ connectBtn.onclick = () => {
   });
 
   // --- 🔹 Rafraîchissement automatique toutes les 10s (optionnel) ---
-  setInterval(() => {
-    if (ws && ws.readyState === WebSocket.OPEN && authorized) {
-      ws.send(JSON.stringify({ portfolio: 1 }));
-    }
-  }, 10000);
 
 });
