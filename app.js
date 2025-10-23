@@ -1127,9 +1127,5 @@ closeBtnAll.onclick=()=>{
     });
   }, 5000);
   
-  ws = null;
-
-  setInterval(() => {
-     connectDeriv();
-  }, 10000);
+  connectDeriv();
 });
