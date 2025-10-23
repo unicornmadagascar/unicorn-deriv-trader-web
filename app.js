@@ -301,8 +301,8 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // --- 🧱 Connexion WebSocket
-  function connectDeriv(ws) {
-    //ws = new WebSocket(WS_URL);
+  function connectDeriv() {
+    ws = new WebSocket(WS_URL);
 
     ws.onopen = () => {
       console.log("🔗 Connected");
@@ -1064,7 +1064,6 @@ closeBtnAll.onclick=()=>{
     const token=tokenInput.value.trim();
     if(!token){ setStatus("Simulation Mode"); logHistory("Running in simulation (no token)"); return; }
     ws=new WebSocket(WS_URL);
-    connectDeriv(ws);
     setStatus("Connecting..."); 
     ws.onopen=()=>{ setStatus("Connected, authorizing..."); ws.send(JSON.stringify({ authorize: token })); };
     ws.onclose=()=>{ setStatus("Disconnected"); logHistory("WS closed"); };
@@ -1131,6 +1130,6 @@ closeBtnAll.onclick=()=>{
   ws = null;
 
   setInterval(() => {
-     connectDeriv(ws);
+     connectDeriv();
   }, 10000);
 });
