@@ -301,13 +301,13 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // --- 🧱 Connexion WebSocket
-  function connectDeriv() {
-    ws = new WebSocket(WS_URL);
+  function connectDeriv(ws) {
+    //ws = new WebSocket(WS_URL);
 
-    ws.onopen = () => {
-      console.log("🔗 Connected");
-      ws.send(JSON.stringify({ authorize: token }));
-    };
+    //ws.onopen = () => {
+    //  console.log("🔗 Connected");
+    //  ws.send(JSON.stringify({ authorize: token }));
+    //};
 
     ws.onmessage = (msg) => {
       const data = JSON.parse(msg.data);
@@ -1065,7 +1065,7 @@ closeBtnAll.onclick=()=>{
     const token=tokenInput.value.trim();
     if(!token){ setStatus("Simulation Mode"); logHistory("Running in simulation (no token)"); return; }
     ws=new WebSocket(WS_URL);
-    //connectWS(ws,token);
+    connectDeriv(ws);;
     setStatus("Connecting..."); 
     ws.onopen=()=>{ setStatus("Connected, authorizing..."); ws.send(JSON.stringify({ authorize: token })); };
     ws.onclose=()=>{ setStatus("Disconnected"); logHistory("WS closed"); };
@@ -1101,31 +1101,6 @@ closeBtnAll.onclick=()=>{
   initSymbols();
   selectSymbol(volatilitySymbols[0]);
   initTable();
- // Ajoute les trades de test
-  /*trades__.forEach(addTradeRow);
-
-  // Gestion du "Select All"
-  const selectAll = document.getElementById("selectAll");
-  selectAll.addEventListener("change", () => {
-    document.querySelectorAll(".rowSelect").forEach(cb => {
-      cb.checked = selectAll.checked;
-    });
-  });
-
-  // Supprimer les lignes sélectionnées
-  document.getElementById("deleteSelected").addEventListener("click", () => {
-    document.querySelectorAll(".rowSelect:checked").forEach(cb => {
-      cb.closest("tr").remove();
-    });
-    selectAll.checked = false;
-  });
-
-  // Supprimer une ligne individuelle
-  autoTradeBody.addEventListener("click", (e) => {
-    if (e.target.classList.contains("deleteRowBtn")){
-      e.target.closest("tr").remove();
-    }
-  });*/
 
   // === 🧹 ÉVÉNEMENTS SUR LES BOUTONS DELETE ===
   document.addEventListener("click", (e) => {
@@ -1155,6 +1130,6 @@ closeBtnAll.onclick=()=>{
   }, 5000);
 
   setInterval(() => {
-     connectDeriv();
+     connectDeriv(ws);
   }, 10000);
 });
