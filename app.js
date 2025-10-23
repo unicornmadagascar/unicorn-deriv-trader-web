@@ -187,110 +187,135 @@ document.addEventListener("DOMContentLoaded", () => {
     autoTradeBody.appendChild(tr);
   }
 
-  // 1️⃣ Récupère la liste des contrats ouverts
-  function fetchOpenContracts(ws) {
-     ws.send(JSON.stringify({ portfolio: 1 }));
+  // --- 🔍 Récupère tous les contrats ouverts
+  function fetchOpenContracts() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ portfolio: 1 }));
+    }
   }
 
-  // 2️⃣ Détails d’un contrat (avec abonnement pour suivi temps réel)
-  function subscribeContractDetails(ws, contract_id) {
+  // --- 🔄 S’abonne aux détails d’un contrat
+  function subscribeContractDetails(contract_id) {
      ws.send(JSON.stringify({ proposal_open_contract: 1, contract_id, subscribe: 1 }));
   }
 
-  // 3️⃣ Ferme un contrat (SELL)
-  function closeContract(ws, contract_id) {
-     ws.send(JSON.stringify({ sell: contract_id, price: 0 })); // prix = 0 → ordre au marché
-     console.log(`🚪 Closing contract ${contract_id}...`);
+  // --- 💰 Ferme un contrat
+  function closeContract(contract_id) {
+    ws.send(JSON.stringify({ sell: contract_id, price: 0 }));
+    console.log("🚪 Closing contract:", contract_id);
   }
 
-  // === 🧠 GESTION DES RÉPONSES ===
-
-  // Gère la liste du portefeuille
+  // --- 🧠 Gère les réponses Deriv
   function handlePortfolio(data) {
-    if (!data.portfolio || !data.portfolio.contracts) return;
-    const contracts = data.portfolio.contracts;
+    const contracts = data?.portfolio?.contracts;
+    if (!contracts || !contracts.length) {
+      console.log("ℹ️ Aucun contrat ouvert actuellement.");
+      return;
+    }
 
-    // Vide le tableau
+    // Nettoie le tableau avant de remplir
     document.getElementById("autoTradeBody").innerHTML = "";
 
-    // Pour chaque contrat → s’abonner à ses détails
-    contracts.forEach(c => subscribeContractDetails(ws, c.contract_id));
+    // Abonne chaque contrat
+    contracts.forEach(c => {
+      console.log("📡 Subscribing to:", c.contract_id);
+      subscribeContractDetails(c.contract_id);
+    });
   }
 
-  // Gère les infos détaillées des contrats ouverts
-function handleContractDetails(data) {
-   const c = data.proposal_open_contract;
-   if (!c || !c.contract_id) return;
+  function handleContractDetails(data) {
+    const c = data.proposal_open_contract;
+    if (!c || !c.contract_id) return;
 
-   // Si le contrat est clôturé → on le retire du tableau
-   if (c.is_sold) {
-     const row = document.querySelector(`[data-contract='${c.contract_id}']`);
-     if (row) row.remove();
-     console.log(`✅ Contract ${c.contract_id} closed.`);
-     return;
-   }
+    const autoTradeBody = document.getElementById("autoTradeBody");
 
-   // Sinon → on affiche ou met à jour la ligne correspondante
-   const existing = document.querySelector(`[data-contract='${c.contract_id}']`);
-   const trade = {
-    time: new Date(c.date_start * 1000).toLocaleTimeString(),
-    contract_id: c.contract_id,
-    type: c.is_buy ? "BUY" : "SELL",
-    stake: c.buy_price || 0,
-    multiplier: c.multiplier || "-",
-    entry_spot: c.entry_tick || "-",
-    tp: c.take_profit || "-",
-    sl: c.stop_loss || "-",
-    profit:
-      c.profit !== undefined
-        ? (c.profit >= 0 ? `+${c.profit.toFixed(2)}` : c.profit.toFixed(2))
-        : "-"
-   };
+    // Supprime la ligne si le contrat est vendu
+    if (c.is_sold) {
+      const tr = autoTradeBody.querySelector(`[data-contract='${c.contract_id}']`);
+      if (tr) tr.remove();
+      console.log(`✅ Contract ${c.contract_id} closed.`);
+      return;
+    }
 
-   if (!existing) {
-    const tr = document.createElement("tr");
-    tr.dataset.contract = c.contract_id;
-    tr.innerHTML = `
-      <td><input type="checkbox" class="rowSelect"></td>
-      <td>${trade.time}</td>
-      <td>${trade.contract_id}</td>
-      <td class="${trade.type === "BUY" ? "buy" : "sell"}">${trade.type}</td>
-      <td>${Number(trade.stake).toFixed(2)}</td>
-      <td>${trade.multiplier}</td>
-      <td>${trade.entry_spot}</td>
-      <td>${trade.tp}</td>
-      <td>${trade.sl}</td>
-      <td>${trade.profit}</td>
-      <td>
-        <button class="deleteRowBtn" 
+    // Objet formaté pour ton tableau
+    const trade = {
+      time: new Date(c.date_start * 1000).toLocaleTimeString(),
+      contract_id: c.contract_id,
+      type: c.is_buy ? "BUY" : "SELL",
+      stake: c.buy_price || 0,
+      multiplier: c.multiplier || "-",
+      entry_spot: c.entry_tick ?? "-",
+      tp: c.take_profit ?? "-",
+      sl: c.stop_loss ?? "-",
+      profit:
+        c.profit !== undefined
+          ? (c.profit >= 0 ? `+${c.profit.toFixed(2)}` : c.profit.toFixed(2))
+          : "-"
+    };
+
+    // Vérifie si déjà présent
+    let tr = autoTradeBody.querySelector(`[data-contract='${c.contract_id}']`);
+
+    if (!tr) {
+      // 🔹 Création d’une nouvelle ligne
+      tr = document.createElement("tr");
+      tr.dataset.contract = c.contract_id;
+      tr.innerHTML = `
+        <td><input type="checkbox" class="rowSelect"></td>
+        <td>${trade.time}</td>
+        <td>${trade.contract_id}</td>
+        <td class="${trade.type === "BUY" ? "buy" : "sell"}">${trade.type}</td>
+        <td>${Number(trade.stake).toFixed(2)}</td>
+        <td>${trade.multiplier}</td>
+        <td>${trade.entry_spot}</td>
+        <td>${trade.tp}</td>
+        <td>${trade.sl}</td>
+        <td>${trade.profit}</td>
+        <td>
+        <button class="deleteRowBtn"
           style="background:#ef4444; border:none; color:white; border-radius:4px; padding:2px 6px; cursor:pointer;">
           Close
         </button>
-      </td>
-    `;
-     document.getElementById("autoTradeBody").appendChild(tr);
-   } else {
-     // Met à jour la ligne existante
-     existing.cells[9].textContent = trade.profit;
-   }
- } 
+        </td>
+      `;
+       autoTradeBody.appendChild(tr);
+    } else {
+      // 🔄 Mise à jour en temps réel du profit
+      tr.cells[9].textContent = trade.profit;
+    }
+  }
 
- // === 🧱 CONNEXION ET EVENTS ===
- function connectDerivForOpenContracts() {
+  // --- 📲 Événements DELETE (fermeture manuelle)
+  document.addEventListener("click", (e) => {
+    if (e.target.classList.contains("deleteRowBtn")) {
+       const tr = e.target.closest("tr");
+       const checkbox = tr.querySelector(".rowSelect");
+       const contract_id = tr.dataset.contract;
+       if (checkbox && checkbox.checked) {
+          closeContract(contract_id);
+          tr.remove();
+       } else {
+          alert("☑️ Cochez la case avant de fermer le contrat !");
+       }
+    }
+  });
+
+  // --- 🧱 Connexion WebSocket
+  function connectDeriv() {
     ws = new WebSocket(WS_URL);
 
     ws.onopen = () => {
-      console.log("🔗 Connected to Deriv");
+      console.log("🔗 Connected");
       ws.send(JSON.stringify({ authorize: token }));
     };
 
-     ws.onmessage = (msg) => {
-     const data = JSON.parse(msg.data);
+    ws.onmessage = (msg) => {
+      const data = JSON.parse(msg.data);
 
-     switch (data.msg_type) {
+      switch (data.msg_type) {
         case "authorize":
-          console.log("✅ Authorized. Fetching open contracts...");
-          fetchOpenContracts(ws);
+          console.log("✅ Authorized, fetching open contracts...");
+          fetchOpenContracts();
           break;
         case "portfolio":
           handlePortfolio(data);
@@ -304,11 +329,12 @@ function handleContractDetails(data) {
         default:
           break;
       }
-    };
+   };
 
-    ws.onerror = (err) => console.error("❌ WS error", err);
-    ws.onclose = () => console.warn("🔴 WS closed");
+    ws.onerror = (err) => console.error("❌ WebSocket error:", err);
+    ws.onclose = () => console.warn("🔴 Disconnected");
   }
+
 
   // canvas
   function initCanvas(){
@@ -1129,8 +1155,6 @@ closeBtnAll.onclick=()=>{
   }, 5000);
 
   setInterval(() => {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    fetchOpenContracts(ws);
-  }
-}, 10000);
+     connectDeriv();
+  }, 10000);
 });
