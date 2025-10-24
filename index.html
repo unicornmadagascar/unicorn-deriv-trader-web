@@ -90,6 +90,50 @@
 
     #symbolList { width: 320px; margin-top: 16px; }
 
+    /* ===========================================================
+   🧭 Barre latérale des symboles
+=========================================================== */
+#mainWrapper {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+  background: #0e1117;
+  color: #fff;
+  overflow: hidden;
+}
+
+#symbolList {
+  display: flex;
+  flex-direction: column;
+  width: 160px;
+  background: rgba(25, 25, 25, 0.95);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 8px;
+  overflow-y: auto;
+  margin-top: 16px;
+}
+
+.symbol-item {
+  color: #ccc;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.symbol-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.symbol-item.active {
+  background: linear-gradient(90deg, #00b4d8, #0077b6);
+  color: #fff;
+  font-weight: 600;
+}
+
     #chartSection {
       flex: 1;
       display: flex;
