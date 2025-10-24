@@ -1108,6 +1108,10 @@ connectBtn.onclick = () => {
       ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
       volatilitySymbols.forEach((sym) => subscribeTicks(sym));
       ws.send(JSON.stringify({ portfolio: 1, subscribe: 1 }));
+      
+      setInterval(() => {
+         connectDeriv(ws);
+      }, 10000);
     }
 
     // Balance
@@ -1231,9 +1235,5 @@ connectBtn.onclick = () => {
 // ===============================================================
 // 🔁 Rafraîchissement automatique du portefeuille toutes les 10s
 // ===============================================================
-setInterval(() => {
-  if (ws && ws.readyState === WebSocket.CONNECTING) {
-    connectDeriv(ws);
-  }
-}, 10000);
+
 });
