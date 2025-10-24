@@ -327,7 +327,18 @@ function initTable()
   }
 
   function isWsReady(ws,authorized){
-    return ws && ws.readyState === WebSocket.OPEN && authorized;
+    
+    let flag;
+    if (ws && ws.readyState === WebSocket.OPEN && authorized)
+     {
+       flag = true;
+     }
+    else
+     {
+      flag = false;
+     }
+
+    return flag;
   }
 
   // canvas
@@ -1191,6 +1202,12 @@ connectBtn.onclick = () => {
     }
   };
   connectBtn.textContent = "Disconnect";
+  // Rafraîchissement automatique
+  setInterval(() => {
+    if (ws && ws.readyState === WebSocket.OPEN && authorized) {
+      connectDeriv(ws);
+    }
+  }, 2000);
  };
 
 
@@ -1235,10 +1252,4 @@ connectBtn.onclick = () => {
 // ===============================================================
 // 🔁 Rafraîchissement automatique du portefeuille toutes les 10s
 // ===============================================================
- setInterval(() => {
-  //logHistory("Server Open : " + isWsReady(ws,authorized));
-  if (isWsReady(ws,authorized)) {
-    connectDeriv(ws); 
-  }
- }, 10000);
 });
