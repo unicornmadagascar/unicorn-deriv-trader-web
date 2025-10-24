@@ -1,5 +1,3 @@
-import { createChart } from 'lightweight-charts';
-
 // app.js - Unicorn Madagascar (version moderne, fonctionnelle)
 document.addEventListener("DOMContentLoaded", () => {
     const APP_ID = 105747;
@@ -177,4 +175,3 @@ document.addEventListener("DOMContentLoaded", () => {
         if(chart) chart.resize(chartContainer.clientWidth, chartContainer.clientHeight);
     });
 });
-
