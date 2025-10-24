@@ -1046,12 +1046,17 @@ connectBtn.onclick = () => {
         userBalance.textContent = `Balance: ${bal} ${cur}`;
         logHistory(`Balance updated: ${bal} ${cur}`);
         break;
+      
+      case "tick" && data.tick:
+        handleTick(data.tick);
+        break;
 
       case "portfolio":
         handlePortfolio(data);
         break;
 
       case "proposal_open_contract":
+        drawChart();
         handleContractDetails(data);
         break;
 
@@ -1075,13 +1080,6 @@ connectBtn.onclick = () => {
       updatePLGaugeDisplay(totalPL);
     });
   }, 5000);
-  
-  // --- 🔹 Gestion du "Select All" ---
-  document.addEventListener("change", e => {
-    if (e.target.id === "selectAll") {
-      document.querySelectorAll(".rowSelect").forEach(cb => cb.checked = e.target.checked);
-    }
-  });
 
  // ===============================================================
 // 🗑 Gestion suppression de lignes
