@@ -292,17 +292,7 @@ function initTable()
   }
 
    // --- 🧱 Connexion WebSocket
-  function connectDeriv() {
-    //ws = new WebSocket(WS_URL);
-
-    /* ws.onopen = () => {
-      console.log("🔗 Connected");
-      ws.send(JSON.stringify({ authorize: token }));
-    }; */
-
-    ws.onmessage = (msg) => {
-      const data = JSON.parse(msg.data);
-
+  function connectDeriv(ws, data) {
       switch (data.msg_type) {
         case "authorize":
           console.log("✅ Authorized, fetching open contracts...");
@@ -320,7 +310,6 @@ function initTable()
         default:
           break;
       }
-   };
 
     ws.onerror = (err) => console.error("❌ WebSocket error:", err);
     ws.onclose = () => console.log("🔴 Disconnected");
@@ -1202,10 +1191,11 @@ connectBtn.onclick = () => {
     }
   };
   connectBtn.textContent = "Disconnect";
+
   // Rafraîchissement automatique
   setInterval(() => {
     if (ws && ws.readyState === WebSocket.OPEN && authorized) {
-      connectDeriv(ws);
+      ws.send(JSON.stringify({ portfolio: 1 }));
     }
   }, 2000);
  };
@@ -1252,4 +1242,32 @@ connectBtn.onclick = () => {
 // ===============================================================
 // 🔁 Rafraîchissement automatique du portefeuille toutes les 10s
 // ===============================================================
+setInterval(() => {
+  isWsReady(flag => {
+
+    if (!flag) {
+       ws = new WebSocket(WS_URL);
+       ws.onopen = () => {
+          ws.send(JSON.stringify({ authorize: tokenInput.value.trim() }));
+       };
+
+       ws.onmessage = (msg) => {
+          const data = JSON.parse(msg.data);
+          connectDeriv(ws, data);
+       };
+    }
+    else if (flag === true)
+    {
+     if (ws&&ws.readyState === WebSocket.CONNECTING) 
+     {
+      ws.send(JSON.stringify({ portfolio : 1, subscribe : 1 }));
+      ws.onmessage = (msgh) => {
+        const datah = JSON.parse(msgh.data);
+        if (datah.msg_type === "portfolio")
+          connectDeriv(ws,datah);
+        }
+      };
+     }
+    });
+}, 10000);
 });
