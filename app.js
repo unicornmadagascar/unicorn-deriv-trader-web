@@ -10,7 +10,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const statusSpan = document.getElementById("status");
   const userBalance = document.getElementById("userBalance");
   const symbolList = document.getElementById("symbolList");
-  const chartInner = document.getElementById("chartInner");
+  //const chartInner = document.getElementById("chartInner");
+  const chartContainer = document.getElementById("chartInner");
   const gaugeDashboard = document.getElementById("gaugeDashboard");
   const buyBtn = document.getElementById("buyBtn");
   const sellBtn = document.getElementById("sellBtn");
@@ -316,7 +317,7 @@ function initTable()
   }
 
   // canvas
-  function initCanvas(){
+  /*function initCanvas(){
     chartInner.innerHTML = "";
     canvas = document.createElement("canvas");
     canvas.width = chartInner.clientWidth;
@@ -327,7 +328,7 @@ function initTable()
     ctx = canvas.getContext("2d");
     canvas.addEventListener("mousemove", canvasMouseMove);
     canvas.addEventListener("mouseleave", ()=>{ tooltip.style.display="none"; });
-  }
+  }*/
 
   // gauges
   function initGauges(){
@@ -457,7 +458,7 @@ function getEntryPrices(callback) {
 
 
 // --- Ta fonction drawChart modifiée avec affichage des Entry Prices ---
-function drawChart() {
+/*function drawChart() {
   if (!ctx || chartData.length === 0) return;
   const padding = 50;
   const w = canvas.width - padding * 2;
@@ -614,7 +615,77 @@ function drawChart() {
       ctx.fillText(`Entry ${i + 1}: ${price.toFixed(2)}`, xEnd - 4, y - 8);
     });
   });
-}
+} */
+
+  // Crée le chart principal
+  const chart = LightweightCharts.createChart(chartContainer, {
+    layout: {
+      background: { color: getComputedStyle(document.body).getPropertyValue("--bg-panel").trim() },
+      textColor: getComputedStyle(document.body).getPropertyValue("--text-main").trim(),
+    },
+    grid: {
+      vertLines: { color: getComputedStyle(document.body).getPropertyValue("--border").trim() },
+      horzLines: { color: getComputedStyle(document.body).getPropertyValue("--border").trim() },
+    },
+    crosshair: {
+      mode: LightweightCharts.CrosshairMode.Normal,
+    },
+    timeScale: {
+      timeVisible: true,
+      secondsVisible: true,
+    },
+    width: chartContainer.clientWidth,
+    height: 500,
+  });
+
+  // Série principale (ligne simple)
+  const priceSeries = chart.addLineSeries({
+    color: getComputedStyle(document.body).getPropertyValue("--accent").trim(),
+    lineWidth: 2,
+  });
+
+  // Label de dernier prix
+  const lastPriceLabel = document.createElement("div");
+  lastPriceLabel.className = "lastPriceLabel";
+  chartContainer.appendChild(lastPriceLabel);
+
+  // Adapter le chart à la taille du conteneur
+  window.addEventListener("resize", () => {
+    chart.applyOptions({ width: chartContainer.clientWidth });
+  });
+
+  // 🔄 Fonction d’update du thème clair/sombre
+  function applyChartTheme() {
+    const styles = getComputedStyle(document.body);
+    chart.applyOptions({
+      layout: {
+        background: { color: styles.getPropertyValue("--bg-panel").trim() },
+        textColor: styles.getPropertyValue("--text-main").trim(),
+      },
+      grid: {
+        vertLines: { color: styles.getPropertyValue("--border").trim() },
+        horzLines: { color: styles.getPropertyValue("--border").trim() },
+      },
+    });
+  }
+
+  // =============================================================
+  // ⚡ MISE À JOUR LIVE DES TICKS DE DERIV
+  // =============================================================
+
+  // Fonction appelée à chaque tick Deriv
+  function updateChartFromTick(tick) {
+    if (!tick || !tick.quote || !tick.epoch) return;
+
+    const price = parseFloat(tick.quote);
+    priceSeries.update({
+      time: tick.epoch, // timestamp en secondes
+      value: price,
+    });
+
+    // Met à jour le label du dernier prix
+    lastPriceLabel.textContent = price.toFixed(3);
+  }
 
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
@@ -805,7 +876,7 @@ function initPLGauge() {
   updatePLGaugeDisplay(0);
 }
 
-  function canvasMouseMove(e){
+  /*function canvasMouseMove(e){
     if(!canvas||chartData.length===0) return;
     const rect=canvas.getBoundingClientRect();
     const mouseX=e.clientX-rect.left;
@@ -819,7 +890,7 @@ function initPLGauge() {
     trades.forEach(tr=>{ if(tr.symbol!==currentSymbol) return; tradesHtml+=`<div style="color:${tr.type==="BUY"?"#0ea5a4":"#ef4444"}">${tr.type} @ ${formatNum(tr.entry)} stake:${tr.stake} mult:${tr.multiplier}</div>`; });
     tooltip.style.display="block"; tooltip.style.left=(e.clientX+12)+"px"; tooltip.style.top=(e.clientY-36)+"px";
     tooltip.innerHTML=`<div><strong>${currentSymbol}</strong></div><div>Price: ${formatNum(price)}</div><div>Time: ${time}</div>${tradesHtml}`;
-  }
+  }*/
 
   //--- Trades (New)
   function executeTrade(type){
@@ -1145,6 +1216,19 @@ connectBtn.onclick=()=>{
     });
   }
 });
+
+ // Appel initial du thème
+  applyChartTheme();
+
+  // 🔁 Réappliquer le thème quand on change de mode (☀️/🌙)
+  document.getElementById("themeToggle").addEventListener("click", () => {
+    setTimeout(applyChartTheme, 200);
+  });
+
+// On expose cette fonction globalement pour l’utiliser ailleurs dans app.js
+  window.updateChartFromTick = updateChartFromTick;
+
+  console.log("✅ Lightweight Chart initialized successfully.");
 
 // ===============================================================
 // 🔁 Rafraîchissement automatique du portefeuille toutes les 10s
