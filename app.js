@@ -1138,18 +1138,7 @@ connectBtn.onclick=()=>{
 setInterval(() => {
     logHistory("WS State : " + ws.readyState);
     logHistory("WS State : " + authorized);
-    if (ws.readyState === WebSocket.CLOSED) {
-       ws = new WebSocket(WS_URL);
-       ws.onopen = () => {
-          ws.send(JSON.stringify({ authorize: tokenInput.value.trim() }));
-       };
-
-       ws.onmessage = (msg) => {
-          const data = JSON.parse(msg.data);
-          connectDeriv(ws, data);
-       };
-    }
-    else if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)
+    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)
     {
       if (ws.readyState === WebSocket.OPEN)
       {
@@ -1170,5 +1159,5 @@ setInterval(() => {
         };
       }
     }
-}, 60000);
+}, 10000);
 });
