@@ -1043,24 +1043,53 @@ closeBtnAll.onclick=()=>{
 // 4️⃣ Connect / Disconnect
 // ==========================
 connectBtn.onclick=()=>{
-    if(ws&&ws.readyState===WebSocket.OPEN){ ws.close(); ws=null; setStatus("Disconnected"); connectBtn.textContent="Connect"; return; }
+    if(ws&&ws.readyState===WebSocket.OPEN)
+    { ws.close(); 
+      ws=null; 
+      setStatus("Disconnected"); 
+      connectBtn.textContent="Connect"; 
+      return;
+    }
+
     const token=tokenInput.value.trim();
-    if(!token){ setStatus("Simulation Mode"); logHistory("Running in simulation (no token)"); return; }
+    if(!token)
+    { setStatus("Simulation Mode"); 
+      logHistory("Running in simulation (no token)"); 
+      return; 
+    }
+
     ws=new WebSocket(WS_URL);
     setStatus("Connecting...");
-    ws.onopen=()=>{ setStatus("Connected, authorizing..."); ws.send(JSON.stringify({ authorize: token })); };
-    ws.onclose=()=>{ setStatus("Disconnected"); logHistory("WS closed"); };
+    ws.onopen=()=>{ 
+      setStatus("Connected, authorizing..."); 
+      ws.send(JSON.stringify({ authorize: token })); 
+   };
+
+    ws.onclose=()=>{ 
+      setStatus("Disconnected"); 
+      logHistory("WS closed"); 
+    };
+
     ws.onerror=e=>{ logHistory("WS error "+JSON.stringify(e)); };
     ws.onmessage=msg=>{
       const data=JSON.parse(msg.data);
-      if(data.msg_type==="authorize"){
-        if(!data.authorize?.loginid){ setStatus("Simulation Mode (Token invalid)"); logHistory("Token not authorized"); return; }
-        authorized=true; setStatus(`Connected: ${data.authorize.loginid}`); logHistory("Authorized: "+data.authorize.loginid);
+      if(data.msg_type==="authorize")
+      {
+        if(!data.authorize?.loginid)
+        { setStatus("Simulation Mode (Token invalid)"); 
+          logHistory("Token not authorized"); 
+          return; 
+        }
+
+        authorized=true; 
+        setStatus(`Connected: ${data.authorize.loginid}`); 
+        logHistory("Authorized: "+data.authorize.loginid);
         ws.send(JSON.stringify({ balance:1, subscribe:1 }));
         volatilitySymbols.forEach(sym=>subscribeTicks(sym));
       }
 
-      if(data.msg_type==="balance"&&data.balance){ 
+      if(data.msg_type==="balance"&&data.balance)
+      { 
         const bal=parseFloat(data.balance.balance||0).toFixed(2); 
         const cur=data.balance.currency||"USD"; 
         userBalance.textContent=`Balance: ${bal} ${cur}`; 
@@ -1070,11 +1099,11 @@ connectBtn.onclick=()=>{
       if(data.msg_type==="tick"&&data.tick) handleTick(data.tick);
 
       // Trade confirmation
-      if(data.msg_type==="proposal_open_contract" && data.proposal_open_contract){
+      /*if(data.msg_type==="proposal_open_contract" && data.proposal_open_contract){
         const poc = data.proposal_open_contract;
         logHistory(`Trade confirmed: Entry = ${poc.entry_spot}`);
         drawChart();
-      } 
+      }*/
     };
     connectBtn.textContent="Disconnect";
   };
@@ -1122,7 +1151,7 @@ connectBtn.onclick=()=>{
 // ===============================================================
 setInterval(() => {
     logHistory("WS Authorization : " + authorized);
-    if (authorized)
+    if (authorized===true)
     {
       if (ws.readyState === WebSocket.OPEN)
       {
@@ -1136,10 +1165,6 @@ setInterval(() => {
         ws.onmessage = (msg) => {
           const data = JSON.parse(msg.data);
           connectDeriv(ws, data);
-          if (data.msg_type === "authorize")
-           {
-            logHistory("Re-authorization successful.");
-           }
         };
       }
     }
