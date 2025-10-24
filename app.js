@@ -292,7 +292,7 @@ function initTable()
   }
 
    // --- 🧱 Connexion WebSocket
-  function connectDeriv(ws) {
+  function connectDeriv() {
     //ws = new WebSocket(WS_URL);
 
     /* ws.onopen = () => {
