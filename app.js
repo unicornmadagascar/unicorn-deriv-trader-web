@@ -1109,7 +1109,6 @@ connectBtn.onclick = () => {
       logHistory("Authorized: " + data.authorize.loginid);
 
       ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-      isWsReady(ws,authorized);
       volatilitySymbols.forEach((sym) => subscribeTicks(sym));
       ws.send(JSON.stringify({ portfolio: 1, subscribe: 1 }));
     }
@@ -1243,7 +1242,7 @@ connectBtn.onclick = () => {
 // 🔁 Rafraîchissement automatique du portefeuille toutes les 10s
 // ===============================================================
 setInterval(() => {
-    logHistory("WS Open : " + isWsReady(ws,authorized));
+    logHistory("WS State : " + ws.readyState);
     if (!isWsReady(ws,authorized)) {
        ws = new WebSocket(WS_URL);
        ws.onopen = () => {
