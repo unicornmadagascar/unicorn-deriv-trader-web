@@ -207,7 +207,7 @@ function initTable()
 
   // --- 💰 Ferme un contrat
   function closeContract(contract_id) {
-    ws.send(JSON.stringify({ sell: contract_id, price: 0 }));
+    ws.send(JSON.stringify({ sell: contract_id.trim(), price: 0 }));
     console.log("🚪 Closing contract:", contract_id);
   }
 
