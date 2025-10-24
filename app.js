@@ -312,7 +312,7 @@ function initTable()
       }
 
     ws.onerror = (err) => console.error("❌ WebSocket error:", err);
-    ws.onclose = () => console.log("🔴 Disconnected");
+    //ws.onclose = () => console.log("🔴 Disconnected");
   }
 
   function isWsReady(ws,authorized){
