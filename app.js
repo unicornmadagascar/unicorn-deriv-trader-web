@@ -1,6 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
     const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=105747`;
 
+    // UI Elements
     const tokenInput = document.getElementById("tokenInput");
     const connectBtn = document.getElementById("connectBtn");
     const statusSpan = document.getElementById("status");
@@ -32,14 +33,16 @@ document.addEventListener("DOMContentLoaded", () => {
             width: chartContainer.clientWidth,
             height: chartContainer.clientHeight,
             layout: { background: { type: 'solid', color: 'white' }, textColor: 'black' },
-            grid: { vertLines:{color:"#eee"}, horzLines:{color:"#eee"} }
+            grid: { vertLines:{color:"#eee"}, horzLines:{color:"#eee"} },
+            timeScale: { rightOffset: 5, barSpacing: 15, fixRightEdge: true, lockVisibleTimeRangeOnResize: false }
         });
         areaSeries = chart.addSeries(LightweightCharts.AreaSeries, {
             lineColor: '#2962FF',
-            topColor: '#2962FF',
-            bottomColor: 'rgba(41, 98, 255, 0.28)',
+            topColor: 'rgba(41, 98, 255, 0.28)',
+            bottomColor: 'rgba(41, 98, 255, 0.05)',
             lineWidth: 2
         });
+        chartData = [];
     }
 
     // ------------------ Symbols List ------------------
@@ -61,7 +64,6 @@ document.addEventListener("DOMContentLoaded", () => {
         document.querySelectorAll(".symbolItem").forEach(e => e.classList.remove("selected"));
         const el = document.getElementById(`symbol-${sym}`);
         if(el) el.classList.add("selected");
-        chartData = [];
         initChart();
         subscribeTicks(sym);
     }
@@ -83,6 +85,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if(data.msg_type === "authorize" && data.authorize?.loginid){
                 setStatus(`Connected: ${data.authorize.loginid}`);
                 authorized = true;
+                // Subscribe all symbols
                 volatilitySymbols.forEach(sym => subscribeTicks(sym));
             }
 
@@ -123,6 +126,7 @@ document.addEventListener("DOMContentLoaded", () => {
             chartData.push({ time, value: p });
             if(chartData.length > 600) chartData.shift();
             areaSeries.setData(chartData);
+            chart.timeScale().fitContent(); // Ajuste automatiquement l’axe du temps
         }
     }
 
@@ -132,10 +136,12 @@ document.addEventListener("DOMContentLoaded", () => {
         connectDeriv(token);
     };
 
+    // ------------------ Init ------------------
     initSymbols();
     initChart();
 
+    // ------------------ Resize ------------------
     window.addEventListener("resize", () => {
-        chart.resize(chartContainer.clientWidth, chartContainer.clientHeight);
+        if(chart) chart.resize(chartContainer.clientWidth, chartContainer.clientHeight);
     });
 });
