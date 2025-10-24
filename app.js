@@ -170,44 +170,56 @@ function initTable() {
 // ===============================================================
 // 🧱 Fonction d’ajout / mise à jour d’un trade (LIVE)
 // ===============================================================
+ // ============================================================
+// 📊 Ajoute ou met à jour une ligne de contrat dans le tableau
+// ============================================================
 function addTradeRow(c) {
   const autoTradeBody = document.getElementById("autoTradeBody");
+  if (!autoTradeBody || !c.contract_id) return;
+
   const contract_id = c.contract_id;
-  const time = new Date(c.date_start * 1000).toLocaleTimeString();
+  const time = c.date_start
+    ? new Date(c.date_start * 1000).toLocaleTimeString()
+    : "-";
   const type = c.is_buy ? "BUY" : "SELL";
-  const stake = c.buy_price || 0;
+  const stake = c.buy_price ? Number(c.buy_price).toFixed(2) : "0.00";
   const multiplier = c.multiplier || "-";
   const entry = c.entry_tick || "-";
   const tp = c.take_profit || "-";
   const sl = c.stop_loss || "-";
-  const profit = c.profit !== undefined
-    ? (c.profit >= 0 ? `+${c.profit.toFixed(2)}` : c.profit.toFixed(2))
-    : "-";
+  const profit =
+    c.profit !== undefined
+      ? (c.profit >= 0 ? `+${c.profit.toFixed(2)}` : c.profit.toFixed(2))
+      : "-";
 
-  // Vérifie si la ligne existe déjà
+  // 🔍 Vérifie si la ligne existe déjà
   let tr = autoTradeBody.querySelector(`[data-contract='${contract_id}']`);
 
-  // Si le contrat est vendu => supprimer la ligne
+  // 🟢 Si le contrat est vendu → supprimer la ligne
   if (c.is_sold) {
-    if (tr) tr.remove();
-    logHistory(`✅ Contract ${contract_id} closed.`);
+    if (tr) {
+      tr.remove();
+      logHistory(`✅ Contract ${contract_id} closed.`);
+    }
     return;
   }
 
+  // 🆕 Si le contrat n’existe pas encore → créer une nouvelle ligne
   if (!tr) {
     tr = document.createElement("tr");
     tr.dataset.contract = contract_id;
+
     tr.innerHTML = `
       <td><input type="checkbox" class="rowSelect"></td>
       <td>${time}</td>
       <td>${contract_id}</td>
       <td class="${type === "BUY" ? "buy" : "sell"}">${type}</td>
-      <td>${Number(stake).toFixed(2)}</td>
+      <td>${stake}</td>
       <td>${multiplier}</td>
       <td>${entry}</td>
       <td>${tp}</td>
       <td>${sl}</td>
-      <td>${profit}</td>
+      <td class="profitCell">${profit}</td>
       <td>
         <button class="deleteRowBtn"
           style="background:#ef4444;border:none;color:white;border-radius:4px;
@@ -215,11 +227,22 @@ function addTradeRow(c) {
       </td>
     `;
     autoTradeBody.appendChild(tr);
+
+    // ⚙️ Bouton de fermeture
+    const closeBtn = tr.querySelector(".deleteRowBtn");
+    closeBtn.addEventListener("click", () => {
+      logHistory(`🟠 Closing contract ${contract_id}...`);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ sell: contract_id, price: 0 }));
+      }
+    });
   } else {
-    // Mise à jour du profit
-    tr.cells[9].textContent = profit;
+    // 🔁 Met à jour le profit si le contrat existe déjà
+    const profitCell = tr.querySelector(".profitCell");
+    if (profitCell) profitCell.textContent = profit;
   }
 }
+
 
 // ===============================================================
 // 📡 Fonctions API Deriv
@@ -989,140 +1012,106 @@ closeBtnAll.onclick=()=>{
     }
   }
 
-// ===============================================================
-// 🧱 Connexion principale sur connectBtn
-// ===============================================================
+ // ================================================
+// 🔌 Bouton de connexion (connectBtn)
+// Compatible avec addTradeRow()
+// ================================================
+
 connectBtn.onclick = () => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.close(); ws = null;
-        setStatus("Disconnected");
-        connectBtn.textContent = "Connect";
-        return;
+  const token = tokenInput.value.trim();
+  if (!token) {
+    logHistory("⚠️ Please enter your Deriv API token.");
+    return;
+  }
+
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    logHistory("✅ Already connected to Deriv.");
+    return;
+  }
+
+  const APP_ID = 105747;
+  const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    logHistory("🔗 Connected to Deriv, authorizing...");
+    ws.send(JSON.stringify({ authorize: token }));
+  };
+
+  ws.onmessage = (msg) => {
+    const data = JSON.parse(msg.data);
+
+    // --- Autorisation réussie ---
+    if (data.msg_type === "authorize") {
+      authorized = true;
+      logHistory(`✅ Authorized as ${data.authorize.loginid}`);
+      ws.send(JSON.stringify({ portfolio: 1 }));
     }
 
-    const token = tokenInput.value.trim();
-    if (!token) {
-        setStatus("Simulation Mode");
-        logHistory("Running in simulation (no token)");
-        return;
+    // --- Réception du portefeuille ---
+    if (data.msg_type === "portfolio") {
+      const contracts = data.portfolio.contracts;
+      if (contracts && contracts.length > 0) {
+        contracts.forEach((c) => {
+          const contractData = {
+            contract_id: c.contract_id,
+            date_start: c.date_start,
+            is_buy: c.is_buy,
+            buy_price: c.buy_price,
+            multiplier: c.multiplier,
+            entry_tick: c.entry_tick,
+            take_profit: c.take_profit,
+            stop_loss: c.stop_loss,
+            profit: c.profit,
+            is_sold: c.is_sold,
+          };
+          addTradeRow(contractData);
+        });
+      } else {
+        logHistory("ℹ️ No open contracts in portfolio.");
+      }
     }
 
-    ws = new WebSocket(WS_URL);
-    setStatus("Connecting...");
+    // --- Contrat mis à jour en direct ---
+    if (data.msg_type === "proposal_open_contract") {
+      const c = data.proposal_open_contract;
+      if (!c) return;
 
-    ws.onopen = () => {
-        setStatus("Connected, authorizing...");
-        ws.send(JSON.stringify({ authorize: token }));
-    };
+      const contractData = {
+        contract_id: c.contract_id,
+        date_start: c.date_start,
+        is_buy: c.is_buy,
+        buy_price: c.buy_price,
+        multiplier: c.multiplier,
+        entry_tick: c.entry_tick,
+        take_profit: c.take_profit,
+        stop_loss: c.stop_loss,
+        profit: c.profit,
+        is_sold: c.is_sold,
+      };
 
-    ws.onclose = () => { 
-        setStatus("Disconnected");
-        logHistory("WS closed");
-        authorized = false;
-    };
+      addTradeRow(contractData);
+    }
 
-    ws.onerror = e => { logHistory("WS error "+JSON.stringify(e)); };
+    // --- Erreurs éventuelles ---
+    if (data.error) {
+      logHistory(`❌ Error: ${data.error.message}`);
+    }
+  };
 
-    ws.onmessage = msg => {
-        const data = JSON.parse(msg.data);
+  ws.onclose = () => {
+    authorized = false;
+    logHistory("🔴 Disconnected from Deriv server.");
+  };
 
-        // ----------------------
-        // Autorisation
-        // ----------------------
-        if (data.msg_type === "authorize") {
-            if (!data.authorize?.loginid) {
-                setStatus("Simulation Mode (Token invalid)");
-                logHistory("Token not authorized");
-                return;
-            }
-            authorized = true;
-            setStatus(`Connected: ${data.authorize.loginid}`);
-            logHistory("Authorized: " + data.authorize.loginid);
+  // --- Rafraîchissement automatique du portefeuille toutes les 10s ---
+  setInterval(() => {
+    if (ws && ws.readyState === WebSocket.OPEN && authorized) {
+      ws.send(JSON.stringify({ portfolio: 1 }));
+    }
+  }, 10000);
+};
 
-            // Abonnement aux balances et ticks
-            ws.send(JSON.stringify({ balance:1, subscribe:1 }));
-            volatilitySymbols.forEach(sym => subscribeTicks(sym));
-
-            // ----------------------
-            // Abonnement aux contrats ouverts (portfolio)
-            // ----------------------
-            ws.send(JSON.stringify({ portfolio: 1, subscribe: 1 }));
-        }
-
-        // ----------------------
-        // Balance
-        // ----------------------
-        if (data.msg_type === "balance" && data.balance) { 
-            const bal = parseFloat(data.balance.balance||0).toFixed(2); 
-            const cur = data.balance.currency||"USD"; 
-            userBalance.textContent = `Balance: ${bal} ${cur}`; 
-            logHistory(`Balance updated: ${bal} ${cur}`); 
-        }
-
-        // ----------------------
-        // Tick
-        // ----------------------
-        if (data.msg_type === "tick" && data.tick) handleTick(data.tick);
-
-        // ----------------------
-        // Trade confirmation
-        // ----------------------
-        if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
-            const poc = data.proposal_open_contract;
-            logHistory(`Trade confirmed: Entry = ${poc.entry_spot}`);
-            drawChart();
-
-            // ----------------------
-            // Ajouter la ligne au tableau
-            // ----------------------
-            const trade = {
-                time: new Date((poc.date_start || Date.now()) ).toLocaleTimeString(),
-                contract_id: poc.contract_id,
-                type: poc.contract_type.includes("CALL") ? "BUY" : "SELL",
-                stake: parseFloat(poc.buy_price || 0),
-                multiplier: poc.multiplier || "-",
-                entry_spot: poc.entry_tick ?? "-",
-                tp: poc.take_profit ?? "-",
-                sl: poc.stop_loss ?? "-",
-                profit: poc.profit !== undefined ? (poc.profit>=0?`+${poc.profit.toFixed(2)}`:poc.profit.toFixed(2)) : "-"
-            };
-            addTradeRow(trade);
-        }
-
-        // ----------------------
-        // Portfolio: mise à jour du tableau
-        // ----------------------
-        if (data.msg_type === "portfolio" && data.portfolio) {
-            const contracts = data.portfolio.contracts || [];
-            autoTradeBody.innerHTML = ""; // reset
-            contracts.forEach(c => {
-                const trade = {
-                    time: new Date((c.purchase_time || Date.now())*1000).toLocaleTimeString(),
-                    contract_id: c.contract_id,
-                    type: c.contract_type.includes("CALL") ? "BUY" : "SELL",
-                    stake: parseFloat(c.buy_price || 0),
-                    multiplier: c.multiplier || "-",
-                    entry_spot: c.entry_tick ?? "-",
-                    tp: c.take_profit ?? "-",
-                    sl: c.stop_loss ?? "-",
-                    profit: c.profit !== undefined ? (c.profit>=0?`+${c.profit.toFixed(2)}`:c.profit.toFixed(2)) : "-"
-                };
-                addTradeRow(trade);
-            });
-        }
-
-        // ----------------------
-        // Sell / fermeture des contrats
-        // ----------------------
-        if (data.msg_type === "sell" && data.sell) {
-            console.log("💰 Sell response:", data.sell.contract_id);
-            // rafraîchir le tableau après fermeture
-            ws.send(JSON.stringify({ portfolio:1 }));
-        }
-    };
-
-    connectBtn.textContent = "Disconnect";
- };
 
   initSymbols();
   selectSymbol(volatilitySymbols[0]);
