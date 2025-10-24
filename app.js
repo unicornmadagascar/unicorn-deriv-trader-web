@@ -202,7 +202,7 @@ function initTable()
 
   // --- 🔄 S’abonne aux détails d’un contrat
   function subscribeContractDetails(contract_id) {
-     ws.send(JSON.stringify({ proposal_open_contract: 1, contract_id, subscribe: 1 }));
+     ws.send(JSON.stringify({ proposal_open_contract: 1, contract_id : contract_id, subscribe: 1 }));
   }
 
   // --- 💰 Ferme un contrat
@@ -1269,5 +1269,5 @@ setInterval(() => {
         };
       }
     }
-}, 10000);
+}, 20000);
 });
