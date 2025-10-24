@@ -1,150 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🦄 Unicorn Madagascar - Deriv Trader</title>
-  <style>
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      margin: 0;
-      padding: 0;
-      background-color: #f5f6fa;
-      color: #333;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🦄 Unicorn Madagascar — Deriv Trader</title>
+<style>
+    body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f5f5f5; }
+    header { background:#3b82f6; color:#fff; padding:12px 20px; font-size:18px; font-weight:bold; }
+    #controls { display:flex; align-items:center; gap:10px; padding:10px 20px; background:#e0e7ff; }
+    #tokenInput { padding:6px 10px; flex:1; border-radius:4px; border:1px solid #ccc; }
+    #connectBtn { padding:6px 14px; background:#3b82f6; color:#fff; border:none; border-radius:4px; cursor:pointer; }
+    #connectBtn:hover { background:#2563eb; }
+    #status { margin-left:10px; font-weight:bold; }
+    #userBalance { margin-left:auto; font-weight:bold; }
 
-    header {
-      background-color: #3b82f6;
-      color: #fff;
-      padding: 12px 20px;
-      font-size: 1.2em;
-      font-weight: bold;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
+    #main { display:flex; height:calc(100vh - 100px); padding:10px 20px; gap:20px; }
+    #symbolList { width:180px; background:#fff; border-radius:8px; padding:10px; overflow-y:auto; box-shadow:0 2px 6px rgba(0,0,0,0.1); }
+    .symbolItem { cursor:pointer; padding:8px 12px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;
+                  border-radius:6px; transition:all 0.2s ease; background:#fff; }
+    .symbolItem:hover { background:#e5f1ff; }
+    .symbolItem[data-selected="true"] { background:#d0e8ff; font-weight:bold; }
 
-    #mainContainer {
-      display: flex;
-      height: calc(100vh - 50px);
-      padding: 10px;
-      gap: 10px;
-    }
-
-    #symbolList {
-      width: 220px;
-      background: #fff;
-      border-radius: 10px;
-      padding: 10px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      overflow-y: auto;
-    }
-
-    .symbolItem {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 12px;
-      margin-bottom: 6px;
-      border-radius: 8px;
-      background: #fff;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      font-weight: 500;
-      font-size: 0.95em;
-    }
-
-    .symbolItem:hover {
-      background: #e0f0ff;
-      transform: translateX(3px);
-    }
-
-    .symbolItem.active {
-      background: #3b82f6;
-      color: #fff;
-      font-weight: bold;
-    }
-
-    #chartContainer {
-      flex: 1;
-      background: #fff;
-      border-radius: 10px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      position: relative;
-    }
-
-    #topBar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 12px;
-      margin-bottom: 8px;
-      background: #fff;
-      border-radius: 10px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-    }
-
-    input[type="text"] {
-      padding: 6px 10px;
-      border-radius: 6px;
-      border: 1px solid #ccc;
-      outline: none;
-      width: 250px;
-    }
-
-    button {
-      padding: 6px 14px;
-      background-color: #3b82f6;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: 0.2s ease;
-    }
-
-    button:hover {
-      background-color: #2563eb;
-    }
-
-    #userBalance, #status {
-      font-size: 0.9em;
-      margin-left: 10px;
-    }
-
-    #chartInner {
-      width: 100%;
-      height: calc(100% - 0px);
-      border-radius: 10px;
-    }
-  </style>
+    #chartInner { flex:1; background:#fff; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.1); }
+</style>
 </head>
 <body>
-  <header>
-    🦄 Unicorn Madagascar — Deriv Trader
-    <div>
-      <span id="status">Disconnected</span>
-      <span id="userBalance"></span>
-    </div>
-  </header>
 
-  <div id="mainContainer">
-    <div id="symbolList">
-      <!-- Symbols injected here -->
-    </div>
+<header>🦄 Unicorn Madagascar — Deriv Trader</header>
 
-    <div id="chartContainer">
-      <div id="chartInner"></div>
-    </div>
-  </div>
-
-  <div id="topBar">
-    <input type="text" id="tokenInput" placeholder="Enter your Deriv API token">
+<div id="controls">
+    <input type="text" id="tokenInput" placeholder="Enter your Deriv API Token">
     <button id="connectBtn">Connect</button>
-  </div>
+    <span id="status">Disconnected</span>
+    <span id="userBalance">Balance: 0</span>
+</div>
 
-  <!-- Lightweight Charts -->
-   <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
-  <!-- App JS -->
-  <script src="app.js"></script>
+<div id="main">
+    <div id="symbolList"></div>
+    <div id="chartInner"></div>
+</div>
+
+<script type="module" src="app.js"></script>
+
 </body>
 </html>

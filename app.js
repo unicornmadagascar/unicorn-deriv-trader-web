@@ -1,3 +1,6 @@
+// app.js - Unicorn Madagascar (ES Module version)
+import { createChart, AreaSeries } from 'https://unpkg.com/lightweight-charts@8.5.0/dist/lightweight-charts.esm.browser.js';
+
 document.addEventListener("DOMContentLoaded", () => {
     const APP_ID = 105747;
     const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
@@ -24,19 +27,19 @@ document.addEventListener("DOMContentLoaded", () => {
     ];
 
     // ------------------ Helpers ------------------
-    function formatNum(n){ return Number(n).toFixed(2); }
-    function setStatus(txt){ statusSpan.textContent = txt; }
+    const formatNum = n => Number(n).toFixed(2);
+    const setStatus = txt => statusSpan.textContent = txt;
 
     // ------------------ Init Chart ------------------
     function initChart() {
         chartContainer.innerHTML = "";
-        chart = LightweightCharts.createChart(chartContainer, {
+        chart = createChart(chartContainer, {
             width: chartContainer.clientWidth,
             height: chartContainer.clientHeight,
             layout: { backgroundColor: "#fff", textColor: "#333" },
             grid: { vertLines:{color:"#eee"}, horzLines:{color:"#eee"} },
         });
-        areaSeries = chart.addAreaSeries({
+        areaSeries = chart.addSeries(AreaSeries, {
             topColor: "rgba(59,130,246,0.3)",
             bottomColor: "rgba(59,130,246,0.05)",
             lineColor: "#3b82f6",
@@ -51,8 +54,8 @@ document.addEventListener("DOMContentLoaded", () => {
             const el = document.createElement("div");
             el.className = "symbolItem";
             el.style.cursor = "pointer";
-            el.style.padding = "6px 10px";
-            el.style.marginBottom = "2px";
+            el.style.padding = "8px 12px";
+            el.style.marginBottom = "4px";
             el.style.backgroundColor = "#fff";
             el.style.display = "flex";
             el.style.justifyContent = "space-between";
@@ -61,13 +64,14 @@ document.addEventListener("DOMContentLoaded", () => {
             el.style.transition = "all 0.2s ease";
             el.id = `symbol-${sym}`;
 
-            let label = sym.startsWith("BOOM") ? `BOOM ${sym.slice(4)}` :
+            const label = sym.startsWith("BOOM") ? `BOOM ${sym.slice(4)}` :
                         sym.startsWith("CRASH") ? `CRASH ${sym.slice(5)}` :
                         `VIX ${sym.split("_")[1]}`;
             el.innerHTML = `<span>${label}</span><span class="lastPrice">0</span>`;
 
-            el.onmouseenter = ()=>el.style.backgroundColor="#e0f2fe";
-            el.onmouseleave = ()=>el.style.backgroundColor= (currentSymbol===sym?"#bae6fd":"#fff");
+            el.onmouseenter = () => el.style.backgroundColor = "#e5f1ff";
+            el.onmouseleave = () => el.style.backgroundColor = el.dataset.selected === "true" ? "#d0e8ff" : "#fff";
+
             el.onclick = () => selectSymbol(sym);
 
             symbolList.appendChild(el);
@@ -76,14 +80,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function selectSymbol(sym) {
         currentSymbol = sym;
-        document.querySelectorAll(".symbolItem").forEach(e=>{
-            e.style.fontWeight="normal";
-            e.style.backgroundColor="#fff";
+        document.querySelectorAll(".symbolItem").forEach(e => {
+            e.style.fontWeight = "normal";
+            e.dataset.selected = "false";
+            e.style.backgroundColor = "#fff";
         });
         const el = document.getElementById(`symbol-${sym}`);
-        if(el){ 
-            el.style.fontWeight="bold";
-            el.style.backgroundColor="#bae6fd";
+        if(el){
+            el.style.fontWeight = "bold";
+            el.dataset.selected = "true";
+            el.style.backgroundColor = "#d0e8ff";
         }
 
         chartData = [];
@@ -104,19 +110,22 @@ document.addEventListener("DOMContentLoaded", () => {
         ws.onmessage = msg => {
             const data = JSON.parse(msg.data);
 
+            // Authorization
             if(data.msg_type === "authorize" && data.authorize?.loginid){
                 setStatus(`Connected: ${data.authorize.loginid}`);
                 authorized = true;
-                ws.send(JSON.stringify({ balance:1, subscribe:1 }));
+                // Subscribe all symbols ticks
                 volatilitySymbols.forEach(sym => subscribeTicks(sym));
             }
 
+            // Balance update
             if(data.msg_type === "balance" && data.balance){
                 const bal = parseFloat(data.balance.balance).toFixed(2);
                 const cur = data.balance.currency;
                 userBalance.textContent = `Balance: ${bal} ${cur}`;
             }
 
+            // Tick update
             if(data.msg_type === "tick" && data.tick){
                 handleTick(data.tick);
             }
@@ -163,7 +172,7 @@ document.addEventListener("DOMContentLoaded", () => {
     selectSymbol(currentSymbol);
 
     // ------------------ Resize ------------------
-    window.addEventListener("resize", ()=>{
+    window.addEventListener("resize", ()=> {
         if(chart) chart.resize(chartContainer.clientWidth, chartContainer.clientHeight);
     });
 });
