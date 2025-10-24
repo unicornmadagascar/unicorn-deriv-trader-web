@@ -112,38 +112,41 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function handleTick(tick) {
-    const p = Number(tick.quote);
-    const oldPrice = lastPrices[tick.symbol];
-    lastPrices[tick.symbol] = p;
+     const p = Number(tick.quote);
+     const oldPrice = lastPrices[tick.symbol];
+     lastPrices[tick.symbol] = p;
 
-    // Update symbol list with flash + bounce
-    const el = document.getElementById(`symbol-${tick.symbol}`);
-    if(el){
+     const el = document.getElementById(`symbol-${tick.symbol}`);
+     if(el){
         const priceEl = el.querySelector(".lastPrice");
         priceEl.textContent = formatNum(p);
 
-        // Remove old classes
+        // Supprimer anciennes classes
         priceEl.classList.remove("up","down","bounce");
+        el.classList.remove("blink");
 
         if(oldPrice !== undefined){
-            // Flash green or red
+            // Flash valeur
             if(p > oldPrice) priceEl.classList.add("up");
             else if(p < oldPrice) priceEl.classList.add("down");
 
-            // Always add bounce
+            // Rebond valeur
             priceEl.classList.add("bounce");
-        }
-    }
 
-    // Update chart if current symbol
-    if(tick.symbol === currentSymbol){
+            // Flash div complet
+            el.classList.add("blink");
+        }
+     }
+
+     // Update chart si c'est le symbole courant
+     if(tick.symbol === currentSymbol){
         const localTime = Math.floor(new Date(tick.epoch * 1000).getTime() / 1000);
         chartData.push({ time: localTime, value: p });
         if(chartData.length > 600) chartData.shift();
         areaSeries.setData(chartData);
         chart.timeScale().fitContent();
-    }
-  }
+     }
+   }
 
 
     // ------------------ Connect Button ------------------
