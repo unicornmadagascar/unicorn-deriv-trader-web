@@ -1256,6 +1256,19 @@ setInterval(() => {
     }
     else if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)
     {
+      if (ws.readyState === WebSocket.OPEN) {
+      {
+        ws.send(JSON.stringify({ authorize: tokenInput.value.trim() }));
+
+        ws.onmessage = (msg) => {
+          const data = JSON.parse(msg.data);
+          connectDeriv(ws, data);
+          if (data.msg_type === "authorize")
+           {
+              logHistory("Re-authorization successful.");
+           }
+        }
+      }
       ws.send(JSON.stringify({ portfolio : 1, subscribe : 1 }));
       ws.onmessage = (msgh) => {
         const datah = JSON.parse(msgh.data);
