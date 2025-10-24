@@ -292,13 +292,13 @@ function initTable()
   }
 
    // --- 🧱 Connexion WebSocket
-  function connectDeriv(ws) {
-    //ws = new WebSocket(WS_URL);
+  function connectDeriv() {
+    ws = new WebSocket(WS_URL);
 
-    /*ws.onopen = () => {
+    ws.onopen = () => {
       console.log("🔗 Connected");
       ws.send(JSON.stringify({ authorize: token }));
-    };*/
+    };
 
     ws.onmessage = (msg) => {
       const data = JSON.parse(msg.data);
@@ -1110,7 +1110,7 @@ connectBtn.onclick = () => {
       ws.send(JSON.stringify({ portfolio: 1, subscribe: 1 }));
       
       setInterval(() => {
-         connectDeriv(ws);
+         connectDeriv();
       }, 10000);
     }
 
