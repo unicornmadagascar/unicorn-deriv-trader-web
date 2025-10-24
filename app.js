@@ -1243,7 +1243,7 @@ connectBtn.onclick = () => {
 // ===============================================================
 setInterval(() => {
     logHistory("WS State : " + ws.readyState);
-    if (!isWsReady(ws,authorized)) {
+    if (ws.readyState === WebSocket.CLOSED) {
        ws = new WebSocket(WS_URL);
        ws.onopen = () => {
           ws.send(JSON.stringify({ authorize: tokenInput.value.trim() }));
@@ -1254,10 +1254,8 @@ setInterval(() => {
           connectDeriv(ws, data);
        };
     }
-    else if (isWsReady(ws, authorized) === true)
+    else if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)
     {
-     if (ws&&ws.readyState === WebSocket.CONNECTING) 
-     {
       ws.send(JSON.stringify({ portfolio : 1, subscribe : 1 }));
       ws.onmessage = (msgh) => {
         const datah = JSON.parse(msgh.data);
@@ -1266,7 +1264,6 @@ setInterval(() => {
           connectDeriv(ws,datah);
         }
       };
-     }
     }
 }, 10000);
 });
