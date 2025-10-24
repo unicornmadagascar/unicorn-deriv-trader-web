@@ -1,9 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
     const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=105747`;
-    
-    // Votre token Deriv
-    const API_TOKEN = "wgf8TFDsJ8Ecvze";
-
+    const API_TOKEN = "wgf8TFDsJ8Ecvze"; // Remplacez par votre token
     const connectBtn = document.getElementById("connectBtn");
     const statusSpan = document.getElementById("status");
     const userBalance = document.getElementById("userBalance");
@@ -34,13 +31,14 @@ document.addEventListener("DOMContentLoaded", () => {
             width: chartContainer.clientWidth,
             height: chartContainer.clientHeight,
             layout: { background: { type: 'solid', color: 'white' }, textColor: 'black' },
-            grid: { vertLines:{color:"#eee"}, horzLines:{color:"#eee"} }
+            grid: { vertLines:{color:"#eee"}, horzLines:{color:"#eee"} },
         });
         areaSeries = chart.addSeries(LightweightCharts.AreaSeries, {
             lineColor: '#2962FF',
             topColor: '#2962FF',
             bottomColor: 'rgba(41, 98, 255, 0.28)',
-            lineWidth: 2
+            lineWidth: 2,
+            lineType: LightweightCharts.LineType.Smooth
         });
     }
 
@@ -112,42 +110,30 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function handleTick(tick) {
-     const p = Number(tick.quote);
-     const oldPrice = lastPrices[tick.symbol];
-     lastPrices[tick.symbol] = p;
+        const p = Number(tick.quote);
+        lastPrices[tick.symbol] = p;
 
-     const el = document.getElementById(`symbol-${tick.symbol}`);
-     if(el){
-        const priceEl = el.querySelector(".lastPrice");
-        priceEl.textContent = formatNum(p);
+        // Update symbol list
+        const el = document.getElementById(`symbol-${tick.symbol}`);
+        if(el) el.querySelector(".lastPrice").textContent = formatNum(p);
 
-        // Supprimer anciennes classes
-        priceEl.classList.remove("up","down","bounce");
-        el.classList.remove("blink");
+        // Update chart if current symbol
+        if(tick.symbol === currentSymbol){
+            const localTime = Math.floor(new Date(tick.epoch * 1000).getTime() / 1000);
+            const point = { time: localTime, value: p };
 
-        if(oldPrice !== undefined){
-            // Flash valeur
-            if(p > oldPrice) priceEl.classList.add("up");
-            else if(p < oldPrice) priceEl.classList.add("down");
+            chartData.push(point);
+            if(chartData.length > 600) chartData.shift();
 
-            // Rebond valeur
-            priceEl.classList.add("bounce");
+            if(chartData.length === 1){
+                areaSeries.setData(chartData);
+            } else {
+                areaSeries.update(point);
+            }
 
-            // Flash div complet
-            el.classList.add("blink");
+            chart.timeScale().fitContent();
         }
-     }
-
-     // Update chart si c'est le symbole courant
-     if(tick.symbol === currentSymbol){
-        const localTime = Math.floor(new Date(tick.epoch * 1000).getTime() / 1000);
-        chartData.push({ time: localTime, value: p });
-        if(chartData.length > 600) chartData.shift();
-        areaSeries.setData(chartData);
-        chart.timeScale().fitContent();
-     }
-   }
-
+    }
 
     // ------------------ Connect Button ------------------
     connectBtn.onclick = () => {
