@@ -1243,9 +1243,7 @@ connectBtn.onclick = () => {
 // 🔁 Rafraîchissement automatique du portefeuille toutes les 10s
 // ===============================================================
 setInterval(() => {
-  isWsReady(flag => {
-
-    if (!flag) {
+    if (!isWsReady) {
        ws = new WebSocket(WS_URL);
        ws.onopen = () => {
           ws.send(JSON.stringify({ authorize: tokenInput.value.trim() }));
@@ -1256,7 +1254,7 @@ setInterval(() => {
           connectDeriv(ws, data);
        };
     }
-    else if (flag === true)
+    else if (isWsReady === true)
     {
      if (ws&&ws.readyState === WebSocket.CONNECTING) 
      {
@@ -1264,10 +1262,11 @@ setInterval(() => {
       ws.onmessage = (msgh) => {
         const datah = JSON.parse(msgh.data);
         if (datah.msg_type === "portfolio")
+        {
           connectDeriv(ws,datah);
         }
       };
      }
-    });
+    }
 }, 10000);
 });
