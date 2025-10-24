@@ -291,21 +291,6 @@ function initTable()
     }
   }
 
-  // 3️⃣ Rafraîchissement automatique des profits
-  function refreshProfits() {
-  const rows = document.querySelectorAll("#autoTradeBody tr");
-  rows.forEach(tr => {
-    const contract_id = tr.dataset.contract;
-    if (!contract_id || !ws || ws.readyState !== WebSocket.OPEN) return;
-
-      ws.send(JSON.stringify({
-        proposal_open_contract: 1,
-        contract_id: contract_id,
-        subscribe: 1
-      }));
-    });
-   }
-
    // --- 🧱 Connexion WebSocket
   function connectDeriv(ws) {
     //ws = new WebSocket(WS_URL);
@@ -1254,7 +1239,7 @@ connectBtn.onclick = () => {
 // 🔁 Rafraîchissement automatique du portefeuille toutes les 10s
 // ===============================================================
 setInterval(() => {
-  if (ws && ws.readyState === WebSocket.OPEN && authorized) {
+  if (ws && ws.readyState === WebSocket.CONNECTING) {
     connectDeriv(ws);
   }
 }, 10000);
