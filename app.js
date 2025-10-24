@@ -138,7 +138,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Table
-  // 1️⃣ Initialisation du tableau
+// ============================================
+// 1️⃣ Initialisation du tableau
+// ============================================
 function initTable() {
   const autoHistoryList = document.getElementById("autoHistoryList");
   if (!autoHistoryList) return;
@@ -168,7 +170,9 @@ function initTable() {
   `;
 }
 
-// 2️⃣ Ajout / mise à jour des lignes du tableau
+// ============================================
+// 2️⃣ Ajout / mise à jour d’une ligne de contrat
+// ============================================
 function addTradeRow(c) {
   const autoTradeBody = document.getElementById("autoTradeBody");
   if (!autoTradeBody || !c.contract_id) return;
@@ -178,16 +182,15 @@ function addTradeRow(c) {
   const type = c.is_buy ? "MULTUP" : "MULTDOWN";
   const stake = c.buy_price ? Number(c.buy_price).toFixed(2) : "0.00";
   const multiplier = c.multiplier || "-";
-  const entry = c.entry_tick || "-";
-  const tp = c.take_profit || "-";
-  const sl = c.stop_loss || "-";
+  const entry = c.entry_tick ?? c.entry_spot ?? "-";
+  const tp = c.take_profit ?? "-";
+  const sl = c.stop_loss ?? "-";
   const profitValue = c.profit !== undefined ? c.profit : null;
-  const profitText =
-    profitValue !== null ? (profitValue >= 0 ? `+${profitValue.toFixed(2)}` : profitValue.toFixed(2)) : "-";
+  const profitText = profitValue !== null ? (profitValue >= 0 ? `+${profitValue.toFixed(2)}` : profitValue.toFixed(2)) : "-";
 
   let tr = autoTradeBody.querySelector(`[data-contract='${contract_id}']`);
 
-  // Supprimer ligne si vendu
+  // Supprimer si vendu
   if (c.is_sold) {
     if (tr) tr.remove();
     logHistory(`✅ Contract ${contract_id} closed.`);
@@ -218,6 +221,7 @@ function addTradeRow(c) {
     `;
     autoTradeBody.appendChild(tr);
 
+    // Bouton close
     tr.querySelector(".deleteRowBtn").addEventListener("click", () => {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ sell: contract_id, price: 0 }));
@@ -233,20 +237,24 @@ function addTradeRow(c) {
   }
 }
 
+// ============================================
 // 3️⃣ Rafraîchissement automatique des profits
+// ============================================
 function refreshProfits() {
   const rows = document.querySelectorAll("#autoTradeBody tr");
-  rows.forEach(tr => {
+  rows.forEach((tr) => {
     const contract_id = tr.dataset.contract;
     if (!contract_id || !ws || ws.readyState !== WebSocket.OPEN) return;
 
-    ws.send(JSON.stringify({
-      proposal_open_contract: 1,
-      contract_id: contract_id,
-      subscribe: 1
-    }));
+    ws.send(
+      JSON.stringify({
+        proposal_open_contract: 1,
+        contract_id: contract_id,
+        subscribe: 1,
+      })
+    );
   });
- }
+}
 
   // canvas
   function initCanvas(){
@@ -972,11 +980,13 @@ closeBtnAll.onclick=()=>{
     }
   }
 
-// 4️⃣ Bouton Connect / Disconnect
+// ============================================
+// 4️⃣ ConnectBtn avec gestion live
+// ============================================
 connectBtn.onclick = () => {
-  initTable(); // Crée le tableau avant de recevoir les contrats
+  initTable(); // Crée le tableau
 
-  // Si déjà connecté, on se déconnecte
+  // Déconnexion si déjà connecté
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.close();
     ws = null;
@@ -992,7 +1002,6 @@ connectBtn.onclick = () => {
     return;
   }
 
-  // Création WebSocket
   ws = new WebSocket(WS_URL);
   setStatus("Connecting...");
 
@@ -1012,25 +1021,23 @@ connectBtn.onclick = () => {
   ws.onmessage = (msg) => {
     const data = JSON.parse(msg.data);
 
-    // ===================== Autorisation =====================
+    // Autorisation
     if (data.msg_type === "authorize") {
       if (!data.authorize?.loginid) {
         setStatus("Simulation Mode (Token invalid)");
         logHistory("Token not authorized");
         return;
       }
-
       authorized = true;
       setStatus(`Connected: ${data.authorize.loginid}`);
       logHistory("Authorized: " + data.authorize.loginid);
 
-      // Souscriptions
       ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
       volatilitySymbols.forEach((sym) => subscribeTicks(sym));
       ws.send(JSON.stringify({ portfolio: 1, subscribe: 1 }));
     }
 
-    // ===================== Balance =====================
+    // Balance
     if (data.msg_type === "balance" && data.balance) {
       const bal = parseFloat(data.balance.balance || 0).toFixed(2);
       const cur = data.balance.currency || "USD";
@@ -1038,29 +1045,30 @@ connectBtn.onclick = () => {
       logHistory(`Balance updated: ${bal} ${cur}`);
     }
 
-    // ===================== Tick =====================
+    // Tick
     if (data.msg_type === "tick" && data.tick) handleTick(data.tick);
 
-    // ===================== Portfolio =====================
+    // Portfolio
     if (data.msg_type === "portfolio" && data.portfolio) {
       const contracts = data.portfolio.contracts || [];
-      autoTradeBody.innerHTML = ""; // reset tableau
+      const autoTradeBody = document.getElementById("autoTradeBody");
+      if (!autoTradeBody) return;
+      autoTradeBody.innerHTML = ""; // reset
       contracts.forEach((c) => {
         const trade = {
           contract_id: c.contract_id,
-          date_start: c.purchase_time || Date.now() / 1000,
+          date_start: c.purchase_time || c.date_start || Date.now() / 1000,
           is_buy: c.contract_type.includes("MULTUP"),
-          buy_price: c.buy_price,
-          multiplier: c.multiplier,
-          entry_tick: c.entry_tick ?? "-",
+          buy_price: c.buy_price || 0,
+          multiplier: c.multiplier || "-",
+          entry_tick: c.entry_tick ?? c.entry_spot ?? "-",
           take_profit: c.take_profit ?? "-",
           stop_loss: c.stop_loss ?? "-",
-          profit: c.profit,
+          profit: c.profit ?? 0,
           is_sold: c.is_sold ?? false,
         };
         addTradeRow(trade);
 
-        // Souscrire pour le suivi en temps réel
         ws.send(
           JSON.stringify({
             proposal_open_contract: 1,
@@ -1071,24 +1079,23 @@ connectBtn.onclick = () => {
       });
     }
 
-    // ===================== Suivi live des contrats =====================
+    // Suivi live
     if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
       const poc = data.proposal_open_contract;
       const trade = {
         contract_id: poc.contract_id,
         date_start: poc.date_start || Date.now() / 1000,
-        is_buy: poc.contract_type?.includes("MULTUP"),
-        buy_price: poc.buy_price,
-        multiplier: poc.multiplier,
-        entry_tick: poc.entry_tick ?? "-",
+        is_buy: poc.contract_type?.includes("MULTUP") || false,
+        buy_price: poc.buy_price || 0,
+        multiplier: poc.multiplier || "-",
+        entry_tick: poc.entry_tick ?? poc.entry_spot ?? "-",
         take_profit: poc.take_profit ?? "-",
         stop_loss: poc.stop_loss ?? "-",
-        profit: poc.profit,
+        profit: poc.profit ?? 0,
         is_sold: poc.is_sold ?? false,
       };
       addTradeRow(trade);
 
-      // Souscrire si pas déjà fait
       if (!poc.is_sold && !poc.subscription) {
         ws.send(
           JSON.stringify({
@@ -1100,22 +1107,22 @@ connectBtn.onclick = () => {
       }
     }
 
-    // ===================== Vente manuelle =====================
+    // Vente manuelle
     if (data.msg_type === "sell" && data.sell) {
       logHistory("💰 Sell response: " + data.sell.contract_id);
-      ws.send(JSON.stringify({ portfolio: 1 })); // refresh
+      ws.send(JSON.stringify({ portfolio: 1 }));
     }
   };
 
   connectBtn.textContent = "Disconnect";
 
-  // 🔄 Rafraîchissement automatique des profits toutes les 2 secondes
+  // Rafraîchissement automatique
   setInterval(() => {
     if (ws && ws.readyState === WebSocket.OPEN && authorized) {
       refreshProfits();
     }
   }, 2000);
- };
+};
 
 
   initSymbols();
