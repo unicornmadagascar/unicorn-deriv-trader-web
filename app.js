@@ -1,6 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
     const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=105747`;
-    const API_TOKEN = "VOTRE_API_TOKEN_ICI"; // <-- ton vrai token ici
+    const API_TOKEN = "wgf8TFDsJ8Ecvze"; // <-- ton vrai token ici
     const connectBtn = document.getElementById("connectBtn");
     const statusSpan = document.getElementById("status");
     const userBalance = document.getElementById("userBalance");
