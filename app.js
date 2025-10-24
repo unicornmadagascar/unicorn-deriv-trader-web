@@ -1243,7 +1243,8 @@ connectBtn.onclick = () => {
 // 🔁 Rafraîchissement automatique du portefeuille toutes les 10s
 // ===============================================================
 setInterval(() => {
-    if (!isWsReady) {
+    logHistory("WS Open : " + isWsReady(ws,authorized));
+    if (!isWsReady(ws,authorized)) {
        ws = new WebSocket(WS_URL);
        ws.onopen = () => {
           ws.send(JSON.stringify({ authorize: tokenInput.value.trim() }));
@@ -1254,7 +1255,7 @@ setInterval(() => {
           connectDeriv(ws, data);
        };
     }
-    else if (isWsReady === true)
+    else if (isWsReady(ws, authorized) === true)
     {
      if (ws&&ws.readyState === WebSocket.CONNECTING) 
      {
