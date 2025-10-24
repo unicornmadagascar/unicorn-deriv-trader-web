@@ -617,76 +617,6 @@ function getEntryPrices(callback) {
   });
 } */
 
-  // Crée le chart principal
-  const chart = LightweightCharts.createChart(chartContainer, {
-    layout: {
-      background: { color: getComputedStyle(document.body).getPropertyValue("--bg-panel").trim() },
-      textColor: getComputedStyle(document.body).getPropertyValue("--text-main").trim(),
-    },
-    grid: {
-      vertLines: { color: getComputedStyle(document.body).getPropertyValue("--border").trim() },
-      horzLines: { color: getComputedStyle(document.body).getPropertyValue("--border").trim() },
-    },
-    crosshair: {
-      mode: LightweightCharts.CrosshairMode.Normal,
-    },
-    timeScale: {
-      timeVisible: true,
-      secondsVisible: true,
-    },
-    width: chartContainer.clientWidth,
-    height: 500,
-  });
-
-  // Série principale (ligne simple)
-  const priceSeries = chart.addLineSeries({
-    color: getComputedStyle(document.body).getPropertyValue("--accent").trim(),
-    lineWidth: 2,
-  });
-
-  // Label de dernier prix
-  const lastPriceLabel = document.createElement("div");
-  lastPriceLabel.className = "lastPriceLabel";
-  chartContainer.appendChild(lastPriceLabel);
-
-  // Adapter le chart à la taille du conteneur
-  window.addEventListener("resize", () => {
-    chart.applyOptions({ width: chartContainer.clientWidth });
-  });
-
-  // 🔄 Fonction d’update du thème clair/sombre
-  function applyChartTheme() {
-    const styles = getComputedStyle(document.body);
-    chart.applyOptions({
-      layout: {
-        background: { color: styles.getPropertyValue("--bg-panel").trim() },
-        textColor: styles.getPropertyValue("--text-main").trim(),
-      },
-      grid: {
-        vertLines: { color: styles.getPropertyValue("--border").trim() },
-        horzLines: { color: styles.getPropertyValue("--border").trim() },
-      },
-    });
-  }
-
-  // =============================================================
-  // ⚡ MISE À JOUR LIVE DES TICKS DE DERIV
-  // =============================================================
-
-  // Fonction appelée à chaque tick Deriv
-  function updateChartFromTick(tick) {
-    if (!tick || !tick.quote || !tick.epoch) return;
-
-    const price = parseFloat(tick.quote);
-    priceSeries.update({
-      time: tick.epoch, // timestamp en secondes
-      value: price,
-    });
-
-    // Met à jour le label du dernier prix
-    lastPriceLabel.textContent = price.toFixed(3);
-  }
-
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
    const ws = new WebSocket(WS_URL);
@@ -1216,19 +1146,6 @@ connectBtn.onclick=()=>{
     });
   }
 });
-
- // Appel initial du thème
-  applyChartTheme();
-
-  // 🔁 Réappliquer le thème quand on change de mode (☀️/🌙)
-  document.getElementById("themeToggle").addEventListener("click", () => {
-    setTimeout(applyChartTheme, 200);
-  });
-
-// On expose cette fonction globalement pour l’utiliser ailleurs dans app.js
-  window.updateChartFromTick = updateChartFromTick;
-
-  console.log("✅ Lightweight Chart initialized successfully.");
 
 // ===============================================================
 // 🔁 Rafraîchissement automatique du portefeuille toutes les 10s
