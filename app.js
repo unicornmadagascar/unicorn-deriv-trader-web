@@ -1,8 +1,9 @@
 document.addEventListener("DOMContentLoaded", () => {
     const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=105747`;
+    
+    // Votre token comme constante
+    const API_TOKEN = "VOTRE_API_TOKEN_ICI";
 
-    // UI Elements
-    const tokenInput = document.getElementById("tokenInput");
     const connectBtn = document.getElementById("connectBtn");
     const statusSpan = document.getElementById("status");
     const userBalance = document.getElementById("userBalance");
@@ -33,16 +34,14 @@ document.addEventListener("DOMContentLoaded", () => {
             width: chartContainer.clientWidth,
             height: chartContainer.clientHeight,
             layout: { background: { type: 'solid', color: 'white' }, textColor: 'black' },
-            grid: { vertLines:{color:"#eee"}, horzLines:{color:"#eee"} },
-            timeScale: { rightOffset: 5, barSpacing: 15, fixRightEdge: true, lockVisibleTimeRangeOnResize: false }
+            grid: { vertLines:{color:"#eee"}, horzLines:{color:"#eee"} }
         });
         areaSeries = chart.addSeries(LightweightCharts.AreaSeries, {
             lineColor: '#2962FF',
-            topColor: 'rgba(41, 98, 255, 0.28)',
-            bottomColor: 'rgba(41, 98, 255, 0.05)',
+            topColor: '#2962FF',
+            bottomColor: 'rgba(41, 98, 255, 0.28)',
             lineWidth: 2
         });
-        chartData = [];
     }
 
     // ------------------ Symbols List ------------------
@@ -64,6 +63,7 @@ document.addEventListener("DOMContentLoaded", () => {
         document.querySelectorAll(".symbolItem").forEach(e => e.classList.remove("selected"));
         const el = document.getElementById(`symbol-${sym}`);
         if(el) el.classList.add("selected");
+        chartData = [];
         initChart();
         subscribeTicks(sym);
     }
@@ -85,7 +85,6 @@ document.addEventListener("DOMContentLoaded", () => {
             if(data.msg_type === "authorize" && data.authorize?.loginid){
                 setStatus(`Connected: ${data.authorize.loginid}`);
                 authorized = true;
-                // Subscribe all symbols
                 volatilitySymbols.forEach(sym => subscribeTicks(sym));
             }
 
@@ -113,37 +112,33 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function handleTick(tick) {
-      const p = Number(tick.quote);
-      lastPrices[tick.symbol] = p;
+        const p = Number(tick.quote);
+        lastPrices[tick.symbol] = p;
 
-      // Update symbol list
-      const el = document.getElementById(`symbol-${tick.symbol}`);
-      if(el) el.querySelector(".lastPrice").textContent = formatNum(p);
+        // Update symbol list
+        const el = document.getElementById(`symbol-${tick.symbol}`);
+        if(el) el.querySelector(".lastPrice").textContent = formatNum(p);
 
-      // Update chart if current symbol
-      if(tick.symbol === currentSymbol){
-        // Convert server epoch to local time in seconds
-        const localTime = Math.floor(new Date(tick.epoch * 1000).getTime() / 1000);
+        // Update chart if current symbol
+        if(tick.symbol === currentSymbol){
+            const localTime = Math.floor(new Date(tick.epoch * 1000).getTime() / 1000);
+            chartData.push({ time: localTime, value: p });
+            if(chartData.length > 600) chartData.shift();
+            areaSeries.setData(chartData);
+            chart.timeScale().fitContent();
+        }
+    }
 
-        chartData.push({ time: localTime, value: p });
-        if(chartData.length > 600) chartData.shift();
-        areaSeries.setData(chartData);
-        chart.timeScale().fitContent(); // Ajuste automatiquement l’axe du temps
-      }
-   }
-
+    // ------------------ Connect Button ------------------
     connectBtn.onclick = () => {
-        const token = tokenInput.value.trim();
-        if(!token){ alert("Please enter API token"); return; }
-        connectDeriv(token);
+        connectDeriv(API_TOKEN);
     };
 
     // ------------------ Init ------------------
     initSymbols();
     initChart();
 
-    // ------------------ Resize ------------------
     window.addEventListener("resize", () => {
-        if(chart) chart.resize(chartContainer.clientWidth, chartContainer.clientHeight);
+        chart.resize(chartContainer.clientWidth, chartContainer.clientHeight);
     });
 });
