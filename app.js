@@ -1187,13 +1187,6 @@ connectBtn.onclick = () => {
     }
   };
   connectBtn.textContent = "Disconnect";
-
-  // Rafraîchissement automatique
-  setInterval(() => {
-    if (ws && ws.readyState === WebSocket.OPEN && authorized) {
-      refreshProfits();
-    }
-  }, 2000);
  };
 
 
