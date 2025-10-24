@@ -9,65 +9,15 @@
 <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 
 <style>
-body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f4f5f7; }
-header { padding: 12px; background: #2962FF; color: #fff; text-align: center; font-size: 1.3em; font-weight: bold; }
-
-#controls {
-    padding: 10px;
-    background: #fff;
-    border-bottom: 1px solid #ddd;
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
-#controls input {
-    flex: 1;
-    padding: 6px 10px;
-    font-size: 1em;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-}
-#controls button {
-    padding: 6px 14px;
-    background: #2962FF;
-    color: #fff;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-#controls button:hover { background: #0039CB; }
-
-#container {
-    display: flex;
-    height: calc(100vh - 75px);
-}
-
-/* Symbol list */
-#symbolList {
-    width: 240px;
-    background: #fff;
-    overflow-y: auto;
-    border-right: 1px solid #ddd;
-}
-.symbolItem {
-    padding: 10px 15px;
-    cursor: pointer;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid #eee;
-    transition: all 0.2s;
-}
+body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f9f9f9; }
+header { padding: 10px; background: #2962FF; color: #fff; text-align: center; font-size: 1.2em; }
+#container { display: flex; height: calc(100vh - 50px); }
+#symbolList { width: 200px; background: #fff; overflow-y: auto; border-right: 1px solid #ddd; }
+.symbolItem { padding: 8px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; transition: all 0.2s; }
 .symbolItem:hover { background: #e3f2fd; transform: translateX(2px); }
 .symbolItem.selected { background: #2962FF; color: #fff; font-weight: bold; }
-.lastPrice { font-weight: bold; margin-left: 10px; }
-
-/* Chart */
-#chartInner {
-    flex: 1;
-    background: #fff;
-}
+#chartInner { flex: 1; }
+#controls { padding: 8px; background: #fff; border-bottom: 1px solid #ddd; display: flex; gap: 10px; align-items: center; }
 </style>
 </head>
 <body>
@@ -75,7 +25,7 @@ header { padding: 12px; background: #2962FF; color: #fff; text-align: center; fo
 <header>🦄 Unicorn Madagascar — Deriv Trader</header>
 
 <div id="controls">
-    <input type="text" id="tokenInput" placeholder="Enter API token">
+    <input type="text" id="tokenInput" placeholder="Enter API token" style="flex:1;">
     <button id="connectBtn">Connect</button>
     <span id="status">Disconnected</span>
     <span id="userBalance"></span>

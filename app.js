@@ -21,10 +21,11 @@ document.addEventListener("DOMContentLoaded", () => {
         "BOOM500","CRASH500","R_100","R_75","R_50","R_25","R_10"
     ];
 
+    // ------------------ Helpers ------------------
     const formatNum = n => Number(n).toFixed(2);
     const setStatus = txt => statusSpan.textContent = txt;
 
-    // ------------------ Chart ------------------
+    // ------------------ Init Chart ------------------
     function initChart() {
         chartContainer.innerHTML = "";
         chart = LightweightCharts.createChart(chartContainer, {
@@ -33,7 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
             layout: { background: { type: 'solid', color: 'white' }, textColor: 'black' },
             grid: { vertLines:{color:"#eee"}, horzLines:{color:"#eee"} }
         });
-        areaSeries = chart.addAreaSeries({
+        areaSeries = chart.addSeries(LightweightCharts.AreaSeries, {
             lineColor: '#2962FF',
             topColor: '#2962FF',
             bottomColor: 'rgba(41, 98, 255, 0.28)',
@@ -41,7 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // ------------------ Symbols ------------------
+    // ------------------ Symbols List ------------------
     function initSymbols() {
         symbolList.innerHTML = "";
         volatilitySymbols.forEach(sym => {
@@ -65,11 +66,11 @@ document.addEventListener("DOMContentLoaded", () => {
         subscribeTicks(sym);
     }
 
-    // ------------------ WebSocket ------------------
+    // ------------------ WebSocket Connect ------------------
     function connectDeriv(token) {
         if(ws) ws.close();
-        ws = new WebSocket(WS_URL);
 
+        ws = new WebSocket(WS_URL);
         ws.onopen = () => {
             setStatus("Connecting...");
             ws.send(JSON.stringify({ authorize: token }));
@@ -117,12 +118,11 @@ document.addEventListener("DOMContentLoaded", () => {
         if(el) el.querySelector(".lastPrice").textContent = formatNum(p);
 
         // Update chart if current symbol
-        if(tick.symbol === currentSymbol && areaSeries){
+        if(tick.symbol === currentSymbol){
             const time = Math.floor(tick.epoch);
             chartData.push({ time, value: p });
             if(chartData.length > 600) chartData.shift();
             areaSeries.setData(chartData);
-            chart.timeScale().fitContent();
         }
     }
 
@@ -136,6 +136,6 @@ document.addEventListener("DOMContentLoaded", () => {
     initChart();
 
     window.addEventListener("resize", () => {
-        if(chart) chart.resize(chartContainer.clientWidth, chartContainer.clientHeight);
+        chart.resize(chartContainer.clientWidth, chartContainer.clientHeight);
     });
 });
