@@ -1,4 +1,4 @@
-// app.js - Unicorn Madagascar (modernisé avec Lightweight Chart)
+// app.js — Unicorn Madagascar (chart + symbol quotes modernisés)
 document.addEventListener("DOMContentLoaded", () => {
   const APP_ID = 105747;
   const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
@@ -9,51 +9,44 @@ document.addEventListener("DOMContentLoaded", () => {
   const connectBtn = document.getElementById("connectBtn");
   const statusSpan = document.getElementById("status");
   const symbolList = document.getElementById("symbolList");
-  const chartContainer = document.getElementById("chartInner");
+  const chartContainer = document.getElementById("tradingChart");
 
-  // App state
+  // State
   let ws = null;
-  let currentSymbol = DEFAULT_SYMBOL;
   let chart, areaSeries;
-  let lastPrice = 0;
-  let isConnected = false;
+  let currentSymbol = DEFAULT_SYMBOL;
+  let symbolQuotes = {}; // pour stocker les quotes en direct
 
-  // ===========================
-  // 🟩 1️⃣ — INITIALISATION DU CHART
-  // ===========================
-  function initLightChart() {
+  // ===============================
+  // 1️⃣ Initialiser le chart avant tout
+  // ===============================
+  function initChart() {
     chartContainer.innerHTML = "";
     chart = LightweightCharts.createChart(chartContainer, {
+      width: chartContainer.clientWidth,
+      height: chartContainer.clientHeight,
       layout: {
         background: { color: "transparent" },
-        textColor: "#d1d5db",
+        textColor: "#0f172a",
       },
       grid: {
-        vertLines: { color: "#334155" },
-        horzLines: { color: "#334155" },
+        vertLines: { color: "#e2e8f0" },
+        horzLines: { color: "#e2e8f0" },
       },
       timeScale: {
         timeVisible: true,
         secondsVisible: true,
-        borderColor: "#475569",
       },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
       rightPriceScale: {
-        borderColor: "#475569",
+        borderColor: "#cbd5e1",
       },
-      crosshair: {
-        mode: LightweightCharts.CrosshairMode.Normal,
-      },
-      localization: {
-        priceFormatter: p => p.toFixed(2),
-      },
-      width: chartContainer.clientWidth,
-      height: chartContainer.clientHeight,
     });
 
     areaSeries = chart.addAreaSeries({
-      lineColor: "#3b82f6",
-      topColor: "rgba(59,130,246,0.4)",
-      bottomColor: "rgba(59,130,246,0.05)",
+      lineColor: "#2563eb",
+      topColor: "rgba(37,99,235,0.4)",
+      bottomColor: "rgba(37,99,235,0.05)",
       lineWidth: 2,
       crosshairMarkerVisible: true,
     });
@@ -65,37 +58,12 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
 
-    console.log("📈 Lightweight chart initialized.");
+    console.log("📊 Chart initialized for", currentSymbol);
   }
 
-  // ===========================
-  // 🟩 2️⃣ — ABONNEMENT AUX TICKS
-  // ===========================
-  function subscribeTicks(symbol) {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-
-    ws.send(JSON.stringify({ ticks_history: symbol, adjust_start_time: 1, count: 100, end: "latest", start: 1 }));
-    ws.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
-    statusSpan.textContent = `Subscribed to ${symbol}`;
-  }
-
-  function handleTickStream(data) {
-    if (data.tick && data.tick.symbol === currentSymbol) {
-      const price = parseFloat(data.tick.quote);
-      const time = data.tick.epoch;
-      lastPrice = price;
-      areaSeries.update({ time, value: price });
-    } else if (data.history) {
-      const prices = data.history.prices;
-      const times = data.history.times.map(t => parseInt(t));
-      const seriesData = prices.map((p, i) => ({ time: times[i], value: parseFloat(p) }));
-      areaSeries.setData(seriesData);
-    }
-  }
-
-  // ===========================
-  // 🟩 3️⃣ — CONNEXION WEBSOCKET
-  // ===========================
+  // ===============================
+  // 2️⃣ Gestion WebSocket
+  // ===============================
   function connectDeriv() {
     const token = tokenInput.value.trim();
     if (!token) {
@@ -113,64 +81,98 @@ document.addEventListener("DOMContentLoaded", () => {
 
     ws.onmessage = (msg) => {
       const data = JSON.parse(msg.data);
+
       if (data.msg_type === "authorize") {
-        isConnected = true;
         setStatus("Connected ✅");
-        subscribeTicks(currentSymbol);
+        subscribeSymbol(currentSymbol);
       }
-      if (["tick", "history"].includes(data.msg_type)) handleTickStream(data);
+
+      if (data.msg_type === "history") loadHistory(data);
+      if (data.msg_type === "tick") updateTick(data.tick);
     };
 
-    ws.onclose = () => {
-      isConnected = false;
-      setStatus("Disconnected 🔴");
-    };
-
-    ws.onerror = (err) => {
-      console.error("WebSocket Error:", err);
-      setStatus("Error ❌");
-    };
+    ws.onclose = () => setStatus("Disconnected 🔴");
+    ws.onerror = () => setStatus("Error ❌");
   }
 
-  function setStatus(text) {
-    statusSpan.textContent = text;
+  // ===============================
+  // 3️⃣ Abonnement aux ticks
+  // ===============================
+  function subscribeSymbol(symbol) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    areaSeries.setData([]);
+    ws.send(JSON.stringify({ ticks_history: symbol, adjust_start_time: 1, count: 100, end: "latest", start: 1 }));
+    ws.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
+    setStatus(`Subscribed to ${symbol}`);
   }
 
-  // ===========================
-  // 🟩 4️⃣ — CHANGEMENT DE SYMBOLE
-  // ===========================
+  // ===============================
+  // 4️⃣ Gestion des ticks & historique
+  // ===============================
+  function loadHistory(data) {
+    const prices = data.history.prices;
+    const times = data.history.times.map(t => parseInt(t));
+    const chartData = prices.map((p, i) => ({ time: times[i], value: parseFloat(p) }));
+    areaSeries.setData(chartData);
+  }
+
+  function updateTick(tick) {
+    if (!tick || tick.symbol !== currentSymbol) return;
+    const price = parseFloat(tick.quote);
+    const time = tick.epoch;
+    areaSeries.update({ time, value: price });
+    symbolQuotes[tick.symbol] = price;
+    updateSymbolQuotesUI(tick.symbol);
+  }
+
+  // ===============================
+  // 5️⃣ UI — Liste des symboles + quotes
+  // ===============================
   function initSymbolList() {
     const symbols = ["BOOM1000", "CRASH1000", "BOOM900", "CRASH900"];
     symbolList.innerHTML = "";
     symbols.forEach(sym => {
-      const el = document.createElement("div");
-      el.textContent = sym;
-      el.className = "symbol-item";
-      el.onclick = () => {
+      const item = document.createElement("div");
+      item.className = "symbol-item";
+      item.innerHTML = `
+        <span>${sym}</span>
+        <span class="symbol-quote" id="quote-${sym}">--</span>
+      `;
+      item.onclick = () => {
         document.querySelectorAll(".symbol-item").forEach(e => e.classList.remove("active"));
-        el.classList.add("active");
+        item.classList.add("active");
         currentSymbol = sym;
-        areaSeries.setData([]);
-        subscribeTicks(sym);
-        setStatus(`Subscribed to ${sym}`);
+        subscribeSymbol(sym);
       };
-      if (sym === DEFAULT_SYMBOL) el.classList.add("active");
-      symbolList.appendChild(el);
+      if (sym === DEFAULT_SYMBOL) item.classList.add("active");
+      symbolList.appendChild(item);
     });
   }
 
-  // ===========================
-  // 🟩 5️⃣ — ÉVÉNEMENTS UI
-  // ===========================
+  function updateSymbolQuotesUI(symbol) {
+    const el = document.getElementById(`quote-${symbol}`);
+    if (el) el.textContent = symbolQuotes[symbol]?.toFixed(2) ?? "--";
+  }
+
+  // ===============================
+  // 6️⃣ Utilitaires
+  // ===============================
+  function setStatus(text) {
+    statusSpan.textContent = text;
+  }
+
+  // ===============================
+  // 7️⃣ Événements
+  // ===============================
   connectBtn.onclick = () => {
-    if (!isConnected) connectDeriv();
+    if (!ws || ws.readyState === WebSocket.CLOSED) connectDeriv();
     else setStatus("Already connected");
   };
 
-  // ===========================
-  // ⚙️ INIT TOUTE L’INTERFACE
-  // ===========================
+  // ===============================
+  // ⚙️ INIT
+  // ===============================
+  initChart();
   initSymbolList();
-  initLightChart();
-  setStatus("Ready — enter token & connect.");
+  setStatus("Ready — Enter token & connect");
 });

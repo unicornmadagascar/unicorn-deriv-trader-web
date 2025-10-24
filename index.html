@@ -199,39 +199,50 @@
 
     .theme-toggle:hover { background: rgba(255,255,255,0.15); }
 
-    /* ✅ Correction du panneau des symboles */
-    #symbolPanel {
-      display: flex;
-      flex-direction: column;
-      width: 180px;
-      background: rgba(17, 24, 39, 0.95);
-      border-right: 1px solid rgba(255, 255, 255, 0.1);
-      padding: 8px;
-      color: #e2e8f0;
-      overflow-y: auto;
-   }
+    /* 🧭 Panneau des symboles — clair et large */
+#symbolPanel {
+  display: flex;
+  flex-direction: column;
+  width: 240px;
+  background: #ffffff;
+  border-right: 1px solid #e2e8f0;
+  padding: 10px;
+  color: #1e293b;
+  overflow-y: auto;
+  transition: 0.3s;
+}
 
 .symbol-item {
-  color: #cbd5e1;
-  font-size: 13px;
-  padding: 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #1e293b;
+  font-size: 14px;
+  padding: 8px 12px;
   border-radius: 6px;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
   cursor: pointer;
+  border: 1px solid transparent;
   transition: all 0.2s ease-in-out;
-  background: rgba(255,255,255,0.02);
+  background: #f8fafc;
 }
 
 .symbol-item:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: #e0f2fe;
+  border-color: #93c5fd;
 }
 
 .symbol-item.active {
-  background: linear-gradient(90deg, #00b4d8, #0077b6);
+  background: linear-gradient(90deg, #3b82f6, #2563eb);
   color: #fff;
+  border: none;
+  box-shadow: 0 0 6px rgba(59,130,246,0.4);
+}
+
+.symbol-quote {
   font-weight: 600;
-  box-shadow: 0 0 6px rgba(0,180,216,0.4);
+  color: #2563eb;
+  margin-left: 6px;
 }
 
   </style>
