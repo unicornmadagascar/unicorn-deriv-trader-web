@@ -113,22 +113,24 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function handleTick(tick) {
-        const p = Number(tick.quote);
-        lastPrices[tick.symbol] = p;
+      const p = Number(tick.quote);
+      lastPrices[tick.symbol] = p;
 
-        // Update symbol list
-        const el = document.getElementById(`symbol-${tick.symbol}`);
-        if(el) el.querySelector(".lastPrice").textContent = formatNum(p);
+      // Update symbol list
+      const el = document.getElementById(`symbol-${tick.symbol}`);
+      if(el) el.querySelector(".lastPrice").textContent = formatNum(p);
 
-        // Update chart if current symbol
-        if(tick.symbol === currentSymbol){
-            const time = Math.floor(tick.epoch);
-            chartData.push({ time, value: p });
-            if(chartData.length > 600) chartData.shift();
-            areaSeries.setData(chartData);
-            chart.timeScale().fitContent(); // Ajuste automatiquement l’axe du temps
-        }
-    }
+      // Update chart if current symbol
+      if(tick.symbol === currentSymbol){
+        // Convert server epoch to local time in seconds
+        const localTime = Math.floor(new Date(tick.epoch * 1000).getTime() / 1000);
+
+        chartData.push({ time: localTime, value: p });
+        if(chartData.length > 600) chartData.shift();
+        areaSeries.setData(chartData);
+        chart.timeScale().fitContent(); // Ajuste automatiquement l’axe du temps
+      }
+   }
 
     connectBtn.onclick = () => {
         const token = tokenInput.value.trim();
