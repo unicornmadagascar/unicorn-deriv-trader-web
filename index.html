@@ -88,8 +88,6 @@
       min-height: 100vh;
     }
 
-    #symbolList { width: 320px; margin-top: 16px; }
-
     /* ===========================================================
    🧭 Barre latérale des symboles
 =========================================================== */
@@ -289,6 +287,8 @@
 
   <script src="app.js" defer></script>
 
+  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+
   <script>
     // 🌗 Thème clair/sombre
     const toggleBtn = document.getElementById("themeToggle");
@@ -303,47 +303,6 @@
       toggleBtn.textContent = isDark ? "☀️" : "🌙";
       localStorage.setItem("theme", isDark ? "dark" : "light");
     });
-
-    // ⚙️ Initialisation du Lightweight Chart
-    const chartContainer = document.getElementById("tradingChart");
-    const chart = LightweightCharts.createChart(chartContainer, {
-      layout: {
-        background: { color: 'transparent' },
-        textColor: getComputedStyle(document.body).getPropertyValue('--text-main')
-      },
-      grid: {
-        vertLines: { color: 'rgba(197,203,206,0.3)' },
-        horzLines: { color: 'rgba(197,203,206,0.3)' }
-      },
-      timeScale: {
-        borderColor: 'rgba(197,203,206,0.8)',
-      },
-      crosshair: {
-        mode: LightweightCharts.CrosshairMode.Normal,
-      },
-    });
-
-    const lineSeries = chart.addLineSeries({ color: '#2563eb', lineWidth: 2 });
-    const priceData = [];
-    
-    // Exemple de mise à jour dynamique
-    function updateChart(price) {
-      const time = Math.floor(Date.now() / 1000);
-      priceData.push({ time, value: price });
-      lineSeries.setData(priceData.slice(-100)); // garde 100 dernières valeurs
-    }
-
-    // Thème dynamique
-    const updateTheme = () => {
-      const dark = document.body.classList.contains("dark");
-      chart.applyOptions({
-        layout: {
-          background: { color: 'transparent' },
-          textColor: dark ? '#e6edf3' : '#1e293b'
-        },
-      });
-    };
-    new MutationObserver(updateTheme).observe(document.body, { attributes: true });
 
     // Automation toggle
     const launchAutomationBtn = document.getElementById("launchAutomation");
