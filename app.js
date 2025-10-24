@@ -1122,7 +1122,7 @@ connectBtn.onclick=()=>{
 // ===============================================================
 setInterval(() => {
     logHistory("WS Authorization : " + authorized);
-    if ((ws.readyState === 1 || ws.readyState === 0) && authorized)
+    if (authorized)
     {
       if (ws.readyState === WebSocket.OPEN)
       {
@@ -1131,7 +1131,7 @@ setInterval(() => {
           return;
         }
 
-        ws.send(JSON.stringify({ authorize: tokenInput.value.trim() }));
+       ws.send(JSON.stringify({ authorize: tokenInput.value.trim() }));
 
         ws.onmessage = (msg) => {
           const data = JSON.parse(msg.data);
