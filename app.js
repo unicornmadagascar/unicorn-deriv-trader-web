@@ -1236,7 +1236,7 @@ connectBtn.onclick = () => {
 // 🔁 Rafraîchissement automatique du portefeuille toutes les 10s
 // ===============================================================
  setInterval(() => {
-  logHistory("Server Open : " + isWsReady(ws,authorized));
+  //logHistory("Server Open : " + isWsReady(ws,authorized));
   if (isWsReady(ws,authorized)) {
     connectDeriv(ws); 
   }
