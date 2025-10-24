@@ -1047,7 +1047,7 @@ connectBtn.onclick = () => {
         logHistory(`Balance updated: ${bal} ${cur}`);
         break;
       
-      case "tick" && data.tick:
+      case "tick":
         handleTick(data.tick);
         break;
 
