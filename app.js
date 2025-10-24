@@ -164,26 +164,67 @@ function initTable() {
       </thead>
       <tbody id="autoTradeBody"></tbody>
     </table>
-    <button id="deleteSelected"
-      style="margin-top:8px;background:#dc2626;color:white;border:none;
-      padding:6px 10px;border-radius:6px;cursor:pointer;">🗑 Delete Selected</button>
   `;
 }
 
 // ==================================
-// 2️⃣ Ajouter / mettre à jour contrat
+// 2️⃣ Ajouter / mettre à jour contrat (diagnostic)
 // ==================================
 function addTradeRow(c) {
   const autoTradeBody = document.getElementById("autoTradeBody");
   if (!autoTradeBody || !c.contract_id) return;
 
-  const tr = document.createElement("tr");
-  let cells = "";
-  for (let key in c) {
-    cells += `<td>${JSON.stringify(c[key])}</td>`;
+  let tr = autoTradeBody.querySelector(`[data-contract='${c.contract_id}']`);
+
+  const time = c.date_start ? new Date(c.date_start * 1000).toLocaleTimeString() : "-";
+  const type = c.contract_type || (c.is_buy ? "MULTUP" : "MULTDOWN") || "-";
+  const stake = c.buy_price ? Number(c.buy_price).toFixed(2) : "0.00";
+  const multiplier = c.multiplier || "-";
+  const entry = c.entry_tick ?? c.entry_spot ?? "-";
+  const tp = c.take_profit ?? "-";
+  const sl = c.stop_loss ?? "-";
+  const profit = c.profit !== undefined ? (c.profit >= 0 ? `+${c.profit.toFixed(2)}` : c.profit.toFixed(2)) : "-";
+
+  if (!tr) {
+    tr = document.createElement("tr");
+    tr.dataset.contract = c.contract_id;
+
+    tr.innerHTML = `
+      <td><input type="checkbox" class="rowSelect"></td>
+      <td>${time}</td>
+      <td>${c.contract_id}</td>
+      <td class="${type === "MULTUP" ? "buy" : "sell"}">${type}</td>
+      <td>${stake}</td>
+      <td>${multiplier}</td>
+      <td>${entry}</td>
+      <td>${tp}</td>
+      <td>${sl}</td>
+      <td class="profitCell">${profit}</td>
+      <td>
+        <button class="deleteRowBtn"
+          style="background:#ef4444;border:none;color:white;border-radius:4px;
+          padding:2px 6px;cursor:pointer;">Close</button>
+      </td>
+    `;
+    autoTradeBody.appendChild(tr);
+
+    tr.querySelector(".deleteRowBtn").addEventListener("click", () => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ sell: c.contract_id, price: 0 }));
+        logHistory(`🟠 Closing contract ${c.contract_id}...`);
+      }
+    });
+  } else {
+    // Mise à jour du profit
+    const profitCell = tr.querySelector(".profitCell");
+    if (profitCell) profitCell.textContent = profit;
   }
-  tr.innerHTML = cells;
-  autoTradeBody.appendChild(tr);
+
+  // Supprimer si vendu
+  if (c.is_sold) {
+    tr.remove();
+    logHistory(`✅ Contract ${c.contract_id} closed.`);
+  }
 }
 
 // ==================================
@@ -192,28 +233,24 @@ function addTradeRow(c) {
 function subscribePortfolio(ws) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
-  // Abonnement au portfolio pour recevoir tous les contrats ouverts
   ws.send(JSON.stringify({ portfolio: 1, subscribe: 1 }));
 
-  // Callback pour traiter les messages de contrats ouverts
   ws.addEventListener("message", (msg) => {
     const data = JSON.parse(msg.data);
-    console.log("📡 WS message:", data); // Diagnostic complet
+    console.log("📡 WS message:", data);
 
+    // Portfolio
     if (data.msg_type === "portfolio" && data.portfolio?.contracts) {
       const contracts = data.portfolio.contracts;
-      contracts.forEach((c) => {
-        const trade = { ...c }; // copie brute pour diagnostic
-        addTradeRow(trade);
-      });
+      contracts.forEach((c) => addTradeRow({ ...c }));
     }
 
+    // Proposal open contract
     if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
       const poc = data.proposal_open_contract;
-      const trade = { ...poc }; // copie brute
-      addTradeRow(trade);
+      addTradeRow({ ...poc });
 
-      // Souscrire au suivi live du contrat
+      // Souscrire au live
       if (!poc.is_sold && !poc.subscription) {
         ws.send(JSON.stringify({
           proposal_open_contract: 1,
@@ -949,11 +986,11 @@ closeBtnAll.onclick=()=>{
     }
   }
 
-// ==================================
+  // ==================================
 // 4️⃣ Connect / Disconnect
 // ==================================
 connectBtn.onclick = () => {
-  initTable(); // Crée le tableau
+  initTable();
 
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.close();
@@ -989,16 +1026,18 @@ connectBtn.onclick = () => {
   ws.onmessage = (msg) => {
     const data = JSON.parse(msg.data);
 
+    // Autorisation
     if (data.msg_type === "authorize") {
       if (!data.authorize?.loginid) return;
       authorized = true;
       setStatus(`Connected: ${data.authorize.loginid}`);
       ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
 
-      // ⚡ Appel séparé pour s’abonner au portfolio et contrats
+      // ⚡ Souscription séparée
       subscribePortfolio(ws);
     }
 
+    // Balance
     if (data.msg_type === "balance" && data.balance) {
       const bal = parseFloat(data.balance.balance || 0).toFixed(2);
       const cur = data.balance.currency || "USD";
@@ -1008,7 +1047,7 @@ connectBtn.onclick = () => {
   };
 
   connectBtn.textContent = "Disconnect";
-};
+ };
 
   initSymbols();
   selectSymbol(volatilitySymbols[0]);
