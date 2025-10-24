@@ -1121,12 +1121,9 @@ connectBtn.onclick=()=>{
 // 🔁 Rafraîchissement automatique du portefeuille toutes les 10s
 // ===============================================================
 setInterval(() => {
-    logHistory("WS State : " + ws.readyState);
     logHistory("WS Authorization : " + authorized);
-    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)
+    if ((ws.readyState === 1 || ws.readyState === 0) && authorized)
     {
-      if (ws.readyState === WebSocket.OPEN)
-      {
         if (tokenInput.value.trim() === "") {
           logHistory("Token is empty. Cannot re-authorize.");
           return;
@@ -1142,7 +1139,6 @@ setInterval(() => {
             logHistory("Re-authorization successful.");
            }
         };
-      }
     }
 }, 10000);
 });
