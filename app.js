@@ -1,6 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
     const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=105747`;
-    const API_TOKEN = "wgf8TFDsJ8Ecvze"; // <-- Remplacez par votre vrai token
+    const API_TOKEN = "VOTRE_API_TOKEN_ICI"; // <-- ton vrai token ici
     const connectBtn = document.getElementById("connectBtn");
     const statusSpan = document.getElementById("status");
     const userBalance = document.getElementById("userBalance");
@@ -14,11 +14,12 @@ document.addEventListener("DOMContentLoaded", () => {
     let areaSeries = null;
     let chartData = [];
     let lastPrices = {};
-    let lastChange = {};
+    let barTargets = {};
+    let barSmooth = {};
 
     const volatilitySymbols = [
-        "BOOM1000","CRASH1000","BOOM900","CRASH900","BOOM600","CRASH600",
-        "BOOM500","CRASH500","R_100","R_75","R_50","R_25","R_10"
+        "BOOM1000", "CRASH1000", "BOOM900", "CRASH900", "BOOM600", "CRASH600",
+        "BOOM500", "CRASH500", "R_100", "R_75", "R_50", "R_25", "R_10"
     ];
 
     const formatNum = n => Number(n).toFixed(2);
@@ -30,13 +31,13 @@ document.addEventListener("DOMContentLoaded", () => {
         chart = LightweightCharts.createChart(chartContainer, {
             width: chartContainer.clientWidth,
             height: chartContainer.clientHeight,
-            layout: { background: { type: 'solid', color: 'white' }, textColor: 'black' },
+            layout: { background: { type: 'solid', color: '#fff' }, textColor: '#000' },
             grid: { vertLines:{color:"#eee"}, horzLines:{color:"#eee"} },
         });
         areaSeries = chart.addSeries(LightweightCharts.AreaSeries, {
             lineColor: '#2962FF',
-            topColor: '#2962FF',
-            bottomColor: 'rgba(41, 98, 255, 0.28)',
+            topColor: 'rgba(41,98,255,0.4)',
+            bottomColor: 'rgba(41,98,255,0.05)',
             lineWidth: 2,
             lineType: LightweightCharts.LineType.Smooth
         });
@@ -58,6 +59,8 @@ document.addEventListener("DOMContentLoaded", () => {
             `;
             el.onclick = () => selectSymbol(sym);
             symbolList.appendChild(el);
+            barTargets[sym] = 50; // position de base neutre
+            barSmooth[sym] = 50;
         });
         selectSymbol(currentSymbol);
     }
@@ -108,7 +111,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function subscribeTicks(symbol) {
         if(ws && ws.readyState === WebSocket.OPEN){
-            ws.send(JSON.stringify({ ticks: symbol, subscribe:1 }));
+            ws.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
         }
     }
 
@@ -118,9 +121,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const symbol = tick.symbol;
         const prev = lastPrices[symbol] ?? p;
         const change = p - prev;
-
         lastPrices[symbol] = p;
-        lastChange[symbol] = change;
 
         const el = document.getElementById(`symbol-${symbol}`);
         if(el){
@@ -128,35 +129,51 @@ document.addEventListener("DOMContentLoaded", () => {
             const progress = el.querySelector(".progressFill");
             priceSpan.textContent = formatNum(p);
 
-            // Progress color animation
+            // --- Calcul cible lissée (target) ---
+            const intensity = Math.min(50 + Math.abs(change) * 300, 100);
             if(change > 0){
-                progress.style.background = "#4CAF50";
-                progress.style.width = `${Math.min(100, 50 + Math.abs(change)*10)}%`;
+                barTargets[symbol] = 50 + (intensity / 2);
+                progress.dataset.color = "green";
             } else if(change < 0){
-                progress.style.background = "#F44336";
-                progress.style.width = `${Math.min(100, 50 + Math.abs(change)*10)}%`;
+                barTargets[symbol] = 50 - (intensity / 2);
+                progress.dataset.color = "red";
             } else {
-                progress.style.background = "#999";
-                progress.style.width = "50%";
+                progress.dataset.color = "neutral";
             }
         }
 
         // Chart update
         if(symbol === currentSymbol){
-            const localTime = Math.floor(new Date(tick.epoch * 1000).getTime() / 1000);
+            const localTime = Math.floor(Date.now() / 1000);
             const point = { time: localTime, value: p };
-
             chartData.push(point);
             if(chartData.length > 600) chartData.shift();
-
-            if(chartData.length === 1){
-                areaSeries.setData(chartData);
-            } else {
-                areaSeries.update(point);
-            }
-
+            if(chartData.length === 1) areaSeries.setData(chartData);
+            else areaSeries.update(point);
             chart.timeScale().fitContent();
         }
+    }
+
+    // ------------------ Animation Lissage ------------------
+    function animateBars() {
+        for(const sym of volatilitySymbols){
+            const el = document.getElementById(`symbol-${sym}`);
+            if(!el) continue;
+            const progress = el.querySelector(".progressFill");
+            if(!progress) continue;
+
+            // interpolation douce
+            barSmooth[sym] += (barTargets[sym] - barSmooth[sym]) * 0.1;
+            const width = Math.max(10, Math.min(100, barSmooth[sym]));
+            progress.style.width = `${width}%`;
+
+            // couleur plus douce
+            let color = "#999";
+            if(progress.dataset.color === "green") color = "#4CAF50";
+            else if(progress.dataset.color === "red") color = "#F44336";
+            progress.style.background = color;
+        }
+        requestAnimationFrame(animateBars);
     }
 
     // ------------------ Connect Button ------------------
@@ -167,6 +184,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // ------------------ Init ------------------
     initSymbols();
     initChart();
+    animateBars();
 
     window.addEventListener("resize", () => {
         chart.resize(chartContainer.clientWidth, chartContainer.clientHeight);
