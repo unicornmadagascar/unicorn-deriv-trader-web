@@ -291,14 +291,29 @@ function initTable()
     }
   }
 
-   // --- 🧱 Connexion WebSocket
-  function connectDeriv() {
-    ws = new WebSocket(WS_URL);
+  // 3️⃣ Rafraîchissement automatique des profits
+  function refreshProfits() {
+  const rows = document.querySelectorAll("#autoTradeBody tr");
+  rows.forEach(tr => {
+    const contract_id = tr.dataset.contract;
+    if (!contract_id || !ws || ws.readyState !== WebSocket.OPEN) return;
 
-    ws.onopen = () => {
+      ws.send(JSON.stringify({
+        proposal_open_contract: 1,
+        contract_id: contract_id,
+        subscribe: 1
+      }));
+    });
+   }
+
+   // --- 🧱 Connexion WebSocket
+  function connectDeriv(ws) {
+    //ws = new WebSocket(WS_URL);
+
+    /*ws.onopen = () => {
       console.log("🔗 Connected");
       ws.send(JSON.stringify({ authorize: token }));
-    };
+    };*/
 
     ws.onmessage = (msg) => {
       const data = JSON.parse(msg.data);
@@ -1083,6 +1098,8 @@ connectBtn.onclick = () => {
     ws.send(JSON.stringify({ authorize: token }));
   };
 
+  connectDeriv(ws);
+
   ws.onclose = () => {
     setStatus("Disconnected");
     logHistory("WS closed");
@@ -1238,7 +1255,7 @@ connectBtn.onclick = () => {
 // ===============================================================
 // 🔁 Rafraîchissement automatique du portefeuille toutes les 10s
 // ===============================================================
-setInterval(() => {
-     connectDeriv();
-}, 10000);
+//setInterval(() => {
+//     connectDeriv();
+//}, 10000);
 });
