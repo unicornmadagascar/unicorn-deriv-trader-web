@@ -28,6 +28,22 @@ button:hover { background: #0039cb; }
     0% { background-color: #c8e6c9; }
     100% { background-color: transparent; }
 }
+.lastPrice.up {
+    animation: flashUp 0.5s;
+}
+.lastPrice.down {
+    animation: flashDown 0.5s;
+}
+
+@keyframes flashUp {
+    0% { background-color: #c8e6c9; }
+    100% { background-color: transparent; }
+}
+
+@keyframes flashDown {
+    0% { background-color: #ffcdd2; }
+    100% { background-color: transparent; }
+}
 </style>
 </head>
 <body>

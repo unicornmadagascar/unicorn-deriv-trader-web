@@ -113,18 +113,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function handleTick(tick) {
     const p = Number(tick.quote);
+    const oldPrice = lastPrices[tick.symbol];
     lastPrices[tick.symbol] = p;
 
-    // Update symbol list with flash effect
+    // Update symbol list with up/down flash
     const el = document.getElementById(`symbol-${tick.symbol}`);
     if(el){
         const priceEl = el.querySelector(".lastPrice");
         priceEl.textContent = formatNum(p);
-        
-        // Ajouter classe flash et la retirer après animation
-        priceEl.classList.remove("flash");
-        void priceEl.offsetWidth; // trigger reflow
-        priceEl.classList.add("flash");
+
+        // Remove old classes
+        priceEl.classList.remove("up","down");
+
+        // Add new class based on tick change
+        if(oldPrice !== undefined){
+            if(p > oldPrice) priceEl.classList.add("up");
+            else if(p < oldPrice) priceEl.classList.add("down");
+        }
     }
 
     // Update chart if current symbol
@@ -135,7 +140,7 @@ document.addEventListener("DOMContentLoaded", () => {
         areaSeries.setData(chartData);
         chart.timeScale().fitContent();
     }
-}
+  }
 
 
     // ------------------ Connect Button ------------------
