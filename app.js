@@ -1,11 +1,22 @@
 document.addEventListener("DOMContentLoaded", () => {
     const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=105747`;
-    const API_TOKEN = "wgf8TFDsJ8Ecvze"; // <-- ton vrai token ici
+    const API_TOKEN = "VOTRE_API_TOKEN_ICI";
     const connectBtn = document.getElementById("connectBtn");
     const statusSpan = document.getElementById("status");
     const userBalance = document.getElementById("userBalance");
     const symbolList = document.getElementById("symbolList");
     const chartContainer = document.getElementById("chartInner");
+
+    // === Nouveaux éléments ===
+    const gaugesContainer = document.createElement("div");
+    gaugesContainer.id = "gaugesContainer";
+    chartContainer.parentElement.insertBefore(gaugesContainer, chartContainer);
+
+    gaugesContainer.innerHTML = `
+        <div class="gauge" id="volGauge"><span class="label">Volatilité</span><span class="value">0%</span></div>
+        <div class="gauge" id="trendGauge"><span class="label">Force</span><span class="value">0%</span></div>
+        <div class="gauge" id="probGauge"><span class="label">Probabilité</span><span class="value">0%</span></div>
+    `;
 
     let ws = null;
     let authorized = false;
@@ -25,7 +36,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const formatNum = n => Number(n).toFixed(2);
     const setStatus = txt => statusSpan.textContent = txt;
 
-    // ------------------ Init Chart ------------------
+    // Gauges state
+    let volGauge = document.getElementById("volGauge");
+    let trendGauge = document.getElementById("trendGauge");
+    let probGauge = document.getElementById("probGauge");
+    let recentChanges = [];
+
+    // === Chart ===
     function initChart() {
         chartContainer.innerHTML = "";
         chart = LightweightCharts.createChart(chartContainer, {
@@ -43,7 +60,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // ------------------ Symbol List ------------------
+    // === Symboles ===
     function initSymbols() {
         symbolList.innerHTML = "";
         volatilitySymbols.forEach(sym => {
@@ -59,7 +76,7 @@ document.addEventListener("DOMContentLoaded", () => {
             `;
             el.onclick = () => selectSymbol(sym);
             symbolList.appendChild(el);
-            barTargets[sym] = 50; // position de base neutre
+            barTargets[sym] = 50;
             barSmooth[sym] = 50;
         });
         selectSymbol(currentSymbol);
@@ -71,11 +88,12 @@ document.addEventListener("DOMContentLoaded", () => {
         const el = document.getElementById(`symbol-${sym}`);
         if(el) el.classList.add("selected");
         chartData = [];
+        recentChanges = [];
         initChart();
         subscribeTicks(sym);
     }
 
-    // ------------------ WebSocket ------------------
+    // === WebSocket ===
     function connectDeriv(token) {
         if(ws) ws.close();
 
@@ -115,7 +133,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // ------------------ Tick Update ------------------
+    // === Tick Update ===
     function handleTick(tick) {
         const p = Number(tick.quote);
         const symbol = tick.symbol;
@@ -123,13 +141,13 @@ document.addEventListener("DOMContentLoaded", () => {
         const change = p - prev;
         lastPrices[symbol] = p;
 
+        // Liste symboles
         const el = document.getElementById(`symbol-${symbol}`);
         if(el){
             const priceSpan = el.querySelector(".lastPrice");
             const progress = el.querySelector(".progressFill");
             priceSpan.textContent = formatNum(p);
 
-            // --- Calcul cible lissée (target) ---
             const intensity = Math.min(50 + Math.abs(change) * 300, 100);
             if(change > 0){
                 barTargets[symbol] = 50 + (intensity / 2);
@@ -142,7 +160,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
 
-        // Chart update
+        // === Chart et Gauges ===
         if(symbol === currentSymbol){
             const localTime = Math.floor(Date.now() / 1000);
             const point = { time: localTime, value: p };
@@ -151,10 +169,39 @@ document.addEventListener("DOMContentLoaded", () => {
             if(chartData.length === 1) areaSeries.setData(chartData);
             else areaSeries.update(point);
             chart.timeScale().fitContent();
+
+            updateGauges(change);
         }
     }
 
-    // ------------------ Animation Lissage ------------------
+    // === Calcul des gauges ===
+    function updateGauges(change) {
+        recentChanges.push(change);
+        if(recentChanges.length > 50) recentChanges.shift();
+
+        // Volatilité : moyenne des amplitudes absolues
+        const volatility = Math.min(100, (recentChanges.reduce((a,b)=>a+Math.abs(b),0)/recentChanges.length)*10000);
+
+        // Force de tendance : pente moyenne (EMA simplifiée)
+        const trendStrength = Math.min(100, Math.abs(recentChanges.reduce((a,b)=>a+b,0))*10000);
+
+        // Probabilité de tendance : % de ticks du même signe
+        const positives = recentChanges.filter(c => c > 0).length;
+        const negatives = recentChanges.filter(c => c < 0).length;
+        const prob = (positives > negatives ? positives : negatives) / recentChanges.length * 100;
+
+        setGauge(volGauge, volatility, "#FF9800");
+        setGauge(trendGauge, trendStrength, "#2962FF");
+        setGauge(probGauge, prob, "#4CAF50");
+    }
+
+    function setGauge(el, val, color) {
+        const v = Math.round(val);
+        el.querySelector(".value").textContent = `${v}%`;
+        el.style.background = `conic-gradient(${color} ${v*3.6}deg, #ddd ${v*3.6}deg)`;
+    }
+
+    // === Lissage progress bars ===
     function animateBars() {
         for(const sym of volatilitySymbols){
             const el = document.getElementById(`symbol-${sym}`);
@@ -162,12 +209,10 @@ document.addEventListener("DOMContentLoaded", () => {
             const progress = el.querySelector(".progressFill");
             if(!progress) continue;
 
-            // interpolation douce
             barSmooth[sym] += (barTargets[sym] - barSmooth[sym]) * 0.1;
             const width = Math.max(10, Math.min(100, barSmooth[sym]));
             progress.style.width = `${width}%`;
 
-            // couleur plus douce
             let color = "#999";
             if(progress.dataset.color === "green") color = "#4CAF50";
             else if(progress.dataset.color === "red") color = "#F44336";
@@ -176,12 +221,10 @@ document.addEventListener("DOMContentLoaded", () => {
         requestAnimationFrame(animateBars);
     }
 
-    // ------------------ Connect Button ------------------
-    connectBtn.onclick = () => {
-        connectDeriv(API_TOKEN);
-    };
+    // === Connect ===
+    connectBtn.onclick = () => connectDeriv(API_TOKEN);
 
-    // ------------------ Init ------------------
+    // === Init ===
     initSymbols();
     initChart();
     animateBars();
