@@ -139,7 +139,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Table
 // ==========================
-// 1️⃣ Initialisation tableau
+// 1️⃣ Initialisation du tableau
 // ==========================
 function initTable() {
   const autoHistoryList = document.getElementById("autoHistoryList");
@@ -167,10 +167,10 @@ function initTable() {
   `;
 }
 
-// ==================================
-// 2️⃣ Ajouter / mettre à jour contrat (diagnostic)
-// ==================================
-function addTradeRow(c) {
+// ==========================
+// 2️⃣ Ajouter ou mettre à jour un contrat
+// ==========================
+function addOrUpdateTradeRow(c) {
   const autoTradeBody = document.getElementById("autoTradeBody");
   if (!autoTradeBody || !c.contract_id) return;
 
@@ -206,6 +206,7 @@ function addTradeRow(c) {
           padding:2px 6px;cursor:pointer;">Close</button>
       </td>
     `;
+
     autoTradeBody.appendChild(tr);
 
     tr.querySelector(".deleteRowBtn").addEventListener("click", () => {
@@ -215,42 +216,41 @@ function addTradeRow(c) {
       }
     });
   } else {
-    // Mise à jour du profit
     const profitCell = tr.querySelector(".profitCell");
     if (profitCell) profitCell.textContent = profit;
   }
 
-  // Supprimer si vendu
   if (c.is_sold) {
     tr.remove();
     logHistory(`✅ Contract ${c.contract_id} closed.`);
   }
 }
 
-// ==================================
+// ==========================
 // 3️⃣ Souscription au portfolio et contrats ouverts
-// ==================================
+// ==========================
 function subscribePortfolio(ws) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
+  // Abonnement au portfolio
   ws.send(JSON.stringify({ portfolio: 1, subscribe: 1 }));
 
+  // Gestion des messages portfolio et contracts en temps réel
   ws.addEventListener("message", (msg) => {
     const data = JSON.parse(msg.data);
     console.log("📡 WS message:", data);
 
-    // Portfolio
+    // Portfolio : récupérer tous les contrats ouverts
     if (data.msg_type === "portfolio" && data.portfolio?.contracts) {
       const contracts = data.portfolio.contracts;
-      contracts.forEach((c) => addTradeRow({ ...c }));
+      contracts.forEach(c => addOrUpdateTradeRow({ ...c }));
     }
 
-    // Proposal open contract
+    // Suivi en temps réel des contrats
     if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
       const poc = data.proposal_open_contract;
-      addTradeRow({ ...poc });
+      addOrUpdateTradeRow({ ...poc });
 
-      // Souscrire au live
       if (!poc.is_sold && !poc.subscription) {
         ws.send(JSON.stringify({
           proposal_open_contract: 1,
@@ -986,9 +986,9 @@ closeBtnAll.onclick=()=>{
     }
   }
 
-  // ==================================
+// ==========================
 // 4️⃣ Connect / Disconnect
-// ==================================
+// ==========================
 connectBtn.onclick = () => {
   initTable();
 
@@ -1026,28 +1026,27 @@ connectBtn.onclick = () => {
   ws.onmessage = (msg) => {
     const data = JSON.parse(msg.data);
 
-    // Autorisation
     if (data.msg_type === "authorize") {
       if (!data.authorize?.loginid) return;
       authorized = true;
       setStatus(`Connected: ${data.authorize.loginid}`);
       ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
 
-      // ⚡ Souscription séparée
+      // ⚡ Abonnement indépendant
       subscribePortfolio(ws);
     }
 
-    // Balance
     if (data.msg_type === "balance" && data.balance) {
       const bal = parseFloat(data.balance.balance || 0).toFixed(2);
       const cur = data.balance.currency || "USD";
       userBalance.textContent = `Balance: ${bal} ${cur}`;
       logHistory(`Balance updated: ${bal} ${cur}`);
     }
+   };
+
+   connectBtn.textContent = "Disconnect";
   };
 
-  connectBtn.textContent = "Disconnect";
- };
 
   initSymbols();
   selectSymbol(volatilitySymbols[0]);
