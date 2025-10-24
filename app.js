@@ -1012,105 +1012,192 @@ closeBtnAll.onclick=()=>{
     }
   }
 
- // ================================================
-// 🔌 Bouton de connexion (connectBtn)
-// Compatible avec addTradeRow()
-// ================================================
+ connectBtn.onclick = () => {
+    // ===========================
+    // 🔌 Gestion connexion / déconnexion
+    // ===========================
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close();
+        ws = null;
+        setStatus("Disconnected");
+        connectBtn.textContent = "Connect";
+        return;
+    }
 
-connectBtn.onclick = () => {
-  const token = tokenInput.value.trim();
-  if (!token) {
-    logHistory("⚠️ Please enter your Deriv API token.");
-    return;
-  }
+    const token = tokenInput.value.trim();
+    if (!token) {
+        setStatus("Simulation Mode");
+        logHistory("Running in simulation (no token)");
+        return;
+    }
 
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    logHistory("✅ Already connected to Deriv.");
-    return;
-  }
+    ws = new WebSocket(WS_URL);
+    setStatus("Connecting...");
 
-  const APP_ID = 105747;
-  const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
-  ws = new WebSocket(WS_URL);
+    ws.onopen = () => {
+        setStatus("Connected, authorizing...");
+        ws.send(JSON.stringify({ authorize: token }));
+    };
 
-  ws.onopen = () => {
-    logHistory("🔗 Connected to Deriv, authorizing...");
-    ws.send(JSON.stringify({ authorize: token }));
+    ws.onclose = () => {
+        setStatus("Disconnected");
+        logHistory("WS closed");
+        authorized = false;
+    };
+
+    ws.onerror = e => {
+        logHistory("WS error " + JSON.stringify(e));
+    };
+
+    ws.onmessage = msg => {
+        const data = JSON.parse(msg.data);
+
+        // ===========================
+        // 🔑 Autorisation
+        // ===========================
+        if (data.msg_type === "authorize") {
+            if (!data.authorize?.loginid) {
+                setStatus("Simulation Mode (Token invalid)");
+                logHistory("Token not authorized");
+                return;
+            }
+            authorized = true;
+            setStatus(`Connected: ${data.authorize.loginid}`);
+            logHistory("Authorized: " + data.authorize.loginid);
+
+            // Abonnements
+            ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+            volatilitySymbols.forEach(sym => subscribeTicks(sym));
+            ws.send(JSON.stringify({ portfolio: 1, subscribe: 1 }));
+        }
+
+        // ===========================
+        // 💰 Balance
+        // ===========================
+        if (data.msg_type === "balance" && data.balance) {
+            const bal = parseFloat(data.balance.balance || 0).toFixed(2);
+            const cur = data.balance.currency || "USD";
+            userBalance.textContent = `Balance: ${bal} ${cur}`;
+            logHistory(`Balance updated: ${bal} ${cur}`);
+        }
+
+        // ===========================
+        // 📈 Tick
+        // ===========================
+        if (data.msg_type === "tick" && data.tick) handleTick(data.tick);
+
+        // ===========================
+        // 📊 Portfolio — Liste des contrats ouverts
+        // ===========================
+        if (data.msg_type === "portfolio" && data.portfolio) {
+            const contracts = data.portfolio.contracts || [];
+            autoTradeBody.innerHTML = ""; // reset le tableau
+            contracts.forEach(c => {
+                const trade = {
+                    time: new Date((c.purchase_time || Date.now()) * 1000).toLocaleTimeString(),
+                    contract_id: c.contract_id,
+                    type: c.contract_type.includes("MULTUP")
+                        ? "BUY"
+                        : c.contract_type.includes("MULTDOWN")
+                        ? "SELL"
+                        : c.contract_type,
+                    stake: parseFloat(c.buy_price || 0),
+                    multiplier: c.multiplier || "-",
+                    entry_spot: c.entry_tick ?? "-",
+                    tp: c.take_profit ?? "-",
+                    sl: c.stop_loss ?? "-",
+                    profit:
+                        c.profit !== undefined
+                            ? (c.profit >= 0 ? `+${c.profit.toFixed(2)}` : c.profit.toFixed(2))
+                            : "-"
+                };
+                addTradeRow(trade);
+
+                // Souscrire à l’évolution en temps réel du contrat
+                ws.send(JSON.stringify({
+                    proposal_open_contract: 1,
+                    contract_id: c.contract_id,
+                    subscribe: 1
+                }));
+            });
+        }
+
+        // ===========================
+        // 🔄 Suivi en temps réel des contrats
+        // ===========================
+        if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
+            const poc = data.proposal_open_contract;
+            const contract_id = poc.contract_id;
+
+            // Si le contrat est clôturé
+            if (poc.is_sold) {
+                const row = document.querySelector(`[data-contract-id="${contract_id}"]`);
+                if (row) {
+                    row.querySelector(".profit").textContent =
+                        poc.profit !== undefined
+                            ? (poc.profit >= 0 ? `+${poc.profit.toFixed(2)}` : poc.profit.toFixed(2))
+                            : "-";
+                    row.classList.add("closed");
+                    row.style.opacity = 0.5;
+                }
+                logHistory(`Contract ${contract_id} closed with profit ${poc.profit?.toFixed(2) ?? "?"}`);
+                ws.send(JSON.stringify({ portfolio: 1 }));
+                return;
+            }
+
+            // Détails à afficher
+            const trade = {
+                time: new Date((poc.date_start || Date.now()) * 1000).toLocaleTimeString(),
+                contract_id,
+                type: poc.contract_type?.includes("MULTUP")
+                    ? "BUY"
+                    : poc.contract_type?.includes("MULTDOWN")
+                    ? "SELL"
+                    : poc.contract_type,
+                stake: parseFloat(poc.buy_price || 0),
+                multiplier: poc.multiplier || "-",
+                entry_spot: poc.entry_tick ?? "-",
+                tp: poc.take_profit ?? "-",
+                sl: poc.stop_loss ?? "-",
+                profit:
+                    poc.profit !== undefined
+                        ? (poc.profit >= 0 ? `+${poc.profit.toFixed(2)}` : poc.profit.toFixed(2))
+                        : "-"
+            };
+
+            // Mettre à jour ou ajouter
+            let existingRow = document.querySelector(`[data-contract-id="${contract_id}"]`);
+            if (existingRow) {
+                existingRow.querySelector(".profit").textContent = trade.profit;
+                existingRow.querySelector(".entry_spot").textContent = trade.entry_spot;
+                existingRow.querySelector(".tp").textContent = trade.tp;
+                existingRow.querySelector(".sl").textContent = trade.sl;
+            } else {
+                addTradeRow(trade);
+                logHistory(`📈 Nouveau contrat: ${contract_id} (${trade.type})`);
+            }
+
+            // Souscrire si pas encore fait
+            if (!poc.is_sold && !poc.subscription) {
+                ws.send(JSON.stringify({
+                    proposal_open_contract: 1,
+                    contract_id,
+                    subscribe: 1
+                }));
+            }
+        }
+
+        // ===========================
+        // 💵 Vente / fermeture manuelle
+        // ===========================
+        if (data.msg_type === "sell" && data.sell) {
+            console.log("💰 Sell response:", data.sell.contract_id);
+            ws.send(JSON.stringify({ portfolio: 1 }));
+        }
+    };
+
+    connectBtn.textContent = "Disconnect";
   };
-
-  ws.onmessage = (msg) => {
-    const data = JSON.parse(msg.data);
-
-    // --- Autorisation réussie ---
-    if (data.msg_type === "authorize") {
-      authorized = true;
-      logHistory(`✅ Authorized as ${data.authorize.loginid}`);
-      ws.send(JSON.stringify({ portfolio: 1 }));
-    }
-
-    // --- Réception du portefeuille ---
-    if (data.msg_type === "portfolio") {
-      const contracts = data.portfolio.contracts;
-      if (contracts && contracts.length > 0) {
-        contracts.forEach((c) => {
-          const contractData = {
-            contract_id: c.contract_id,
-            date_start: c.date_start,
-            is_buy: c.is_buy,
-            buy_price: c.buy_price,
-            multiplier: c.multiplier,
-            entry_tick: c.entry_tick,
-            take_profit: c.take_profit,
-            stop_loss: c.stop_loss,
-            profit: c.profit,
-            is_sold: c.is_sold,
-          };
-          addTradeRow(contractData);
-        });
-      } else {
-        logHistory("ℹ️ No open contracts in portfolio.");
-      }
-    }
-
-    // --- Contrat mis à jour en direct ---
-    if (data.msg_type === "proposal_open_contract") {
-      const c = data.proposal_open_contract;
-      if (!c) return;
-
-      const contractData = {
-        contract_id: c.contract_id,
-        date_start: c.date_start,
-        is_buy: c.is_buy,
-        buy_price: c.buy_price,
-        multiplier: c.multiplier,
-        entry_tick: c.entry_tick,
-        take_profit: c.take_profit,
-        stop_loss: c.stop_loss,
-        profit: c.profit,
-        is_sold: c.is_sold,
-      };
-
-      addTradeRow(contractData);
-    }
-
-    // --- Erreurs éventuelles ---
-    if (data.error) {
-      logHistory(`❌ Error: ${data.error.message}`);
-    }
-  };
-
-  ws.onclose = () => {
-    authorized = false;
-    logHistory("🔴 Disconnected from Deriv server.");
-  };
-
-  // --- Rafraîchissement automatique du portefeuille toutes les 10s ---
-  setInterval(() => {
-    if (ws && ws.readyState === WebSocket.OPEN && authorized) {
-      ws.send(JSON.stringify({ portfolio: 1 }));
-    }
-  }, 10000);
-};
 
 
   initSymbols();
