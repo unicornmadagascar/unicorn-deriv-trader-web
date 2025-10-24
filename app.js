@@ -312,22 +312,7 @@ function initTable()
       }
 
     ws.onerror = (err) => console.error("❌ WebSocket error:", err);
-    //ws.onclose = () => console.log("🔴 Disconnected");
-  }
-
-  function isWsReady(ws,authorized){
-    
-    let flag;
-    if (ws && ws.readyState === WebSocket.OPEN && authorized)
-     {
-       flag = true;
-     }
-    else
-     {
-      flag = false;
-     }
-
-    return flag;
+    ws.onclose = () => console.log("🔴 Disconnected");
   }
 
   // canvas
@@ -1137,7 +1122,7 @@ connectBtn.onclick=()=>{
 // ===============================================================
 setInterval(() => {
     logHistory("WS State : " + ws.readyState);
-    logHistory("WS State : " + authorized);
+    logHistory("WS Authorization : " + authorized);
     if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)
     {
       if (ws.readyState === WebSocket.OPEN)
