@@ -1,312 +1,951 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>🦄 Unicorn Madagascar — Deriv Multiplier Trader</title>
+// app.js - Unicorn Madagascar (demo live ticks) - Version nettoyée
 
-  <!-- Lightweight Charts -->
-  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+document.addEventListener("DOMContentLoaded", () => {
+  const APP_ID = 105747;
+  const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
 
-  <style>
-    /* 🌈 Styles identiques à ton code précédent */
-    :root {
-      --bg-main: #f8fafc;
-      --bg-panel: #ffffff;
-      --bg-accent: #eff6ff;
-      --text-main: #1e293b;
-      --text-muted: #475569;
-      --border: #e2e8f0;
-      --accent: #2563eb;
-      --accent-light: #93c5fd;
-    }
+  // UI
+  const tokenInput = document.getElementById("tokenInput");
+  const connectBtn = document.getElementById("connectBtn");
+  const statusSpan = document.getElementById("status");
+  const userBalance = document.getElementById("userBalance");
+  const symbolList = document.getElementById("symbolList");
+  const chartContainer = document.getElementById("chartInner");
+  const gaugeDashboard = document.getElementById("gaugeDashboard");
+  const buyBtn = document.getElementById("buyBtn");
+  const sellBtn = document.getElementById("sellBtn");
+  const closeBtn = document.getElementById("closeBtn");
+  const closeBtnAll = document.getElementById("closeBtnAll");
+  const historyList = document.getElementById("historyList");
+  const stakeInput = document.getElementById("stake");
+  const multiplierInput = document.getElementById("multiplier");
+  const modeSelect = document.getElementById("modeSelect");
+  const pnlDisplay = document.getElementById("pnl");
+  const tp = document.getElementById("tp");
+  const sl = document.getElementById("sl");
+  const buynumb = document.getElementById("buyNumber");
+  const sellnumb = document.getElementById("sellNumber");
+  const toggleBtn = document.getElementById("themeToggle");
+  const autoHistoryList = document.getElementById("autoHistoryList");
+  const plCanvas = document.getElementById("plGauge");
 
-    body.dark {
-      --bg-main: #0d1117;
-      --bg-panel: #161b22;
-      --bg-accent: #1e293b;
-      --text-main: #e6edf3;
-      --text-muted: #9ba6b3;
-      --border: #30363d;
-      --accent: #58a6ff;
-      --accent-light: #1e40af;
-    }
+  let ws = null;
+  let isAuthorized = false;
+  let totalPL = 0;
+  let currentPL = 0;
+  let gaugeAnimating = false;
+  let refreshInterval;
+  let authorized = false;
+  let currentSymbol = null;
+  let lastPrices = {};
+  let chartData = [];
+  let chartTimes = [];
+  let trades = [];
+  let canvas, ctx;
+  let gaugeSmoothers = { volatility: 0, rsi: 0, emaProb: 0 };
+  const SMA_WINDOW = 20;
+  let numb_;
+  let entry;
+  const isOn = false;
+  const token = "wgf8TFDsJ8Ecvze";
 
-    body {
-      margin: 0;
-      font-family: 'Inter', sans-serif;
-      background-color: var(--bg-main);
-      color: var(--text-main);
-      transition: 0.3s;
-    }
+  const volatilitySymbols = ["BOOM1000","CRASH1000","BOOM900","CRASH900","BOOM600","CRASH600","BOOM500","CRASH500",
+                             "R_100","R_75","R_50","R_25","R_10"
+                            ];
 
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 20px;
-      background: linear-gradient(90deg, var(--accent), #3b82f6);
-      color: white;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-    }
+  // tooltip
+  const tooltip = document.createElement("div");
+  tooltip.style.cssText = "position:fixed;padding:6px 10px;background:rgba(0,0,0,0.85);color:#fff;font-size:12px;border-radius:6px;pointer-events:none;display:none;z-index:9999";
+  document.body.appendChild(tooltip);
 
-    header h1 {
-      font-size: 1.2rem;
-      font-weight: 600;
-    }
+  // helpers
+  function logHistory(txt){
+    const d = document.createElement("div");
+    d.textContent = `${new Date().toLocaleTimeString()} — ${txt}`;
+    historyList.prepend(d);
+  }
+  function setStatus(txt){ statusSpan.textContent = txt; }
+  function formatNum(n){ return Number(n).toFixed(2); }
 
-    .header-right {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
+  // init symbols list
+  function initSymbols(){
+    symbolList.innerHTML = "";
+    volatilitySymbols.forEach(sym => {
+      const el = document.createElement("div");
+      el.className = "symbolItem";
+      el.id = `symbol-${sym}`;
+      switch(sym)
+       {
+        case "BOOM1000":
+           el.textContent = "BOOM 1000";
+           break;
+        case "BOOM900":
+           el.textContent = "BOOM 900";
+           break;
+        case "BOOM600":
+           el.textContent = "BOOM 600";
+           break;
+        case "BOOM500":
+           el.textContent = "BOOM 500";
+           break;
+        case "CRASH1000":
+           el.textContent = "CRASH 1000";
+           break;
+        case "CRASH900":
+           el.textContent = "CRASH 900";
+           break;
+        case "CRASH600":
+           el.textContent = "CRASH 600";
+           break;
+        case "CRASH500":
+           el.textContent = "CRASH 500";
+           break;
+        case "R_100":
+           el.textContent = "VIX 100";
+           break;
+        case "R_75":
+           el.textContent = "VIX 75";
+           break;
+        case "R_50":
+           el.textContent = "VIX 50";
+           break;
+        case "R_25":
+           el.textContent = "VIX 25";
+           break;
+        case "R_10":
+           el.textContent = "VIX 10";
+           break;
+       }
 
-    input, select, button {
-      padding: 6px 10px;
-      font-size: 0.9rem;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background-color: var(--bg-panel);
-      color: var(--text-main);
-      transition: 0.2s;
-    }
-
-    button {
-      background: linear-gradient(90deg, #3b82f6, var(--accent));
-      color: white;
-      border: none;
-      cursor: pointer;
-    }
-
-    button:hover { opacity: 0.9; }
-
-    main {
-      display: flex;
-      align-items: flex-start;
-      height: auto;
-      min-height: 100vh;
-    }
-
-    #symbolList { width: 320px; margin-top: 16px; }
-
-    #chartSection {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      padding: 16px;
-      position: relative;
-    }
-
-    #chartInner {
-      flex: 1;
-      width: 100%;
-      min-height: 500px;
-      background-color: var(--bg-panel);
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      position: relative;
-      z-index: 1;
-    }
-
-    #controls {
-      margin-top: 10px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-      background-color: var(--bg-panel);
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      padding: 10px;
-    }
-
-    #tradeHistory, #autoTradeHistory {
-      margin-top: 10px;
-      background-color: var(--bg-panel);
-      padding: 10px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      height: 300px;
-      overflow-y: auto;
-    }
-
-    table.trade-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.85rem;
-    }
-
-    .trade-table th, .trade-table td {
-      padding: 6px 8px;
-      text-align: center;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .buy { color: #16a34a; font-weight: 600; }
-    .sell { color: #dc2626; font-weight: 600; }
-
-    #pnl {
-      font-weight: bold;
-      color: var(--accent);
-    }
-
-    .theme-toggle {
-      background: transparent;
-      border: 1px solid rgba(255,255,255,0.3);
-      color: white;
-      font-size: 1rem;
-      border-radius: 50%;
-      width: 34px;
-      height: 34px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-    }
-
-    .theme-toggle:hover { background: rgba(255,255,255,0.15); }
-
-  </style>
-</head>
-
-<body>
-  <header>
-    <h1>🦄 Unicorn Madagascar</h1>
-    <div class="header-right">
-      <input id="tokenInput" placeholder="Enter Deriv API token (optional)" />
-      <button id="connectBtn">Connect</button>
-      <span id="status">Not connected</span>
-      <span id="userBalance">💰 Balance: --</span>
-      <button class="theme-toggle" id="themeToggle" title="Toggle Light/Dark">🌙</button>
-    </div>
-  </header>
-
-  <main>
-    <aside id="symbolPanel">
-      <div id="symbolList"></div>
-      <div id="plGaugeContainer">
-        <canvas id="plGauge" width="230" height="230"></canvas>
-      </div>
-    </aside>
-
-    <section id="chartSection">
-      <div id="gaugeDashboard"></div>
-
-      <!-- ✅ Remplacement canvas → lightweight chart -->
-      <div id="chartInner">
-        <div id="tradingChart" style="width:100%; height:100%;"></div>
-      </div>
-
-      <div id="controls">
-        <select id="modeSelect">
-          <option value="simulation">Simulation</option>
-          <option value="live">Live</option>
-        </select>
-
-        <label>Multiplier
-          <select id="multiplier">
-            <option value="100">100</option>
-            <option value="200">200</option>
-            <option value="300">300</option>
-            <option value="400">400</option>
-            <option value="500">500</option>
-          </select>
-        </label>
-
-        <label>Stake:
-          <input id="stake" type="number" step="0.01" min="0.01" value="1.00" />
-        </label>
-
-        <label>TP (%) <input id="tp" type="number" step="0.01" value="1.0" /></label>
-        <label>SL (%) <input id="sl" type="number" step="0.01" value="1.0" /></label>
-        <label>Buy Number: <input id="buyNumber" type="number" min="1" max="100" value="1" /></label>
-        <label>Sell Number: <input id="sellNumber" type="number" min="1" max="100" value="1" /></label>
-
-        <button id="launchAutomation">Launch Automation</button>
-        <button id="buyBtn">BUY</button>
-        <button id="sellBtn">SELL</button>
-        <button id="closeBtn">CLOSE ALL WINNING</button>
-        <button id="closeBtnAll">CLOSE ALL</button>
-        <div id="pnl">PnL: --</div>
-      </div>
-
-      <div id="autoTradeHistory">
-        <strong>Automated trades</strong>
-        <div id="autoHistoryList"></div>
-      </div>
-
-      <div id="tradeHistory">
-        <strong>📜 Trade history</strong>
-        <div id="historyList"></div>
-      </div>
-    </section>
-  </main>
-
-  <script src="app.js" defer></script>
-
-  <script>
-    // 🌗 Thème clair/sombre
-    const toggleBtn = document.getElementById("themeToggle");
-    const body = document.body;
-    if (localStorage.getItem("theme") === "dark") {
-      body.classList.add("dark");
-      toggleBtn.textContent = "☀️";
-    }
-    toggleBtn.addEventListener("click", () => {
-      body.classList.toggle("dark");
-      const isDark = body.classList.contains("dark");
-      toggleBtn.textContent = isDark ? "☀️" : "🌙";
-      localStorage.setItem("theme", isDark ? "dark" : "light");
+      el.onclick = () => selectSymbol(sym);
+      symbolList.appendChild(el);
     });
+  }
 
-    // ⚙️ Initialisation du Lightweight Chart
-    const chartContainer = document.getElementById("tradingChart");
-    const chart = LightweightCharts.createChart(chartContainer, {
-      layout: {
-        background: { color: 'transparent' },
-        textColor: getComputedStyle(document.body).getPropertyValue('--text-main')
-      },
-      grid: {
-        vertLines: { color: 'rgba(197,203,206,0.3)' },
-        horzLines: { color: 'rgba(197,203,206,0.3)' }
-      },
-      timeScale: {
-        borderColor: 'rgba(197,203,206,0.8)',
-      },
-      crosshair: {
-        mode: LightweightCharts.CrosshairMode.Normal,
-      },
-    });
+  // select symbol
+  function selectSymbol(sym){
+    currentSymbol = sym;
+    document.querySelectorAll(".symbolItem").forEach(e => e.classList.remove("active"));
+    const el = document.getElementById(`symbol-${sym}`);
+    if(el) el.classList.add("active");
+    chartData = [];
+    chartTimes = [];
+    trades = [];
+    initCanvas();
+    initGauges();
+    subscribeTicks(sym);
+    logHistory(`Selected ${sym}`);
+  }
 
-    const lineSeries = chart.addLineSeries({ color: '#2563eb', lineWidth: 2 });
-    const priceData = [];
-    
-    // Exemple de mise à jour dynamique
-    function updateChart(price) {
-      const time = Math.floor(Date.now() / 1000);
-      priceData.push({ time, value: price });
-      lineSeries.setData(priceData.slice(-100)); // garde 100 dernières valeurs
+  // Table
+// ==========================
+// 1️⃣ Initialisation du tableau
+// ==========================
+function initTable()
+  {
+   // Construction du tableau HTML
+   autoHistoryList.innerHTML = `
+    <table class="trade-table" id="autoTradeTable">
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="selectAll"></th>
+          <th>Time of Trade</th>
+          <th>Contract ID</th>
+          <th>Contract Type</th>
+          <th>Stake</th>
+          <th>Multiplier</th>
+          <th>Entry Spot</th>
+          <th>TP (%)</th>
+          <th>SL (%)</th>
+          <th>Profit</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="autoTradeBody"></tbody>
+    </table>
+    <button id="deleteSelected" style="margin-top:8px; background:#dc2626; color:white; border:none; padding:6px 10px; border-radius:6px; cursor:pointer;">🗑 Delete Selected</button>
+   `;
+
+    const autoTradeBody = document.getElementById("autoTradeBody");
+  }
+
+  // Fonction d’ajout d’une ligne de trade
+  function addTradeRow(trade) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input type="checkbox" class="rowSelect"></td>
+      <td>${trade.time}</td>
+      <td>${trade.contract_id}</td>
+      <td class="${trade.type === "BUY" ? "buy" : "sell"}">${trade.type}</td>
+      <td>${trade.stake.toFixed(2)}</td>
+      <td>${trade.multiplier}</td>
+      <td>${trade.entry_spot}</td>
+      <td>${trade.tp}%</td>
+      <td>${trade.sl}%</td>
+      <td>${trade.profit}</td>
+      <td>
+        <button class="deleteRowBtn" style="background:#ef4444; border:none; color:white; border-radius:4px; padding:2px 6px; cursor:pointer;">Delete</button>
+      </td>
+    `;
+    autoTradeBody.appendChild(tr);
+  }
+
+// ==========================
+// 3️⃣ Souscription au portfolio et contrats ouverts
+// ==========================
+// --- 🔍 Récupère tous les contrats ouverts
+  function fetchOpenContracts() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ portfolio: 1 }));
+    }
+  }
+
+  // --- 🔄 S’abonne aux détails d’un contrat
+  function subscribeContractDetails(contract_id) {
+     ws.send(JSON.stringify({ proposal_open_contract: 1, contract_id : contract_id, subscribe: 1 }));
+  }
+
+  // --- 💰 Ferme un contrat
+  function closeContract(contract_id) {
+    ws.send(JSON.stringify({ sell: contract_id.trim(), price: 0 }));
+    console.log("🚪 Closing contract:", contract_id);
+  }
+
+  // --- 🧠 Gère les réponses Deriv
+  function handlePortfolio(data) {
+    const contracts = data?.portfolio?.contracts;
+    if (!contracts || !contracts.length) {
+      console.log("ℹ️ Aucun contrat ouvert actuellement.");
+      return;
     }
 
-    // Thème dynamique
-    const updateTheme = () => {
-      const dark = document.body.classList.contains("dark");
-      chart.applyOptions({
-        layout: {
-          background: { color: 'transparent' },
-          textColor: dark ? '#e6edf3' : '#1e293b'
-        },
-      });
+    // Nettoie le tableau avant de remplir
+    document.getElementById("autoTradeBody").innerHTML = "";
+
+    // Abonne chaque contrat
+    contracts.forEach(c => {
+      console.log("📡 Subscribing to:", c.contract_id);
+      subscribeContractDetails(c.contract_id);
+    });
+  }
+
+  function handleContractDetails(data) {
+    const c = data.proposal_open_contract;
+    if (!c || !c.contract_id) return;
+
+    const autoTradeBody = document.getElementById("autoTradeBody");
+
+    // Supprime la ligne si le contrat est vendu
+    if (c.is_sold) {
+      const tr = autoTradeBody.querySelector(`[data-contract='${c.contract_id}']`);
+      if (tr) tr.remove();
+      console.log(`✅ Contract ${c.contract_id} closed.`);
+      return;
+    }
+
+    // Objet formaté pour ton tableau
+    const trade = {
+      time: new Date(c.date_start * 1000).toLocaleTimeString(),
+      contract_id: c.contract_id,
+      type: c.is_buy ? "BUY" : "SELL",
+      stake: c.buy_price || 0,
+      multiplier: c.multiplier || "-",
+      entry_spot: c.entry_tick ?? "-",
+      tp: c.take_profit ?? "-",
+      sl: c.stop_loss ?? "-",
+      profit:
+        c.profit !== undefined
+          ? (c.profit >= 0 ? `+${c.profit.toFixed(2)}` : c.profit.toFixed(2))
+          : "-"
     };
-    new MutationObserver(updateTheme).observe(document.body, { attributes: true });
 
-    // Automation toggle
-    const launchAutomationBtn = document.getElementById("launchAutomation");
-    launchAutomationBtn.addEventListener("click", () => {
-      const isActive = launchAutomationBtn.classList.toggle("active");
-      launchAutomationBtn.textContent = isActive ? "Stop Automation" : "Launch Automation";
+    // Vérifie si déjà présent
+    let tr = autoTradeBody.querySelector(`[data-contract='${c.contract_id}']`);
+
+    if (!tr) {
+      // 🔹 Création d’une nouvelle ligne
+      tr = document.createElement("tr");
+      tr.dataset.contract = c.contract_id;
+      tr.innerHTML = `
+        <td><input type="checkbox" class="rowSelect"></td>
+        <td>${trade.time}</td>
+        <td>${trade.contract_id}</td>
+        <td class="${trade.type === "BUY" ? "buy" : "sell"}">${trade.type}</td>
+        <td>${Number(trade.stake).toFixed(2)}</td>
+        <td>${trade.multiplier}</td>
+        <td>${trade.entry_spot}</td>
+        <td>${trade.tp}</td>
+        <td>${trade.sl}</td>
+        <td>${trade.profit}</td>
+        <td>
+        <button class="deleteRowBtn"
+          style="background:#ef4444; border:none; color:white; border-radius:4px; padding:2px 6px; cursor:pointer;">
+          Close
+        </button>
+        </td>
+      `;
+       autoTradeBody.appendChild(tr);
+    } else {
+      // 🔄 Mise à jour en temps réel du profit
+      tr.cells[9].textContent = trade.profit;
+    }
+  }
+
+   // --- 🧱 Connexion WebSocket
+  function connectDeriv(ws, data) {
+      switch (data.msg_type) {
+        case "authorize":
+          console.log("✅ Authorized, fetching open contracts...");
+          fetchOpenContracts();
+          break;
+        case "portfolio":
+          handlePortfolio(data);
+          break;
+        case "proposal_open_contract":
+          handleContractDetails(data);
+          break;
+        case "sell":
+          console.log("💰 Sell response:", data);
+          break;
+        default:
+          break;
+      }
+
+    ws.onerror = (err) => console.error("❌ WebSocket error:", err);
+    ws.onclose = () => console.log("🔴 Disconnected");
+  }
+
+  // canvas
+  /*function initCanvas(){
+    chartInner.innerHTML = "";
+    canvas = document.createElement("canvas");
+    canvas.width = chartInner.clientWidth;
+    canvas.height = chartInner.clientHeight;
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    chartInner.appendChild(canvas);
+    ctx = canvas.getContext("2d");
+    canvas.addEventListener("mousemove", canvasMouseMove);
+    canvas.addEventListener("mouseleave", ()=>{ tooltip.style.display="none"; });
+  }*/
+
+  // gauges
+  function initGauges(){
+    gaugeDashboard.innerHTML = "";
+    ["Volatility","RSI","EMA"].forEach(name=>{
+      const c = document.createElement("canvas");
+      c.width=c.height=120;
+      c.dataset.gaugeName=name;
+      c.style.width=c.style.height="120px";
+      gaugeDashboard.appendChild(c);
     });
-  </script>
-</body>
-</html>
+  }
+
+  function drawGauges(){
+    const canvases = gaugeDashboard.querySelectorAll("canvas");
+    canvases.forEach(c=>{
+      let value=0;
+      if(c.dataset.gaugeName==="Volatility") value=computeVolatility();
+      else if(c.dataset.gaugeName==="RSI") value=computeRSI();
+      else if(c.dataset.gaugeName==="EMA") value=computeEMAProb();
+      const key = c.dataset.gaugeName==="Volatility"?"volatility":c.dataset.gaugeName==="RSI"?"rsi":"emaProb";
+      gaugeSmoothers[key] = gaugeSmoothers[key]*0.7 + value*0.3;
+      renderGauge(c, gaugeSmoothers[key]);
+    });
+  }
+
+  function renderGauge(canvas, value){
+    const gctx = canvas.getContext("2d");
+    const w = canvas.width, h = canvas.height;
+    const radius = Math.min(w,h)/2-10;
+    gctx.clearRect(0,0,w,h);
+    gctx.beginPath();
+    gctx.arc(w/2,h/2,radius,0,2*Math.PI);
+    gctx.strokeStyle="#eee"; gctx.lineWidth=12; gctx.stroke();
+    const end=(-Math.PI/2)+(Math.max(0,Math.min(100,value))/100)*2*Math.PI;
+    gctx.beginPath(); gctx.arc(w/2,h/2,radius,-Math.PI/2,end);
+    gctx.strokeStyle="#2563eb"; gctx.lineWidth=12; gctx.stroke();
+    gctx.fillStyle="#222"; gctx.font="12px Inter, Arial"; gctx.textAlign="center"; gctx.textBaseline="middle";
+    gctx.fillText(canvas.dataset.gaugeName, w/2, h/2-12);
+    gctx.fillText(value.toFixed(1)+"%", w/2, h/2+12);
+  }
+
+  // compute volatility
+  function computeVolatility(){
+    if(chartData.length<2) return 0;
+    const lastN = chartData.slice(-SMA_WINDOW);
+    const mean = lastN.reduce((a,b)=>a+b,0)/lastN.length;
+    const variance = lastN.reduce((a,b)=>a+Math.pow(b-mean,2),0)/lastN.length;
+    const relative = (Math.sqrt(variance)/(chartData[chartData.length-1]||1))*100;
+    return Math.min(100, relative*2);
+  }
+
+  function computeRSI(period=14){
+    if(chartData.length<period+1) return 0;
+    const closes = chartData.slice(-(period+1));
+    let gains=0, losses=0;
+    for(let i=1;i<closes.length;i++){
+      const d=closes[i]-closes[i-1];
+      if(d>0) gains+=d; else losses+=Math.abs(d);
+    }
+    if(gains+losses===0) return 50;
+    const rs=gains/Math.max(1,losses);
+    return 100-(100/(1+rs));
+  }
+
+  function computeEMAProb(short=10,long=50){
+    if(chartData.length<long) return 50;
+    const shortEma=emaArray(chartData,short).slice(-1)[0];
+    const longEma=emaArray(chartData,long).slice(-1)[0];
+    const diff=shortEma-longEma;
+    const px=chartData[chartData.length-1]||1;
+    const prob=50+(diff/px)*500;
+    return Math.max(0,Math.min(100,prob));
+  }
+
+  function emaArray(arr, period){
+    const k=2/(period+1);
+    let ema=arr[0], res=[ema];
+    for(let i=1;i<arr.length;i++){ ema=arr[i]*k + ema*(1-k); res.push(ema); }
+    return res;
+  }
+
+  // chart
+  // --- Nouvelle fonction pour récupérer les prix d’entrée des contrats ouverts ---
+function getEntryPrices(callback) {
+  let ws = new WebSocket(WS_URL);
+  let entryPrices = [];
+  let totalContracts = 0;
+  let receivedContracts = 0;
+
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" }));
+  };
+
+  ws.onmessage = (msg) => {
+    const data = JSON.parse(msg.data);
+
+    if (data.msg_type === "authorize") {
+      ws.send(JSON.stringify({ portfolio: 1 }));
+    }
+
+    if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0) {
+      const contracts = data.portfolio.contracts;
+      totalContracts = contracts.length;
+
+      for (const c of contracts) {
+        ws.send(JSON.stringify({
+          proposal_open_contract: 1,
+          contract_id: c.contract_id
+        }));
+      }
+    }
+
+    if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
+      const poc = data.proposal_open_contract;
+      const entry = parseFloat(poc.entry_spot || poc.buy_price || 0);
+      entryPrices.push(entry);
+      receivedContracts++;
+
+      if (receivedContracts === totalContracts) {
+        ws.close();
+        callback(entryPrices);
+      }
+    }
+  };
+}
+
+
+// --- Ta fonction drawChart modifiée avec affichage des Entry Prices ---
+/*function drawChart() {
+  if (!ctx || chartData.length === 0) return;
+  const padding = 50;
+  const w = canvas.width - padding * 2;
+  const h = canvas.height - padding * 2;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const maxVal = Math.max(...chartData, ...trades.map(t => t.entry));
+  const minVal = Math.min(...chartData, ...trades.map(t => t.entry));
+  const range = maxVal - minVal || 1;
+
+  // axes
+  ctx.strokeStyle = "#666"; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padding, padding);
+  ctx.lineTo(padding, canvas.height - padding);
+  ctx.lineTo(canvas.width - padding, canvas.height - padding);
+  ctx.stroke();
+
+  // y labels
+  ctx.fillStyle = "#2b3a4a";
+  ctx.font = "12px Inter, Arial";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i <= 5; i++) {
+    const y = canvas.height - padding - (i / 5) * h;
+    const v = minVal + (i / 5) * range;
+    ctx.fillText(v.toFixed(2), padding - 10, y);
+  }
+
+  // x labels
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  const len = chartData.length;
+  const step = Math.max(1, Math.ceil(len / 6));
+  for (let i = 0; i < len; i += step) {
+    const x = padding + (i / (len - 1)) * w;
+    const t = chartTimes[i]
+      ? new Date(chartTimes[i] * 1000).toLocaleTimeString().slice(0, 8)
+      : "";
+    ctx.fillText(t, x, canvas.height - padding + 5);
+  }
+
+  // area chart
+  ctx.beginPath();
+  for (let i = 0; i < len; i++) {
+    const x = padding + (i / (len - 1)) * w;
+    const y = canvas.height - padding - ((chartData[i] - minVal) / range) * h;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.lineTo(canvas.width - padding, canvas.height - padding);
+  ctx.lineTo(padding, canvas.height - padding);
+  ctx.closePath();
+  const fillGrad = ctx.createLinearGradient(0, padding, 0, canvas.height - padding);
+  fillGrad.addColorStop(0, "rgba(0,123,255,0.35)");
+  fillGrad.addColorStop(1, "rgba(0,123,255,0.08)");
+  ctx.fillStyle = fillGrad;
+  ctx.fill();
+
+  // line chart
+  ctx.beginPath();
+  for (let i = 0; i < len; i++) {
+    const x = padding + (i / (len - 1)) * w;
+    const y = canvas.height - padding - ((chartData[i] - minVal) / range) * h;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = "#007bff";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // trades (inchangés)
+  trades.forEach(tr => {
+    if (tr.symbol !== currentSymbol) return;
+    const x = padding + ((len - 1) / (len - 1)) * w;
+    const y = canvas.height - padding - ((tr.entry - minVal) / range) * h;
+
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = "rgba(220,38,38,0.9)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(padding, y);
+    ctx.lineTo(canvas.width - padding, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = tr.type === "BUY" ? "green" : "red";
+    ctx.beginPath();
+    if (tr.type === "BUY") {
+      ctx.moveTo(x, y - 10);
+      ctx.lineTo(x - 8, y);
+      ctx.lineTo(x + 8, y);
+    } else {
+      ctx.moveTo(x, y + 10);
+      ctx.lineTo(x - 8, y);
+      ctx.lineTo(x + 8, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(220,38,38,0.9)";
+    ctx.font = "12px Inter, Arial";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "bottom";
+    ctx.fillText(tr.entry.toFixed(2), canvas.width - padding - 4, y - 2);
+  });
+
+  // ligne du prix actuel
+  if (chartData.length > 0) {
+    const lastPrice = chartData[len - 1];
+    const yCur = canvas.height - padding - ((lastPrice - minVal) / range) * h;
+    ctx.strokeStyle = "#16a34a";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(padding, yCur);
+    ctx.lineTo(canvas.width - padding, yCur);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(canvas.width - padding, yCur, 4, 0, Math.PI * 2);
+    ctx.fillStyle = "#16a34a";
+    ctx.fill();
+  }
+
+  // --- 🔴 Entrées des contrats (avec triangle + label à droite) ---
+  getEntryPrices((entries) => {
+    entries.forEach((price, i) => {
+      const y = canvas.height - padding - ((price - minVal) / range) * h;
+      const xEnd = canvas.width - padding;
+
+      // ligne horizontale
+      ctx.setLineDash([4, 3]);
+      ctx.strokeStyle = "rgba(255,0,0,0.6)";
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.moveTo(padding, y);
+      ctx.lineTo(xEnd - 12, y); // ligne jusqu'au triangle
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // petit triangle rouge collé à droite
+      ctx.beginPath();
+      ctx.moveTo(xEnd - 12, y - 5);
+      ctx.lineTo(xEnd, y);
+      ctx.lineTo(xEnd - 12, y + 5);
+      ctx.closePath();
+      ctx.fillStyle = "rgba(255,0,0,0.8)";
+      ctx.fill();
+
+      // label juste au-dessus du triangle
+      ctx.fillStyle = "rgba(255,0,0,0.9)";
+      ctx.font = "14px Inter, Arial";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "bottom";
+      ctx.fillText(`Entry ${i + 1}: ${price.toFixed(2)}`, xEnd - 4, y - 8);
+    });
+  });
+} */
+
+  // === P/L LIVE FUNCTION ===
+  function contractentry(onUpdate) {
+   const ws = new WebSocket(WS_URL);
+   let contracts = {};
+   let authorized = false;
+   let portfolioReceived = false;
+
+   const token = tokenInput.value.trim();
+
+   if (!token) {
+     logHistory("Please, verify your token, and try again.");
+     return;
+   }
+
+   ws.onopen = () => {
+    ws.send(JSON.stringify({ authorize: token }));
+   };
+
+   ws.onmessage = (msg) => {
+    const data = JSON.parse(msg.data);
+
+    // Étape 1️⃣ : autorisation OK → on demande le portefeuille
+    if (data.msg_type === "authorize" && !authorized) {
+      authorized = true;
+      ws.send(JSON.stringify({ portfolio: 1 }));
+    }
+
+    // Étape 2️⃣ : réception du portefeuille (liste des contrats ouverts)
+    if (data.msg_type === "portfolio" && data.portfolio) {
+      portfolioReceived = true;
+
+      const contractsList = data.portfolio.contracts || [];
+      if (contractsList.length === 0) {
+        if (typeof onUpdate === "function") onUpdate(0);
+        return;
+      }
+
+      for (const c of contractsList) {
+        contracts[c.contract_id] = 0;
+
+        // On s’abonne en continu à chaque contrat ouvert
+        ws.send(JSON.stringify({
+          proposal_open_contract: 1,
+          contract_id: c.contract_id,
+          subscribe: 1
+        }));
+      }
+    }
+
+    // Étape 3️⃣ : réception des updates tick par tick
+    if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
+      const poc = data.proposal_open_contract;
+
+      // Vérifie que le contrat est encore actif
+      if (poc.is_expired || poc.is_sold) {
+        delete contracts[poc.contract_id];
+      } else {
+        contracts[poc.contract_id] = parseFloat(poc.profit);
+      }
+
+      // Calcule le P/L total
+      const totalPL = Object.values(contracts).reduce((a, b) => a + b, 0);
+
+      // Callback → gauge mis à jour à chaque tick
+      if (typeof onUpdate === "function") onUpdate(totalPL);
+    }
+   };
+
+   ws.onerror = (err) => console.error("WebSocket error:", err);
+   ws.onclose = () => console.log("Disconnected from Deriv WebSocket.");
+
+   return totalPL;
+  }
+
+  function updatePLGaugeDisplay(pl) {
+  const gauge = document.getElementById("plGauge");
+  if (!gauge) return;
+  const ctx = gauge.getContext("2d");
+  const w = gauge.width, h = gauge.height;
+  const cx = w / 2, cy = h / 2, r = w / 2 - 15;
+
+  // Animation douce
+  if (!gaugeAnimating) {
+    gaugeAnimating = true;
+    const start = currentPL;
+    const diff = pl - start;
+    const steps = 25;
+    let i = 0;
+    const animate = () => {
+      i++;
+      const val = start + (diff * i) / steps;
+      drawGauge(ctx, cx, cy, r, val);
+      if (i < steps) requestAnimationFrame(animate);
+      else {
+        currentPL = pl;
+        gaugeAnimating = false;
+      }
+    };
+    animate();
+  } else {
+    drawGauge(ctx, cx, cy, r, pl);
+  }
+}
+
+function drawGauge(ctx, cx, cy, r, pl) {
+  // Fond canvas assorti au mode
+  ctx.fillStyle = document.body.classList.contains("dark") ? "#1e293b" : "#f8fafc";
+  ctx.fillRect(0, 0, cx * 2, cy * 2);
+
+  // Couleur de l’arc de fond
+  const bgColor = document.body.classList.contains("dark") ? "#374151" : "#e5e7eb";
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+  ctx.lineWidth = 14;
+  ctx.strokeStyle = bgColor;
+  ctx.stroke();
+
+  // Arc coloré selon P/L
+  const maxPL = 100;
+  const clamped = Math.max(Math.min(pl, maxPL), -maxPL);
+  const percent = (clamped + maxPL) / (2 * maxPL);
+  const angle = -Math.PI / 2 + percent * 2 * Math.PI;
+
+  const grad = ctx.createLinearGradient(0, 0, cx * 2, cy * 2);
+  grad.addColorStop(0, pl >= 0 ? "#16a34a" : "#dc2626");
+  grad.addColorStop(1, pl >= 0 ? "#4ade80" : "#f87171");
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, -Math.PI / 2, angle);
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 14;
+  ctx.lineCap = "round";
+  ctx.stroke();
+
+  // Aiguille
+  drawNeedle(ctx, cx, cy, r - 12, angle, pl);
+
+  // Texte central
+  ctx.font = "bold 16px Inter";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = document.body.classList.contains("dark") ? "#f9fafb" : "#111";
+  ctx.fillText("Total P/L", cx, cy - 22);
+
+  ctx.font = "bold 22px Inter";
+  ctx.fillStyle = pl >= 0 ? "#22c55e" : "#ef4444";
+  ctx.fillText(`${pl.toFixed(2)} USD`, cx, cy + 10);
+}
+
+function drawNeedle(ctx, cx, cy, length, angle, pl) {
+  const needleColor = pl >= 0 ? "#22c55e" : "#ef4444";
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, -length);
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = needleColor;
+  ctx.shadowColor = needleColor + "80";
+  ctx.shadowBlur = 6;
+  ctx.stroke();
+  ctx.restore();
+
+  // Point central
+  ctx.beginPath();
+  ctx.arc(cx, cy, 5, 0, 2 * Math.PI);
+  ctx.fillStyle = needleColor;
+  ctx.fill();
+}
+
+// Observer pour redessiner le gauge lors du changement de mode
+const gaugeObserver = new MutationObserver(() => {
+  const gauge = document.getElementById("plGauge");
+  if (!gauge) return;
+  const ctx = gauge.getContext("2d");
+  drawGauge(ctx, gauge.width / 2, gauge.height / 2, gauge.width / 2 - 15, currentPL);
+});
+
+gaugeObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+
+// Initialisation
+function initPLGauge() {
+  const gauge = document.getElementById("plGauge");
+  if (!gauge) return;
+  updatePLGaugeDisplay(0);
+}
+
+  /*function canvasMouseMove(e){
+    if(!canvas||chartData.length===0) return;
+    const rect=canvas.getBoundingClientRect();
+    const mouseX=e.clientX-rect.left;
+    const padding=50; const w=canvas.width-padding*2;
+    const len=chartData.length;
+    let idx=Math.round((mouseX-padding)/w*(len-1));
+    idx=Math.max(0,Math.min(idx,len-1));
+    const price=chartData[idx];
+    const time=chartTimes[idx]?new Date(chartTimes[idx]*1000).toLocaleTimeString().slice(0,8):"";
+    let tradesHtml="";
+    trades.forEach(tr=>{ if(tr.symbol!==currentSymbol) return; tradesHtml+=`<div style="color:${tr.type==="BUY"?"#0ea5a4":"#ef4444"}">${tr.type} @ ${formatNum(tr.entry)} stake:${tr.stake} mult:${tr.multiplier}</div>`; });
+    tooltip.style.display="block"; tooltip.style.left=(e.clientX+12)+"px"; tooltip.style.top=(e.clientY-36)+"px";
+    tooltip.innerHTML=`<div><strong>${currentSymbol}</strong></div><div>Price: ${formatNum(price)}</div><div>Time: ${time}</div>${tradesHtml}`;
+  }*/
+
+  //--- Trades (New)
+  function executeTrade(type){
+    
+  }
+
+  buyBtn.onclick=()=>executeTrade("BUY");
+  sellBtn.onclick=()=>executeTrade("SELL");
+  toggleBtn.addEventListener("click", ()=>{
+   
+  });
+
+closeBtn.onclick = () => {
+    
+};
+
+closeBtnAll.onclick=()=>{
+    
+}; 
+
+  function updatePnL(){
+    if(chartData.length===0||trades.length===0){ pnlDisplay.textContent="0"; return; }
+    const lastPrice=chartData[chartData.length-1];
+    let pnl=0;
+    trades.forEach(tr=>{
+      const diff=tr.type==="BUY"?lastPrice-tr.entry:tr.entry-lastPrice;
+      pnl+=diff*tr.multiplier*tr.stake;
+    });
+    pnlDisplay.textContent=pnl.toFixed(2);
+  }
+
+  // websocket
+  function subscribeTicks(symbol){
+    if(!ws||ws.readyState!==WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ ticks: symbol, subscribe:1 }));
+    logHistory(`Subscribed to ticks: ${symbol}`);
+  }
+
+  function handleTick(tick){
+    const p=Number(tick.quote);
+    const symbol=tick.symbol;
+    lastPrices[symbol]=p;
+
+    if(symbol===currentSymbol){
+      chartData.push(p);
+      chartTimes.push(tick.epoch);
+      if(chartData.length>600){ chartData.shift(); chartTimes.shift(); }
+      drawChart(); drawGauges(); updatePnL();
+    }
+    const symbolEl=document.getElementById(`symbol-${symbol}`);
+    if(symbolEl){
+      let span=symbolEl.querySelector(".lastPrice");
+      if(!span){ span=document.createElement("span"); span.className="lastPrice"; span.style.float="right"; span.style.opacity="0.8"; symbolEl.appendChild(span);}
+      span.textContent=formatNum(p);
+    }
+  }
+
+// ==========================
+// 4️⃣ Connect / Disconnect
+// ==========================
+connectBtn.onclick=()=>{
+    if(ws&&ws.readyState===WebSocket.OPEN)
+    { ws.close(); 
+      ws=null; 
+      setStatus("Disconnected"); 
+      connectBtn.textContent="Connect"; 
+      return;
+    }
+
+    const token=tokenInput.value.trim();
+    if(!token)
+    { setStatus("Simulation Mode"); 
+      logHistory("Running in simulation (no token)"); 
+      return; 
+    }
+
+    ws=new WebSocket(WS_URL);
+    setStatus("Connecting...");
+    ws.onopen=()=>{ 
+      setStatus("Connected, authorizing..."); 
+      ws.send(JSON.stringify({ authorize: token })); 
+   };
+
+    ws.onclose=()=>{ 
+      setStatus("Disconnected"); 
+      logHistory("WS closed"); 
+    };
+
+    ws.onerror=e=>{ logHistory("WS error "+JSON.stringify(e)); };
+    ws.onmessage=msg=>{
+      const data=JSON.parse(msg.data);
+      if(data.msg_type==="authorize")
+      {
+        if(!data.authorize?.loginid)
+        { setStatus("Simulation Mode (Token invalid)"); 
+          logHistory("Token not authorized"); 
+          return; 
+        }
+
+        authorized=true; 
+        setStatus(`Connected: ${data.authorize.loginid}`); 
+        logHistory("Authorized: "+data.authorize.loginid);
+        ws.send(JSON.stringify({ balance:1, subscribe:1 }));
+        volatilitySymbols.forEach(sym=>subscribeTicks(sym));
+      }
+
+      if(data.msg_type==="balance"&&data.balance)
+      { 
+        const bal=parseFloat(data.balance.balance||0).toFixed(2); 
+        const cur=data.balance.currency||"USD"; 
+        userBalance.textContent=`Balance: ${bal} ${cur}`; 
+        logHistory(`Balance updated: ${bal} ${cur}`); 
+      }
+
+      if(data.msg_type==="tick"&&data.tick) handleTick(data.tick);
+    };
+    connectBtn.textContent="Disconnect";
+  };
+
+  initSymbols();
+  selectSymbol(volatilitySymbols[0]);
+  initTable();
+  initPLGauge();
+
+// ===============================================================
+// 🔁 Rafraîchissement automatique du portefeuille toutes les 10s
+// ===============================================================
+
+});
