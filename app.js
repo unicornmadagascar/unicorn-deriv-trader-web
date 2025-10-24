@@ -292,13 +292,13 @@ function initTable()
   }
 
    // --- 🧱 Connexion WebSocket
-  function connectDeriv() {
-    ws = new WebSocket(WS_URL);
+  function connectDeriv(ws) {
+    //ws = new WebSocket(WS_URL);
 
-    ws.onopen = () => {
+    /* ws.onopen = () => {
       console.log("🔗 Connected");
       ws.send(JSON.stringify({ authorize: token }));
-    };
+    }; */
 
     ws.onmessage = (msg) => {
       const data = JSON.parse(msg.data);
@@ -326,6 +326,9 @@ function initTable()
     ws.onclose = () => console.log("🔴 Disconnected");
   }
 
+  function isWsReady(ws,authorized){
+    return ws && ws.readyState === WebSocket.OPEN && authorized;
+  }
 
   // canvas
   function initCanvas(){
@@ -1106,12 +1109,9 @@ connectBtn.onclick = () => {
       logHistory("Authorized: " + data.authorize.loginid);
 
       ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+      isWsReady(ws,authorized);
       volatilitySymbols.forEach((sym) => subscribeTicks(sym));
       ws.send(JSON.stringify({ portfolio: 1, subscribe: 1 }));
-      
-      setInterval(() => {
-         connectDeriv();
-      }, 10000);
     }
 
     // Balance
@@ -1235,5 +1235,7 @@ connectBtn.onclick = () => {
 // ===============================================================
 // 🔁 Rafraîchissement automatique du portefeuille toutes les 10s
 // ===============================================================
-
+ setInterval(() => {
+    connectDeriv(); 
+ }, 10000);
 });
