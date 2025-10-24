@@ -145,9 +145,9 @@ document.addEventListener("DOMContentLoaded", () => {
     symbols.forEach(sym => {
       const el = document.createElement("div");
       el.textContent = sym;
-      el.className = "symbolItem";
+      el.className = "symbol-item";
       el.onclick = () => {
-        document.querySelectorAll(".symbolItem").forEach(e => e.classList.remove("active"));
+        document.querySelectorAll(".symbol-item").forEach(e => e.classList.remove("active"));
         el.classList.add("active");
         currentSymbol = sym;
         areaSeries.setData([]);
