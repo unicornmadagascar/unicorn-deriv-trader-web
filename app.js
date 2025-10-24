@@ -1243,6 +1243,7 @@ connectBtn.onclick = () => {
 // ===============================================================
 setInterval(() => {
     logHistory("WS State : " + ws.readyState);
+    logHistory("WS State : " + authorized);
     if (ws.readyState === WebSocket.CLOSED) {
        ws = new WebSocket(WS_URL);
        ws.onopen = () => {
@@ -1256,7 +1257,7 @@ setInterval(() => {
     }
     else if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)
     {
-      if (ws.readyState === WebSocket.OPEN) {
+      if (ws.readyState === WebSocket.OPEN)
       {
         ws.send(JSON.stringify({ authorize: tokenInput.value.trim() }));
 
@@ -1265,18 +1266,10 @@ setInterval(() => {
           connectDeriv(ws, data);
           if (data.msg_type === "authorize")
            {
-              logHistory("Re-authorization successful.");
+            logHistory("Re-authorization successful.");
            }
-        }
+        };
       }
-      ws.send(JSON.stringify({ portfolio : 1, subscribe : 1 }));
-      ws.onmessage = (msgh) => {
-        const datah = JSON.parse(msgh.data);
-        if (datah.msg_type === "portfolio")
-        {
-          connectDeriv(ws,datah);
-        }
-      };
     }
 }, 10000);
 });
