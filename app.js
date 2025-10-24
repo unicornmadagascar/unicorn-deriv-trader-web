@@ -112,22 +112,31 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function handleTick(tick) {
-        const p = Number(tick.quote);
-        lastPrices[tick.symbol] = p;
+    const p = Number(tick.quote);
+    lastPrices[tick.symbol] = p;
 
-        // Update symbol list
-        const el = document.getElementById(`symbol-${tick.symbol}`);
-        if(el) el.querySelector(".lastPrice").textContent = formatNum(p);
-
-        // Update chart if current symbol
-        if(tick.symbol === currentSymbol){
-            const localTime = Math.floor(new Date(tick.epoch * 1000).getTime() / 1000);
-            chartData.push({ time: localTime, value: p });
-            if(chartData.length > 600) chartData.shift();
-            areaSeries.setData(chartData);
-            chart.timeScale().fitContent();
-        }
+    // Update symbol list with flash effect
+    const el = document.getElementById(`symbol-${tick.symbol}`);
+    if(el){
+        const priceEl = el.querySelector(".lastPrice");
+        priceEl.textContent = formatNum(p);
+        
+        // Ajouter classe flash et la retirer après animation
+        priceEl.classList.remove("flash");
+        void priceEl.offsetWidth; // trigger reflow
+        priceEl.classList.add("flash");
     }
+
+    // Update chart if current symbol
+    if(tick.symbol === currentSymbol){
+        const localTime = Math.floor(new Date(tick.epoch * 1000).getTime() / 1000);
+        chartData.push({ time: localTime, value: p });
+        if(chartData.length > 600) chartData.shift();
+        areaSeries.setData(chartData);
+        chart.timeScale().fitContent();
+    }
+}
+
 
     // ------------------ Connect Button ------------------
     connectBtn.onclick = () => {

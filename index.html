@@ -20,6 +20,14 @@ header { padding: 10px; background: #2962FF; color: #fff; text-align: center; fo
 #controls { padding: 10px; background: #fff; border-bottom: 1px solid #ddd; display: flex; gap: 10px; align-items: center; }
 button { padding: 6px 12px; background: #2962FF; border: none; color: #fff; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
 button:hover { background: #0039cb; }
+.lastPrice.flash {
+    animation: flashPrice 0.5s;
+}
+
+@keyframes flashPrice {
+    0% { background-color: #c8e6c9; }
+    100% { background-color: transparent; }
+}
 </style>
 </head>
 <body>
