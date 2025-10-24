@@ -1124,6 +1124,8 @@ setInterval(() => {
     logHistory("WS Authorization : " + authorized);
     if ((ws.readyState === 1 || ws.readyState === 0) && authorized)
     {
+      if (ws.readyState === WebSocket.OPEN)
+      {
         if (tokenInput.value.trim() === "") {
           logHistory("Token is empty. Cannot re-authorize.");
           return;
@@ -1139,6 +1141,7 @@ setInterval(() => {
             logHistory("Re-authorization successful.");
            }
         };
+      }
     }
 }, 10000);
 });
