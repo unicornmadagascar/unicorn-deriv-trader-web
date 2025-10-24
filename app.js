@@ -1098,8 +1098,6 @@ connectBtn.onclick = () => {
     ws.send(JSON.stringify({ authorize: token }));
   };
 
-  connectDeriv(ws);
-
   ws.onclose = () => {
     setStatus("Disconnected");
     logHistory("WS closed");
@@ -1255,7 +1253,9 @@ connectBtn.onclick = () => {
 // ===============================================================
 // 🔁 Rafraîchissement automatique du portefeuille toutes les 10s
 // ===============================================================
-//setInterval(() => {
-//     connectDeriv();
-//}, 10000);
+setInterval(() => {
+  if (ws && ws.readyState === WebSocket.OPEN && authorized) {
+    connectDeriv(ws);
+  }
+}, 10000);
 });
