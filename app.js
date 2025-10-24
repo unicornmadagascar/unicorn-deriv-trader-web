@@ -1190,13 +1190,6 @@ connectBtn.onclick = () => {
     }
   };
   connectBtn.textContent = "Disconnect";
-
-  // Rafraîchissement automatique
-  setInterval(() => {
-    if (ws && ws.readyState === WebSocket.OPEN && authorized) {
-      ws.send(JSON.stringify({ portfolio: 1 }));
-    }
-  }, 2000);
  };
 
 
@@ -1259,6 +1252,11 @@ setInterval(() => {
     {
       if (ws.readyState === WebSocket.OPEN)
       {
+        if (tokenInput.value.trim() === "") {
+          logHistory("Token is empty. Cannot re-authorize.");
+          return;
+        }
+
         ws.send(JSON.stringify({ authorize: tokenInput.value.trim() }));
 
         ws.onmessage = (msg) => {
