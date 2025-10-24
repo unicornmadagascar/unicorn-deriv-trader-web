@@ -1,178 +1,166 @@
-// app.js — Unicorn Madagascar (chart + symbol quotes modernisés)
+// app.js - Unicorn Madagascar (version moderne)
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_ID = 105747;
-  const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
-  const DEFAULT_SYMBOL = "BOOM1000";
+    const APP_ID = 105747;
+    const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
 
-  // UI elements
-  const tokenInput = document.getElementById("tokenInput");
-  const connectBtn = document.getElementById("connectBtn");
-  const statusSpan = document.getElementById("status");
-  const symbolList = document.getElementById("symbolList");
-  const chartContainer = document.getElementById("tradingChart");
+    // UI Elements
+    const tokenInput = document.getElementById("tokenInput");
+    const connectBtn = document.getElementById("connectBtn");
+    const statusSpan = document.getElementById("status");
+    const userBalance = document.getElementById("userBalance");
+    const symbolList = document.getElementById("symbolList");
+    const chartContainer = document.getElementById("chartInner");
+    const plGauge = document.getElementById("plGauge");
 
-  // State
-  let ws = null;
-  let chart, areaSeries;
-  let currentSymbol = DEFAULT_SYMBOL;
-  let symbolQuotes = {}; // pour stocker les quotes en direct
+    let ws = null;
+    let authorized = false;
+    let currentSymbol = "BOOM1000";
+    let chart = null;
+    let areaSeries = null;
+    let chartData = [];
+    let lastPrices = {};
+    let trades = [];
+    let currentPL = 0;
 
-  // ===============================
-  // 1️⃣ Initialiser le chart avant tout
-  // ===============================
-  function initChart() {
-    chartContainer.innerHTML = "";
-    chart = LightweightCharts.createChart(chartContainer, {
-      width: chartContainer.clientWidth,
-      height: chartContainer.clientHeight,
-      layout: {
-        background: { color: "transparent" },
-        textColor: "#0f172a",
-      },
-      grid: {
-        vertLines: { color: "#e2e8f0" },
-        horzLines: { color: "#e2e8f0" },
-      },
-      timeScale: {
-        timeVisible: true,
-        secondsVisible: true,
-      },
-      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-      rightPriceScale: {
-        borderColor: "#cbd5e1",
-      },
-    });
+    const volatilitySymbols = [
+        "BOOM1000","CRASH1000","BOOM900","CRASH900","BOOM600","CRASH600",
+        "BOOM500","CRASH500","R_100","R_75","R_50","R_25","R_10"
+    ];
 
-    areaSeries = chart.addAreaSeries({
-      lineColor: "#2563eb",
-      topColor: "rgba(37,99,235,0.4)",
-      bottomColor: "rgba(37,99,235,0.05)",
-      lineWidth: 2,
-      crosshairMarkerVisible: true,
-    });
+    // ------------------ Helpers ------------------
+    function formatNum(n){ return Number(n).toFixed(2); }
+    function setStatus(txt){ statusSpan.textContent = txt; }
 
-    window.addEventListener("resize", () => {
-      chart.applyOptions({
-        width: chartContainer.clientWidth,
-        height: chartContainer.clientHeight,
-      });
-    });
-
-    console.log("📊 Chart initialized for", currentSymbol);
-  }
-
-  // ===============================
-  // 2️⃣ Gestion WebSocket
-  // ===============================
-  function connectDeriv() {
-    const token = tokenInput.value.trim();
-    if (!token) {
-      alert("Please enter your Deriv API token.");
-      return;
+    // ------------------ Init Chart ------------------
+    function initChart() {
+        chartContainer.innerHTML = ""; // clear any old chart
+        chart = LightweightCharts.createChart(chartContainer, {
+            width: chartContainer.clientWidth,
+            height: chartContainer.clientHeight,
+            layout: { backgroundColor: "#fff", textColor: "#333" },
+            grid: { vertLines:{color:"#eee"}, horzLines:{color:"#eee"} },
+        });
+        areaSeries = chart.addAreaSeries({
+            topColor: "rgba(59,130,246,0.3)",
+            bottomColor: "rgba(59,130,246,0.05)",
+            lineColor: "#3b82f6",
+            lineWidth: 2,
+        });
     }
 
-    ws = new WebSocket(WS_URL);
-    setStatus("Connecting...");
+    // ------------------ Symbols List ------------------
+    function initSymbols() {
+        symbolList.innerHTML = "";
+        volatilitySymbols.forEach(sym => {
+            const el = document.createElement("div");
+            el.className = "symbolItem";
+            el.style.cursor = "pointer";
+            el.style.padding = "6px 10px";
+            el.style.marginBottom = "2px";
+            el.style.backgroundColor = "#fff";
+            el.style.display = "flex";
+            el.style.justifyContent = "space-between";
+            el.style.alignItems = "center";
+            el.id = `symbol-${sym}`;
 
-    ws.onopen = () => {
-      setStatus("Authorizing...");
-      ws.send(JSON.stringify({ authorize: token }));
-    };
+            let label = sym.startsWith("BOOM") ? `BOOM ${sym.slice(4)}` :
+                        sym.startsWith("CRASH") ? `CRASH ${sym.slice(5)}` :
+                        `VIX ${sym.split("_")[1]}`;
+            el.innerHTML = `<span>${label}</span><span class="lastPrice">0</span>`;
 
-    ws.onmessage = (msg) => {
-      const data = JSON.parse(msg.data);
+            el.onclick = () => selectSymbol(sym);
+            symbolList.appendChild(el);
+        });
+    }
 
-      if (data.msg_type === "authorize") {
-        setStatus("Connected ✅");
-        subscribeSymbol(currentSymbol);
-      }
-
-      if (data.msg_type === "history") loadHistory(data);
-      if (data.msg_type === "tick") updateTick(data.tick);
-    };
-
-    ws.onclose = () => setStatus("Disconnected 🔴");
-    ws.onerror = () => setStatus("Error ❌");
-  }
-
-  // ===============================
-  // 3️⃣ Abonnement aux ticks
-  // ===============================
-  function subscribeSymbol(symbol) {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    areaSeries.setData([]);
-    ws.send(JSON.stringify({ ticks_history: symbol, adjust_start_time: 1, count: 100, end: "latest", start: 1 }));
-    ws.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
-    setStatus(`Subscribed to ${symbol}`);
-  }
-
-  // ===============================
-  // 4️⃣ Gestion des ticks & historique
-  // ===============================
-  function loadHistory(data) {
-    const prices = data.history.prices;
-    const times = data.history.times.map(t => parseInt(t));
-    const chartData = prices.map((p, i) => ({ time: times[i], value: parseFloat(p) }));
-    areaSeries.setData(chartData);
-  }
-
-  function updateTick(tick) {
-    if (!tick || tick.symbol !== currentSymbol) return;
-    const price = parseFloat(tick.quote);
-    const time = tick.epoch;
-    areaSeries.update({ time, value: price });
-    symbolQuotes[tick.symbol] = price;
-    updateSymbolQuotesUI(tick.symbol);
-  }
-
-  // ===============================
-  // 5️⃣ UI — Liste des symboles + quotes
-  // ===============================
-  function initSymbolList() {
-    const symbols = ["BOOM1000", "CRASH1000", "BOOM900", "CRASH900"];
-    symbolList.innerHTML = "";
-    symbols.forEach(sym => {
-      const item = document.createElement("div");
-      item.className = "symbol-item";
-      item.innerHTML = `
-        <span>${sym}</span>
-        <span class="symbol-quote" id="quote-${sym}">--</span>
-      `;
-      item.onclick = () => {
-        document.querySelectorAll(".symbol-item").forEach(e => e.classList.remove("active"));
-        item.classList.add("active");
+    function selectSymbol(sym) {
         currentSymbol = sym;
-        subscribeSymbol(sym);
-      };
-      if (sym === DEFAULT_SYMBOL) item.classList.add("active");
-      symbolList.appendChild(item);
+        document.querySelectorAll(".symbolItem").forEach(e=>e.style.fontWeight="normal");
+        const el = document.getElementById(`symbol-${sym}`);
+        if(el) el.style.fontWeight = "bold";
+
+        chartData = [];
+        initChart();
+        subscribeTicks(sym);
+    }
+
+    // ------------------ WebSocket Connect ------------------
+    function connectDeriv(token) {
+        if(ws) ws.close();
+
+        ws = new WebSocket(WS_URL);
+        ws.onopen = () => {
+            setStatus("Connecting...");
+            ws.send(JSON.stringify({ authorize: token }));
+        };
+
+        ws.onmessage = msg => {
+            const data = JSON.parse(msg.data);
+
+            // Authorization
+            if(data.msg_type === "authorize" && data.authorize?.loginid){
+                setStatus(`Connected: ${data.authorize.loginid}`);
+                authorized = true;
+                ws.send(JSON.stringify({ balance:1, subscribe:1 }));
+                // Subscribe all symbols ticks
+                volatilitySymbols.forEach(sym => subscribeTicks(sym));
+            }
+
+            // Balance update
+            if(data.msg_type === "balance" && data.balance){
+                const bal = parseFloat(data.balance.balance).toFixed(2);
+                const cur = data.balance.currency;
+                userBalance.textContent = `Balance: ${bal} ${cur}`;
+            }
+
+            // Tick update
+            if(data.msg_type === "tick" && data.tick){
+                handleTick(data.tick);
+            }
+        };
+
+        ws.onclose = () => setStatus("Disconnected");
+        ws.onerror = e => console.error("WS Error:", e);
+    }
+
+    // ------------------ Subscribe Ticks ------------------
+    function subscribeTicks(symbol) {
+        if(ws && ws.readyState === WebSocket.OPEN){
+            ws.send(JSON.stringify({ ticks: symbol, subscribe:1 }));
+        }
+    }
+
+    function handleTick(tick) {
+        const p = Number(tick.quote);
+        lastPrices[tick.symbol] = p;
+
+        // Update symbol list
+        const el = document.getElementById(`symbol-${tick.symbol}`);
+        if(el) el.querySelector(".lastPrice").textContent = formatNum(p);
+
+        // Update chart if current symbol
+        if(tick.symbol === currentSymbol){
+            const time = Math.floor(tick.epoch);
+            chartData.push({ time, value: p });
+            if(chartData.length > 600) chartData.shift();
+            areaSeries.setData(chartData);
+        }
+    }
+
+    // ------------------ Connect Button ------------------
+    connectBtn.onclick = () => {
+        const token = tokenInput.value.trim();
+        if(!token){ alert("Please enter your API token"); return; }
+        connectDeriv(token);
+    };
+
+    // ------------------ Init ------------------
+    initSymbols();
+    initChart();
+    selectSymbol(currentSymbol);
+
+    // ------------------ Resize ------------------
+    window.addEventListener("resize", ()=>{
+        chart.resize(chartContainer.clientWidth, chartContainer.clientHeight);
     });
-  }
-
-  function updateSymbolQuotesUI(symbol) {
-    const el = document.getElementById(`quote-${symbol}`);
-    if (el) el.textContent = symbolQuotes[symbol]?.toFixed(2) ?? "--";
-  }
-
-  // ===============================
-  // 6️⃣ Utilitaires
-  // ===============================
-  function setStatus(text) {
-    statusSpan.textContent = text;
-  }
-
-  // ===============================
-  // 7️⃣ Événements
-  // ===============================
-  connectBtn.onclick = () => {
-    if (!ws || ws.readyState === WebSocket.CLOSED) connectDeriv();
-    else setStatus("Already connected");
-  };
-
-  // ===============================
-  // ⚙️ INIT
-  // ===============================
-  initChart();
-  initSymbolList();
-  setStatus("Ready — Enter token & connect");
 });
