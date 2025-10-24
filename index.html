@@ -3,224 +3,89 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🦄 Unicorn Madagascar — Deriv Trader</title>
-<!-- Lightweight Charts CDN -->
+<title>🦄 Unicorn Madagascar — Trader Demo</title>
+
+<!-- Lightweight Charts Standalone -->
 <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+
 <style>
-body {
-    font-family: 'Segoe UI', sans-serif;
-    margin: 0;
-    background-color: #f5f5f5;
-}
-.container {
-    display: flex;
-    height: 100vh;
-}
-.sidebar {
-    width: 250px;
-    background-color: #fff;
+body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f4f5f7; }
+header { padding: 12px; background: #2962FF; color: #fff; text-align: center; font-size: 1.3em; font-weight: bold; }
+
+#controls {
     padding: 10px;
-    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+    background: #fff;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+#controls input {
+    flex: 1;
+    padding: 6px 10px;
+    font-size: 1em;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+#controls button {
+    padding: 6px 14px;
+    background: #2962FF;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+#controls button:hover { background: #0039CB; }
+
+#container {
+    display: flex;
+    height: calc(100vh - 75px);
+}
+
+/* Symbol list */
+#symbolList {
+    width: 240px;
+    background: #fff;
     overflow-y: auto;
+    border-right: 1px solid #ddd;
 }
 .symbolItem {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 10px;
-    margin-bottom: 4px;
-    cursor: pointer;
-    border-radius: 6px;
-    transition: background 0.2s;
-}
-.symbolItem:hover {
-    background-color: #e3f2fd;
-}
-.symbolItem.selected {
-    background-color: #bbdefb;
-    font-weight: bold;
-}
-.main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-}
-.header {
-    background-color: #fff;
     padding: 10px 15px;
+    cursor: pointer;
     display: flex;
-    align-items: center;
     justify-content: space-between;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    align-items: center;
+    border-bottom: 1px solid #eee;
+    transition: all 0.2s;
 }
-#chartContainer {
+.symbolItem:hover { background: #e3f2fd; transform: translateX(2px); }
+.symbolItem.selected { background: #2962FF; color: #fff; font-weight: bold; }
+.lastPrice { font-weight: bold; margin-left: 10px; }
+
+/* Chart */
+#chartInner {
     flex: 1;
+    background: #fff;
 }
 </style>
 </head>
 <body>
-<div class="container">
-    <div class="sidebar">
-        <div>
-            <input type="text" id="tokenInput" placeholder="Enter API Token" style="width:100%;padding:6px;margin-bottom:10px;">
-            <button id="connectBtn" style="width:100%;padding:6px;">Connect</button>
-            <div id="status" style="margin-top:10px;font-size:0.9em;color:gray;">Not connected</div>
-            <div id="userBalance" style="margin-top:5px;font-size:0.9em;color:green;"></div>
-        </div>
-        <hr>
-        <div id="symbolList"></div>
-    </div>
-    <div class="main">
-        <div class="header">
-            <div>Unicorn Madagascar — Deriv Trader</div>
-        </div>
-        <div id="chartContainer"></div>
-    </div>
+
+<header>🦄 Unicorn Madagascar — Deriv Trader</header>
+
+<div id="controls">
+    <input type="text" id="tokenInput" placeholder="Enter API token">
+    <button id="connectBtn">Connect</button>
+    <span id="status">Disconnected</span>
+    <span id="userBalance"></span>
 </div>
 
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-    const WS_URL = "wss://ws.derivws.com/websockets/v3?app_id=105747";
-    const tokenInput = document.getElementById("tokenInput");
-    const connectBtn = document.getElementById("connectBtn");
-    const statusSpan = document.getElementById("status");
-    const userBalance = document.getElementById("userBalance");
-    const symbolList = document.getElementById("symbolList");
-    const chartContainer = document.getElementById("chartContainer");
+<div id="container">
+    <div id="symbolList"></div>
+    <div id="chartInner"></div>
+</div>
 
-    let ws = null;
-    let authorized = false;
-    let currentSymbol = "BOOM1000";
-    let chart = null;
-    let areaSeries = null;
-    let chartData = [];
-    let lastPrices = {};
-
-    const volatilitySymbols = [
-        "BOOM1000","CRASH1000","BOOM900","CRASH900","BOOM600","CRASH600",
-        "BOOM500","CRASH500","R_100","R_75","R_50","R_25","R_10"
-    ];
-
-    function formatNum(n){ return Number(n).toFixed(2); }
-    function setStatus(txt){ statusSpan.textContent = txt; }
-
-    // ------------------ Init Chart ------------------
-    function initChart() {
-        chartContainer.innerHTML = "";
-        const chartOptions = {
-            layout: { textColor: 'black', background: { type: 'solid', color: 'white' } },
-            grid: { vertLines:{color:"#eee"}, horzLines:{color:"#eee"} },
-        };
-        chart = LightweightCharts.createChart(chartContainer, chartOptions);
-        areaSeries = chart.addAreaSeries({
-            lineColor: '#2962FF',
-            topColor: '#2962FF',
-            bottomColor: 'rgba(41, 98, 255, 0.28)'
-        });
-    }
-
-    // ------------------ Symbols ------------------
-    function initSymbols() {
-        symbolList.innerHTML = "";
-        volatilitySymbols.forEach(sym => {
-            const el = document.createElement("div");
-            el.className = "symbolItem";
-            el.id = `symbol-${sym}`;
-            let label = sym.startsWith("BOOM") ? `BOOM ${sym.slice(4)}` :
-                        sym.startsWith("CRASH") ? `CRASH ${sym.slice(5)}` :
-                        `VIX ${sym.split("_")[1]}`;
-            el.innerHTML = `<span>${label}</span><span class="lastPrice">0</span>`;
-            el.onclick = () => selectSymbol(sym);
-            symbolList.appendChild(el);
-        });
-    }
-
-    function selectSymbol(sym) {
-        currentSymbol = sym;
-        document.querySelectorAll(".symbolItem").forEach(e=>e.classList.remove("selected"));
-        const el = document.getElementById(`symbol-${sym}`);
-        if(el) el.classList.add("selected");
-        chartData = [];
-        initChart();
-        if(ws && ws.readyState === WebSocket.OPEN) subscribeTicks(sym);
-    }
-
-    // ------------------ WebSocket ------------------
-    function connectDeriv(token) {
-        if(ws) ws.close();
-
-        ws = new WebSocket(WS_URL);
-        ws.onopen = () => {
-            setStatus("Authorizing...");
-            ws.send(JSON.stringify({ authorize: token }));
-        };
-
-        ws.onmessage = msg => {
-            const data = JSON.parse(msg.data);
-
-            // Authorization
-            if(data.msg_type === "authorize" && data.authorize?.loginid){
-                setStatus(`Connected: ${data.authorize.loginid}`);
-                authorized = true;
-                // Subscribe all symbols
-                volatilitySymbols.forEach(sym => subscribeTicks(sym));
-            }
-
-            // Balance
-            if(data.msg_type === "balance" && data.balance){
-                const bal = parseFloat(data.balance.balance).toFixed(2);
-                const cur = data.balance.currency;
-                userBalance.textContent = `Balance: ${bal} ${cur}`;
-            }
-
-            // Tick
-            if(data.msg_type === "tick" && data.tick){
-                handleTick(data.tick);
-            }
-        };
-
-        ws.onclose = () => setStatus("Disconnected");
-        ws.onerror = e => console.error("WS Error:", e);
-    }
-
-    function subscribeTicks(symbol) {
-        if(ws && ws.readyState === WebSocket.OPEN){
-            ws.send(JSON.stringify({ ticks: symbol, subscribe:1 }));
-        }
-    }
-
-    function handleTick(tick) {
-     const p = Number(tick.quote);
-     lastPrices[tick.symbol] = p;
-
-     // Update symbol list
-     const el = document.getElementById(`symbol-${tick.symbol}`);
-     if(el) el.querySelector(".lastPrice").textContent = formatNum(p);
-
-     // Update chart if current symbol
-     if(tick.symbol === currentSymbol && areaSeries) {
-        const time = Math.floor(Number(tick.epoch)); // s'assurer que c'est un entier
-        chartData.push({ time, value: p });
-        if(chartData.length > 600) chartData.shift();
-
-        // Appliquer les données seulement si areaSeries est prêt
-        areaSeries.setData(chartData);
-        chart.timeScale().fitContent();
-     }
-   }
-
-    connectBtn.onclick = () => {
-        const token = tokenInput.value.trim();
-        if(!token){ alert("Please enter your API token"); return; }
-        connectDeriv(token);
-    };
-
-    initSymbols();
-    initChart();
-    selectSymbol(currentSymbol);
-
-    window.addEventListener("resize", ()=>{ chart && chart.resize(chartContainer.clientWidth, chartContainer.clientHeight); });
-});
-</script>
+<script src="app.js"></script>
 </body>
 </html>

@@ -21,11 +21,10 @@ document.addEventListener("DOMContentLoaded", () => {
         "BOOM500","CRASH500","R_100","R_75","R_50","R_25","R_10"
     ];
 
-    // ------------------ Helpers ------------------
     const formatNum = n => Number(n).toFixed(2);
     const setStatus = txt => statusSpan.textContent = txt;
 
-    // ------------------ Init Chart ------------------
+    // ------------------ Chart ------------------
     function initChart() {
         chartContainer.innerHTML = "";
         chart = LightweightCharts.createChart(chartContainer, {
@@ -34,7 +33,7 @@ document.addEventListener("DOMContentLoaded", () => {
             layout: { background: { type: 'solid', color: 'white' }, textColor: 'black' },
             grid: { vertLines:{color:"#eee"}, horzLines:{color:"#eee"} }
         });
-        areaSeries = chart.addSeries(LightweightCharts.AreaSeries, {
+        areaSeries = chart.addAreaSeries({
             lineColor: '#2962FF',
             topColor: '#2962FF',
             bottomColor: 'rgba(41, 98, 255, 0.28)',
@@ -42,7 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // ------------------ Symbols List ------------------
+    // ------------------ Symbols ------------------
     function initSymbols() {
         symbolList.innerHTML = "";
         volatilitySymbols.forEach(sym => {
@@ -66,11 +65,11 @@ document.addEventListener("DOMContentLoaded", () => {
         subscribeTicks(sym);
     }
 
-    // ------------------ WebSocket Connect ------------------
+    // ------------------ WebSocket ------------------
     function connectDeriv(token) {
         if(ws) ws.close();
-
         ws = new WebSocket(WS_URL);
+
         ws.onopen = () => {
             setStatus("Connecting...");
             ws.send(JSON.stringify({ authorize: token }));
@@ -118,11 +117,12 @@ document.addEventListener("DOMContentLoaded", () => {
         if(el) el.querySelector(".lastPrice").textContent = formatNum(p);
 
         // Update chart if current symbol
-        if(tick.symbol === currentSymbol){
+        if(tick.symbol === currentSymbol && areaSeries){
             const time = Math.floor(tick.epoch);
             chartData.push({ time, value: p });
             if(chartData.length > 600) chartData.shift();
             areaSeries.setData(chartData);
+            chart.timeScale().fitContent();
         }
     }
 
@@ -136,6 +136,6 @@ document.addEventListener("DOMContentLoaded", () => {
     initChart();
 
     window.addEventListener("resize", () => {
-        chart.resize(chartContainer.clientWidth, chartContainer.clientHeight);
+        if(chart) chart.resize(chartContainer.clientWidth, chartContainer.clientHeight);
     });
 });
