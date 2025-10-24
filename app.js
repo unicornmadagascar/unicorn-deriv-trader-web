@@ -1,6 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
     const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=105747`;
-    const API_TOKEN = "wgf8TFDsJ8Ecvze"; // Remplacez par votre token
+    const API_TOKEN = "wgf8TFDsJ8Ecvze"; // <-- Remplacez par votre vrai token
     const connectBtn = document.getElementById("connectBtn");
     const statusSpan = document.getElementById("status");
     const userBalance = document.getElementById("userBalance");
@@ -14,13 +14,13 @@ document.addEventListener("DOMContentLoaded", () => {
     let areaSeries = null;
     let chartData = [];
     let lastPrices = {};
+    let lastChange = {};
 
     const volatilitySymbols = [
         "BOOM1000","CRASH1000","BOOM900","CRASH900","BOOM600","CRASH600",
         "BOOM500","CRASH500","R_100","R_75","R_50","R_25","R_10"
     ];
 
-    // ------------------ Helpers ------------------
     const formatNum = n => Number(n).toFixed(2);
     const setStatus = txt => statusSpan.textContent = txt;
 
@@ -42,14 +42,20 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // ------------------ Symbols List ------------------
+    // ------------------ Symbol List ------------------
     function initSymbols() {
         symbolList.innerHTML = "";
         volatilitySymbols.forEach(sym => {
             const el = document.createElement("div");
             el.className = "symbolItem";
             el.id = `symbol-${sym}`;
-            el.innerHTML = `<span>${sym}</span><span class="lastPrice">0</span>`;
+            el.innerHTML = `
+                <div class="symbolRow">
+                    <span class="symName">${sym}</span>
+                    <span class="lastPrice">0</span>
+                </div>
+                <div class="progressBar"><div class="progressFill"></div></div>
+            `;
             el.onclick = () => selectSymbol(sym);
             symbolList.appendChild(el);
         });
@@ -66,7 +72,7 @@ document.addEventListener("DOMContentLoaded", () => {
         subscribeTicks(sym);
     }
 
-    // ------------------ WebSocket Connect ------------------
+    // ------------------ WebSocket ------------------
     function connectDeriv(token) {
         if(ws) ws.close();
 
@@ -79,21 +85,18 @@ document.addEventListener("DOMContentLoaded", () => {
         ws.onmessage = msg => {
             const data = JSON.parse(msg.data);
 
-            // Authorization
             if(data.msg_type === "authorize" && data.authorize?.loginid){
                 setStatus(`Connected: ${data.authorize.loginid}`);
                 authorized = true;
                 volatilitySymbols.forEach(sym => subscribeTicks(sym));
             }
 
-            // Balance update
             if(data.msg_type === "balance" && data.balance){
                 const bal = parseFloat(data.balance.balance).toFixed(2);
                 const cur = data.balance.currency;
                 userBalance.textContent = `Balance: ${bal} ${cur}`;
             }
 
-            // Tick update
             if(data.msg_type === "tick" && data.tick){
                 handleTick(data.tick);
             }
@@ -109,16 +112,37 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    // ------------------ Tick Update ------------------
     function handleTick(tick) {
         const p = Number(tick.quote);
-        lastPrices[tick.symbol] = p;
+        const symbol = tick.symbol;
+        const prev = lastPrices[symbol] ?? p;
+        const change = p - prev;
 
-        // Update symbol list
-        const el = document.getElementById(`symbol-${tick.symbol}`);
-        if(el) el.querySelector(".lastPrice").textContent = formatNum(p);
+        lastPrices[symbol] = p;
+        lastChange[symbol] = change;
 
-        // Update chart if current symbol
-        if(tick.symbol === currentSymbol){
+        const el = document.getElementById(`symbol-${symbol}`);
+        if(el){
+            const priceSpan = el.querySelector(".lastPrice");
+            const progress = el.querySelector(".progressFill");
+            priceSpan.textContent = formatNum(p);
+
+            // Progress color animation
+            if(change > 0){
+                progress.style.background = "#4CAF50";
+                progress.style.width = `${Math.min(100, 50 + Math.abs(change)*10)}%`;
+            } else if(change < 0){
+                progress.style.background = "#F44336";
+                progress.style.width = `${Math.min(100, 50 + Math.abs(change)*10)}%`;
+            } else {
+                progress.style.background = "#999";
+                progress.style.width = "50%";
+            }
+        }
+
+        // Chart update
+        if(symbol === currentSymbol){
             const localTime = Math.floor(new Date(tick.epoch * 1000).getTime() / 1000);
             const point = { time: localTime, value: p };
 

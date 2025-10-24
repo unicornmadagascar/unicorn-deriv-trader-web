@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Unicorn Madagascar</title>
+<title>🦄 Unicorn Madagascar — Deriv Trader</title>
 
 <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 
@@ -11,19 +11,45 @@
 body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f9f9f9; }
 header { padding: 10px; background: #2962FF; color: #fff; text-align: center; font-size: 1.2em; }
 #container { display: flex; height: calc(100vh - 50px); }
-#symbolList { width: 200px; background: #fff; overflow-y: auto; border-right: 1px solid #ddd; }
-.symbolItem { padding: 8px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; transition: all 0.2s; }
-.symbolItem:hover { background: #e3f2fd; transform: translateX(2px); }
-.symbolItem.selected { background: #2962FF; color: #fff; font-weight: bold; }
+#symbolList { width: 220px; background: #fff; overflow-y: auto; border-right: 1px solid #ddd; padding: 5px; }
+.symbolItem { 
+    margin-bottom: 6px; 
+    padding: 6px 10px; 
+    cursor: pointer; 
+    border-radius: 8px; 
+    border: 1px solid #eee;
+    background: #fafafa;
+    transition: all 0.25s;
+}
+.symbolItem:hover { background: #f0f7ff; transform: translateX(2px); box-shadow: 0 0 3px rgba(0,0,0,0.1); }
+.symbolItem.selected { background: #2962FF; color: #fff; box-shadow: 0 0 6px rgba(41,98,255,0.4); }
+
+.symbolRow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.symName { font-weight: bold; font-size: 0.9em; }
+.lastPrice { font-size: 0.9em; }
+
+.progressBar {
+    height: 6px;
+    background: #eee;
+    border-radius: 4px;
+    overflow: hidden;
+}
+.progressFill {
+    height: 100%;
+    width: 50%;
+    background: #999;
+    transition: all 0.5s ease;
+}
+
 #chartInner { flex: 1; }
 #controls { padding: 8px; background: #fff; border-bottom: 1px solid #ddd; display: flex; gap: 10px; align-items: center; }
-button { padding: 6px 12px; cursor: pointer; background: #2962FF; color: #fff; border: none; border-radius: 4px; }
+button { padding: 6px 12px; cursor: pointer; background: #2962FF; color: #fff; border: none; border-radius: 4px; font-weight: bold; }
 button:hover { background: #0039cb; }
 </style>
 </head>
 <body>
 
-<header>Unicorn Madagascar</header>
+<header>🦄 Unicorn Madagascar — Deriv Trader</header>
 
 <div id="controls">
     <button id="connectBtn">Connect</button>
