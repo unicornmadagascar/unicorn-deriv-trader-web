@@ -116,19 +116,22 @@ document.addEventListener("DOMContentLoaded", () => {
     const oldPrice = lastPrices[tick.symbol];
     lastPrices[tick.symbol] = p;
 
-    // Update symbol list with up/down flash
+    // Update symbol list with flash + bounce
     const el = document.getElementById(`symbol-${tick.symbol}`);
     if(el){
         const priceEl = el.querySelector(".lastPrice");
         priceEl.textContent = formatNum(p);
 
         // Remove old classes
-        priceEl.classList.remove("up","down");
+        priceEl.classList.remove("up","down","bounce");
 
-        // Add new class based on tick change
         if(oldPrice !== undefined){
+            // Flash green or red
             if(p > oldPrice) priceEl.classList.add("up");
             else if(p < oldPrice) priceEl.classList.add("down");
+
+            // Always add bounce
+            priceEl.classList.add("bounce");
         }
     }
 
