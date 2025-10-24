@@ -5,10 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>🦄 Unicorn Madagascar — Deriv Multiplier Trader</title>
 
+  <!-- Librairie Lightweight Charts -->
   <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 
   <style>
+    /* === STYLES GÉNÉRAUX (inchangés sauf chart) === */
     :root {
       --bg-main: #f8fafc;
       --bg-panel: #ffffff;
@@ -79,7 +81,6 @@
 
     button:hover { opacity: 0.9; }
 
-    /* Étend la hauteur principale du contenu */
     main {
       display: flex;
       align-items: flex-start;
@@ -87,87 +88,12 @@
       min-height: 100vh;
     }
 
-    #symbolList {
-      flex-shrink: 0;
-      margin-top: 16px; /* augmentez la valeur selon l'espace souhaité */
-      width: 320px;
-    }
-
-    #chartSection {
-      flex: 1;
-    }
-
-    /* Donne plus d’espace à la section de droite (chart + tables) */
-    #chartSection {
-      min-height: 300px;         /* Ajuste ici selon la taille voulue */
-    }
-
-    aside#symbolList {
+    aside#symbolPanel {
       width: 220px;
       background-color: var(--bg-panel);
       border-right: 1px solid var(--border);
       overflow-y: auto;
       padding: 12px;
-      transition: 0.3s;
-    }
-
-    /* Conteneurs symboles – style moderne */
-    .symbolItem {
-       background: var(--bg-panel);
-       color: var(--text-main);
-       border-radius: 12px;
-       border: 1px solid var(--border);
-       padding: 14px 16px;           /* hauteur confortable */
-       margin-bottom: 12px;           /* espace entre conteneurs */
-       display: flex;
-       justify-content: space-between;
-       align-items: center;
-       font-weight: 600;
-       cursor: pointer;
-       max-width: 360px;
-       box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-       transition: all 0.3s ease;
-  }
-
-  /* Hover moderne */
-  .symbolItem:hover {
-     transform: translateY(-2px);
-     box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-     background: var(--bg-accent);
-  }
-
-  /* Dark mode moderne */
-  body.dark .symbolItem {
-    background: #161b22;          /* fond sombre */
-    color: #f8fafc;               /* texte blanc */
-    border: 1px solid #30363d;    /* bordure sombre */
-    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-  }
-
-  body.dark .symbolItem:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    background: #1e293b;
-  }
-
-  /* Symboles à gauche, quotes à droite */
-  .symbolItem .symbolName {
-    font-size: 0.95rem;
-  }
-
-  .symbolItem .lastPrice {
-     font-weight: 500;
-     font-size: 0.9rem;
-     color: inherit; /* suit la couleur du texte du conteneur */
-   }
-
-   /* Optionnel : ajout d’un petit badge ou accent coloré */
-   .symbolItem .badge {
-      background: var(--accent);
-      color: white;
-      font-size: 0.75rem;
-      padding: 2px 6px;
-      border-radius: 6px;
     }
 
     #chartSection {
@@ -178,6 +104,7 @@
       position: relative;
     }
 
+    /* === NOUVELLE ZONE GRAPHIQUE === */
     #chartInner {
       flex: 1;
       width: 100%;
@@ -187,15 +114,12 @@
       border: 1px solid var(--border);
       position: relative;
       z-index: 1;
-      min-height: 700px;
+      overflow: hidden;
     }
 
-    #controls {
+    /* Historique et panneaux */
+    #controls, #tradeHistory, #autoTradeHistory {
       margin-top: 10px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
       background-color: var(--bg-panel);
       border-radius: 8px;
       border: 1px solid var(--border);
@@ -203,26 +127,9 @@
       box-shadow: 0 1px 4px rgba(0,0,0,0.05);
     }
 
-    #controls label {
-      font-size: 0.85rem;
-      color: var(--text-muted);
-    }
-
-    /* === Trade History === */
     #tradeHistory, #autoTradeHistory {
-      margin-top: 10px;
-      background-color: var(--bg-panel);
-      padding: 10px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
       height: 300px;
       overflow-y: auto;
-    }
-
-    #tradeHistory strong, #autoTradeHistory strong {
-      display: block;
-      margin-bottom: 6px;
-      color: var(--text-main);
     }
 
     table.trade-table {
@@ -253,20 +160,6 @@
     .buy { color: #16a34a; font-weight: 600; }
     .sell { color: #dc2626; font-weight: 600; }
 
-    #pnl {
-      font-weight: bold;
-      color: var(--accent);
-    }
-
-    ::-webkit-scrollbar {
-      width: 6px;
-    }
-
-    ::-webkit-scrollbar-thumb {
-      background-color: var(--border);
-      border-radius: 4px;
-    }
-
     .theme-toggle {
       background: transparent;
       border: 1px solid rgba(255,255,255,0.3);
@@ -283,127 +176,6 @@
     }
 
     .theme-toggle:hover { background: rgba(255,255,255,0.15); }
-
-    /* Gauges overlay */
-    #gaugeDashboard {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      display: flex;
-      gap: 15px;
-      z-index: 10;
-    }
-
-    #gaugeDashboard canvas {
-      width: 120px;
-      height: 120px;
-      background: rgba(255,255,255,0.15);
-      border-radius: 50%;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    }
-
-    .tooltip {
-      position: absolute;
-      background: var(--bg-panel);
-      color: var(--text-main);
-      padding: 4px 8px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      font-size: 12px;
-      pointer-events: none;
-      display: none;
-      z-index: 999;
-    }
-
-    .lastPriceLabel {
-      position: absolute;
-      right: 8px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: var(--accent);
-      color: white;
-      font-size: 12px;
-      padding: 3px 6px;
-      border-radius: 4px;
-      font-weight: 500;
-    }
-
-    #launchAutomation {
-      background: linear-gradient(90deg, #3b82f6, var(--accent));
-      color: white;
-      border: none;
-      border-radius: 6px;
-      padding: 6px 12px;
-      cursor: pointer;
-      font-weight: 500;
-      transition: background 0.3s, transform 0.1s;
-    }
-
-    #launchAutomation:hover {
-      transform: scale(1.03);
-      opacity: 0.95;
-    }
-
-    #launchAutomation.active {
-      background: linear-gradient(90deg, #ef4444, #dc2626);
-    }
-
-    /* ✅ Ajustement de la hauteur de la table autoHistoryList */
-    #autoHistoryList {
-      max-height: 550px; /* ancienne hauteur trop petite → augmentée */
-      overflow-y: auto;
-      display: block;
-    }
-
-   #plGaugeContainer {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    margin-top: 12px;
-    padding: 10px;
-    border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    background: #f8fafc; /* clair par défaut */
-    transition: background 0.3s;
-   }
-
-    body.dark #plGaugeContainer {
-      --gauge-bg: #16191c; /* fond sombre pour dark mode */
-    } 
-
-    body:not(.dark) #plGaugeContainer {
-      --gauge-bg: linear-gradient(135deg, #f0f4f8, #ffffff);
-    }
-
-    #plGaugeContainer:hover {
-      transform: scale(1.03);
-      box-shadow: 0 12px 25px rgba(0,0,0,0.12);
-    }
-
-    #plGauge {
-      border-radius: 50%;
-      background: radial-gradient(circle at center, rgba(255,255,255,0.9), rgba(245,247,250,0.6));
-      box-shadow: inset 0 4px 12px rgba(0,0,0,0.05);
-    }
-
-    #symbolPanel {
-       display: flex;
-       flex-direction: column;
-       gap: 16px; /* espace entre symboles et gauge */
-    }
-
-    /* Light mode (par défaut) */
-    #plGaugeContainer {
-       background: #f8fafc;
-       transition: background 0.3s;
-    }
-
-    /* Dark mode */
-     body.dark #plGaugeContainer {
-       background: #0d1117;  /* couleur sombre */
-    }
-
   </style>
 </head>
 
@@ -411,7 +183,7 @@
   <header>
     <h1>🦄 Unicorn Madagascar</h1>
     <div class="header-right">
-      <input id="tokenInput" placeholder="Enter Deriv API token (optional)" />
+      <input id="tokenInput" placeholder="Enter Deriv API token" />
       <button id="connectBtn">Connect</button>
       <span id="status">Not connected</span>
       <span id="userBalance">💰 Balance: --</span>
@@ -420,72 +192,19 @@
   </header>
 
   <main>
-
-     <aside id="symbolPanel">
-       <div id="symbolList"></div> <!-- tes symboles -->
-       <div id="plGaugeContainer">
-           <canvas id="plGauge" width="230" height="230"></canvas>
-           <!-- <div class="pl-label">P/L Gauge</div> -->
-       </div>
+    <aside id="symbolPanel">
+      <div id="symbolList"></div>
     </aside>
 
     <section id="chartSection">
-      <div id="gaugeDashboard"></div>
-      <div id="chartInner">
-        <div id="tooltip" class="tooltip"></div>
-      </div>
+      <div id="chartInner"></div>
 
       <div id="controls">
-        <select id="modeSelect">
-          <option value="simulation">Simulation</option>
-          <option value="live">Live</option>
-        </select>
-
-        <label>Multiplier
-          <select id="multiplier">
-            <option value="100">100</option>
-            <option value="200">200</option>
-            <option value="300">300</option>
-            <option value="400">400</option>
-            <option value="500">500</option>
-          </select>
-        </label>
-
-        <label>Stake:
-          <input id="stake" type="number" step="0.01" min="0.01" value="1.00" />
-        </label>
-
-        <label>TP (%)
-          <input id="tp" type="number" step="0.01" value="1.0" />
-        </label>
-
-        <label>SL (%)
-          <input id="sl" type="number" step="0.01" value="1.0" />
-        </label>
-
-        <label>Buy Number:
-          <input id="buyNumber" type="number" min="1" max="100" value="1" />
-        </label>
-
-        <label>Sell Number:
-          <input id="sellNumber" type="number" min="1" max="100" value="1" />
-        </label>
-
-        <button id="launchAutomation">Launch Automation</button>
         <button id="buyBtn">BUY</button>
         <button id="sellBtn">SELL</button>
-        <button id="closeBtn">CLOSE ALL WINNING</button>
-        <button id="closeBtnAll">CLOSE ALL</button>
         <div id="pnl">PnL: --</div>
       </div>
-      
-      <!-- Trade history automatisé -->
-      <div id="autoTradeHistory">
-        <strong>Automated trades</strong>
-        <div id="autoHistoryList"></div>
-      </div>
 
-      <!-- Trade history manuel -->
       <div id="tradeHistory">
         <strong>📜 Trade history</strong>
         <div id="historyList"></div>
@@ -496,7 +215,7 @@
   <script src="app.js" defer></script>
 
   <script>
-    // 🌗 Mode clair/sombre
+    // 🌙 Gestion thème clair/sombre
     const toggleBtn = document.getElementById("themeToggle");
     const body = document.body;
     if (localStorage.getItem("theme") === "dark") {
@@ -508,16 +227,64 @@
       const isDark = body.classList.contains("dark");
       toggleBtn.textContent = isDark ? "☀️" : "🌙";
       localStorage.setItem("theme", isDark ? "dark" : "light");
+      applyThemeToChart(isDark);
     });
 
-    // ⚙️ Bouton Launch Automation
-    const launchAutomationBtn = document.getElementById("launchAutomation");
-    launchAutomationBtn.addEventListener("click", () => {
-      const isActive = launchAutomationBtn.classList.toggle("active");
-      launchAutomationBtn.textContent = isActive
-        ? "Stop Automation"
-        : "Launch Automation";
+    // 📊 Initialisation Lightweight Chart
+    const chartContainer = document.getElementById('chartInner');
+    const chart = LightweightCharts.createChart(chartContainer, {
+      layout: {
+        background: { color: getComputedStyle(document.body).getPropertyValue('--bg-panel').trim() },
+        textColor: getComputedStyle(document.body).getPropertyValue('--text-main').trim(),
+      },
+      grid: {
+        vertLines: { color: 'rgba(0,0,0,0.1)' },
+        horzLines: { color: 'rgba(0,0,0,0.1)' },
+      },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      timeScale: { borderColor: 'rgba(0,0,0,0.2)' },
+      rightPriceScale: { borderColor: 'rgba(0,0,0,0.2)' },
     });
+
+    const candleSeries = chart.addCandlestickSeries({
+      upColor: '#16a34a',
+      borderUpColor: '#16a34a',
+      wickUpColor: '#16a34a',
+      downColor: '#dc2626',
+      borderDownColor: '#dc2626',
+      wickDownColor: '#dc2626',
+    });
+
+    // Exemple de données fictives
+    const data = [
+      { time: '2025-10-21', open: 101, high: 105, low: 99, close: 104 },
+      { time: '2025-10-22', open: 104, high: 108, low: 102, close: 107 },
+      { time: '2025-10-23', open: 107, high: 110, low: 106, close: 108 },
+      { time: '2025-10-24', open: 108, high: 111, low: 107, close: 109 },
+    ];
+    candleSeries.setData(data);
+
+    // 🌗 Appliquer le thème clair/sombre au graphique
+    function applyThemeToChart(isDark) {
+      chart.applyOptions({
+        layout: {
+          background: { color: isDark ? '#0d1117' : '#ffffff' },
+          textColor: isDark ? '#e6edf3' : '#1e293b',
+        },
+        grid: {
+          vertLines: { color: isDark ? '#30363d' : 'rgba(0,0,0,0.1)' },
+          horzLines: { color: isDark ? '#30363d' : 'rgba(0,0,0,0.1)' },
+        },
+        rightPriceScale: {
+          borderColor: isDark ? '#30363d' : 'rgba(0,0,0,0.2)',
+        },
+        timeScale: {
+          borderColor: isDark ? '#30363d' : 'rgba(0,0,0,0.2)',
+        },
+      });
+    }
   </script>
+
+
 </body>
 </html>
