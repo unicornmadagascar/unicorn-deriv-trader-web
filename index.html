@@ -1,63 +1,154 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>🦄 Unicorn Madagascar — Deriv Live Ticks</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🦄 Unicorn Madagascar — Trader Demo</title>
 
+  <!-- Lightweight Charts Standalone -->
   <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
-  <script defer src="app.js"></script>
 
   <style>
-    body { font-family: Arial, sans-serif; margin:0; height:100vh; display:flex; flex-direction:column; background:#f8f9fa; }
-    header { display:flex; justify-content:space-between; align-items:center; padding:10px 16px; background:#fff; border-bottom:1px solid #e6e6e6; }
-    #symbolList { display:flex; gap:10px; overflow-x:auto; }
-    .symbol-item { padding:6px 12px; border-radius:20px; background:#eee; cursor:pointer; font-weight:600; transition:0.18s; }
-    .symbol-item:hover { background:#007bff; color:#fff; }
-    #container { position:relative; flex:1; display:flex; }
-    /* chart area */
-    #chartArea { flex:1; display:flex; flex-direction:column; }
-    #chartInner { flex:1; min-height:300px; background:#fff; margin:12px; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.06); overflow:hidden; }
-    /* gauges */
-    #gauges { position:absolute; top:18px; right:18px; display:flex; gap:16px; z-index:10; }
-    .gauge-container { display:flex; flex-direction:column; align-items:center; width:120px; }
-    .gauge { width:110px; height:110px; border-radius:50%; background: conic-gradient(#ddd 0deg, #ddd 360deg); display:flex; align-items:center; justify-content:center; box-shadow:0 6px 18px rgba(0,0,0,0.08); }
-    .gauge span { font-weight:700; color:#222; }
-    .gauge-label { margin-top:6px; color:#555; font-size:13px; text-align:center; }
-    #controls { padding:8px 16px; background:#fff; border-bottom:1px solid #eee; display:flex; gap:12px; align-items:center; }
-    #connectBtn { background:#007bff; color:#fff; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; }
-    #connectBtn:hover { background:#0056b3; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f9f9f9;
+    }
+    header {
+      padding: 10px;
+      background: #2962FF;
+      color: white;
+      text-align: center;
+      font-size: 1.2em;
+    }
+    #container {
+      display: flex;
+      height: calc(100vh - 50px);
+    }
+    #symbolList {
+      width: 200px;
+      background: white;
+      border-right: 1px solid #ddd;
+      overflow-y: auto;
+    }
+    .symbolItem {
+      padding: 8px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .symbolItem:hover {
+      background: #e3f2fd;
+    }
+    .symbolItem.selected {
+      background: #2962FF;
+      color: white;
+      font-weight: bold;
+    }
+    .progress {
+      width: 40px;
+      height: 6px;
+      border-radius: 3px;
+      background: #ddd;
+      overflow: hidden;
+      margin-left: 8px;
+    }
+    .progress-inner {
+      height: 100%;
+      width: 50%;
+      transition: width 0.4s ease, background-color 0.4s ease;
+    }
+    #chartInner {
+      flex: 1;
+      position: relative;
+    }
+    #controls {
+      padding: 8px;
+      background: white;
+      border-bottom: 1px solid #ddd;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    /* Gauges section */
+    .gauge-container {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      gap: 20px;
+      z-index: 10;
+    }
+    .gauge {
+      position: relative;
+      width: 90px;
+      height: 90px;
+    }
+    .gauge svg {
+      transform: rotate(-90deg);
+      width: 100%;
+      height: 100%;
+    }
+    .gauge circle {
+      fill: none;
+      stroke-width: 10;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.6s ease, stroke 0.6s ease;
+    }
+    .gauge .bg {
+      stroke: #eee;
+    }
+    .gauge .meter {
+      stroke: #2962FF;
+      stroke-dasharray: 283;
+      stroke-dashoffset: 283;
+    }
+    .gauge-label {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 12px;
+      font-weight: bold;
+      text-align: center;
+      color: #333;
+    }
   </style>
 </head>
+
 <body>
-  <header>
-    <div id="symbolList"></div>
-    <div id="controls">
-      <button id="connectBtn">Se connecter</button>
-    </div>
-  </header>
+  <header>🦄 Unicorn Madagascar — Deriv Trader</header>
+
+  <div id="controls">
+    <button id="connectBtn">Connect</button>
+    <span id="status">Disconnected</span>
+    <span id="userBalance"></span>
+  </div>
 
   <div id="container">
-    <div id="chartArea">
-      <!-- Gauges sont affichées par app.js dans #gaugesContainer ou on peut les garder statiques ici -->
-      <div id="chartInner"></div>
-    </div>
-
-    <!-- Gauges top-right (statiques dans HTML) -->
-    <div id="gauges">
+    <div id="symbolList"></div>
+    <div id="chartInner">
       <div class="gauge-container">
-        <div id="volGauge" class="gauge"><span>0%</span></div>
-        <div class="gauge-label">Volatilité</div>
-      </div>
-      <div class="gauge-container">
-        <div id="trendGauge" class="gauge"><span>0%</span></div>
-        <div class="gauge-label">Tendance</div>
-      </div>
-      <div class="gauge-container">
-        <div id="probGauge" class="gauge"><span>0%</span></div>
-        <div class="gauge-label">Probabilité</div>
+        <div class="gauge" id="volGauge">
+          <svg><circle class="bg" cx="45" cy="45" r="40"></circle><circle class="meter" cx="45" cy="45" r="40"></circle></svg>
+          <div class="gauge-label">Volatility</div>
+        </div>
+        <div class="gauge" id="trendGauge">
+          <svg><circle class="bg" cx="45" cy="45" r="40"></circle><circle class="meter" cx="45" cy="45" r="40"></circle></svg>
+          <div class="gauge-label">Trend</div>
+        </div>
+        <div class="gauge" id="probGauge">
+          <svg><circle class="bg" cx="45" cy="45" r="40"></circle><circle class="meter" cx="45" cy="45" r="40"></circle></svg>
+          <div class="gauge-label">Probability</div>
+        </div>
       </div>
     </div>
   </div>
+
+  <script src="app.js"></script>
 </body>
 </html>
