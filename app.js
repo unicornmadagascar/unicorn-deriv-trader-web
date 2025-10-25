@@ -10,7 +10,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const volGauge = document.getElementById("volGauge");
   const trendGauge = document.getElementById("trendGauge");
   const probGauge = document.getElementById("probGauge");
+  const controlBtn = document.getElementById("controlBtn");
+  const controlPanel = document.getElementById("controlPanel");
+  const toggleAutomation = document.getElementById("toggleAutomation");
 
+  let automationRunning = false;
   let smoothVol = 0;
   let smoothTrend = 0;
 
@@ -283,7 +287,7 @@ document.addEventListener("DOMContentLoaded", () => {
    const prob = recentChanges.length ? Math.round((dominant / recentChanges.length) * 100) : 50;
 
    // === 🔹 4. Lissage EMA pour stabilité ===
-   const alpha = 0.08; // plus petit = plus lisse
+   const alpha = 0.5; // plus petit = plus lisse
    smoothVol = smoothVol === 0 ? volProb : smoothVol + alpha * (volProb - smoothVol);
    smoothTrend = smoothTrend === 0 ? trendRaw : smoothTrend + alpha * (trendRaw - smoothTrend);
 
@@ -352,6 +356,42 @@ document.addEventListener("DOMContentLoaded", () => {
   connectBtn.addEventListener("click", () => {
     connectDeriv();
     displaySymbols();
+  });
+
+  // Afficher / cacher le panneau au clic sur le bouton
+controlBtn.addEventListener("click", () => {
+    controlPanel.style.display = controlPanel.style.display === "none" ? "block" : "none";
+});
+
+  // Toggle Automation
+  toggleAutomation.addEventListener("click", () => {
+    automationRunning = !automationRunning;
+    toggleAutomation.textContent = automationRunning ? "Stop Automation" : "Launch Automation";
+    console.log("Automation running:", automationRunning);
+  });
+
+  // BUY
+  document.getElementById("buyBtn").addEventListener("click", () => {
+    console.log("BUY action triggered");
+    // Ici tu peux appeler ta fonction d'achat
+  });
+
+  // SELL
+  document.getElementById("sellBtn").addEventListener("click", () => {
+    console.log("SELL action triggered");
+    // Ici tu peux appeler ta fonction de vente
+  });
+
+  // Close Winning
+  document.getElementById("closeWinning").addEventListener("click", () => {
+     console.log("Close Winning triggered");
+     // Ici tu peux appeler ta fonction pour fermer les trades gagnants
+  });
+
+  // Close All
+  document.getElementById("closeAll").addEventListener("click", () => {
+    console.log("Close All triggered");
+    // Ici tu peux appeler ta fonction pour fermer tous les trades
   });
 
   displaySymbols();

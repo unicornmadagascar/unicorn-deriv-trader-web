@@ -38,6 +38,31 @@
     </div>
   </header>
 
+  <!-- Bouton de contrôle principal pour afficher la section -->
+<button id="controlBtn" style="position: fixed; top: 20px; right: 20px; z-index: 1000;">⚙️</button>
+
+<!-- Section flottante blanche (initialement cachée) -->
+<div id="controlPanel" style="
+    display: none;
+    position: fixed;
+    top: 60px;
+    right: 20px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    padding: 15px;
+    z-index: 1000;
+    width: 180px;
+    text-align: center;
+">
+    <button id="toggleAutomation" style="width: 100%; margin: 5px 0;">Launch Automation</button>
+    <button id="buyBtn" style="width: 100%; margin: 5px 0; background-color: #4caf50; color: #fff;">BUY</button>
+    <button id="sellBtn" style="width: 100%; margin: 5px 0; background-color: #f44336; color: #fff;">SELL</button>
+    <button id="closeWinning" style="width: 100%; margin: 5px 0;">Close Winning</button>
+    <button id="closeAll" style="width: 100%; margin: 5px 0;">Close All</button>
+</div>
+
+
   <div id="container">
     <div id="chartArea">
       <!-- Gauges sont affichées par app.js dans #gaugesContainer ou on peut les garder statiques ici -->
