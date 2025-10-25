@@ -60,42 +60,40 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- CHART INIT (corrigé pour compatibilité) ---
   function initChart() {
-    chartInner.innerHTML = "";
-    chart = LightweightCharts.createChart(chartInner, {
-      layout: { textColor: "#333", background: { type: "solid", color: "#fff" } },
-      timeScale: { timeVisible: true, secondsVisible: true },
-      grid: {
-        vertLines: { color: "#eee" },
-        horzLines: { color: "#eee" }
-      },
-      crosshair: { mode: LightweightCharts.CrosshairMode.Normal }
+  try { if (chart) chart.remove(); } catch (e) {}
+  chartInner.innerHTML = "";
+
+  // ✅ Crée le chart correctement
+  chart = LightweightCharts.createChart(chartInner, {
+    layout: {
+      background: { color: '#ffffff' },
+      textColor: '#333',
+    },
+    grid: {
+      vertLines: { color: 'rgba(197, 203, 206, 0.5)' },
+      horzLines: { color: 'rgba(197, 203, 206, 0.5)' },
+    },
+    timeScale: { timeVisible: true, secondsVisible: true },
+    rightPriceScale: { borderVisible: true },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal }
+  });
+
+  // ✅ Utilise addAreaSeries (version standalone)
+   if (chart.addAreaSeries) {
+    areaSeries = chart.addAreaSeries({
+      lineColor: "#2962FF",
+      topColor: "rgba(41,98,255,0.28)",
+      bottomColor: "rgba(41,98,255,0.05)",
+      lineWidth: 2
     });
+   } else {
+     console.error("⚠️ chart.addAreaSeries non disponible. Vérifie la version du script LightweightCharts dans ton HTML.");
+   }
 
-    // ✅ Compatible version fallback : supporte addAreaSeries ou addSeries
-    if (typeof chart.addAreaSeries === "function") {
-      areaSeries = chart.addAreaSeries({
-        lineColor: "#2962FF",
-        topColor: "rgba(41,98,255,0.28)",
-        bottomColor: "rgba(41,98,255,0.05)",
-        lineWidth: 2
-      });
-    } else if (typeof chart.addSeries === "function") {
-      areaSeries = chart.addSeries({
-        type: "area",
-        lineColor: "#2962FF",
-        topColor: "rgba(41,98,255,0.28)",
-        bottomColor: "rgba(41,98,255,0.05)",
-        lineWidth: 2
-      });
-    } else {
-      console.error("⚠️ Aucune méthode valide pour créer la série area sur ce chart");
-      return;
-    }
-
-    chartData = [];
-    recentChanges = [];
-    lastPrices = {};
-    positionGauges();
+   chartData = [];
+   recentChanges = [];
+   lastPrices = {};
+   positionGauges();
   }
 
   // --- CONNECT DERIV (inchangé) ---
