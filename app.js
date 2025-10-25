@@ -11,7 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const trendGauge = document.getElementById("trendGauge");
   const probGauge = document.getElementById("probGauge");
 
-  // 🟢 Élément pour afficher compte + balance
+  // Élément pour afficher compte + balance
   const accountInfo = document.createElement("div");
   accountInfo.id = "accountInfo";
   accountInfo.style.display = "inline-block";
@@ -28,7 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let chartData = [];
   let lastPrices = {};
   let recentChanges = [];
-  let connected = false; // 🟢 ajouté
+  let connected = false;
 
   // Symbols (Deriv indices only)
   const SYMBOLS = [
@@ -74,7 +74,8 @@ document.addEventListener("DOMContentLoaded", () => {
       timeScale: { timeVisible: true, secondsVisible: true, rightOffset: 8 }
     });
 
-    areaSeries = chart.addAreaSeries({
+    // <-- Correction : utiliser addSeries avec LightweightCharts.AreaSeries (comme dans ton code d'origine)
+    areaSeries = chart.addSeries(LightweightCharts.AreaSeries, {
       lineColor: '#2962FF',
       topColor: 'rgba(41,98,255,0.28)',
       bottomColor: 'rgba(41,98,255,0.05)',
@@ -86,74 +87,66 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // connect WS
-  function connectDeriv() {
-    // 🟢 si déjà connecté, on ferme proprement
-    if (connected && ws) {
-      ws.close();
-      connected = false;
-      connectBtn.textContent = "Connect";
-      accountInfo.textContent = "";
-      console.log("Déconnecté manuellement");
-      return;
-    }
-
-    if (ws) { ws.close(); ws = null; }
-
-    ws = new WebSocket(WS_URL);
-    ws.onopen = () => {
-      console.log("WS open — authorizing");
-      ws.send(JSON.stringify({ authorize: TOKEN }));
-    };
-    ws.onmessage = (evt) => {
-      try {
-        const data = JSON.parse(evt.data);
-        if (data.msg_type === "authorize" && data.authorize) {
-          console.log("Authorized ✅");
-          connected = true;
-          connectBtn.textContent = "Disconnect"; // 🟢 changement de label
-          const acc = data.authorize.loginid;
-          const bal = fmt(data.authorize.balance);
-          accountInfo.textContent = `${acc} | $${bal}`;
-
-          // abonnement balance live
-          ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-
-          // afficher symboles
-          displaySymbols();
-        } 
-        else if (data.msg_type === "balance" && data.balance) {
-          const acc = data.balance.loginid;
-          const bal = fmt(data.balance.balance);
-          accountInfo.textContent = `${acc} | $${bal}`;
-        } 
-        else if (data.msg_type === "tick" && data.tick) {
-          handleTick(data.tick);
-        } 
-        else if (data.msg_type === "error") {
-          console.warn("WS error:", data);
-        }
-      } catch (err) {
-        console.error("WS message parse err", err);
-      }
-    };
-    ws.onclose = () => {
-      console.log("WS closed");
-      connected = false;
-      connectBtn.textContent = "Connect";
-      accountInfo.textContent = "";
-    };
-    ws.onerror = (e) => {
-      console.error("WS err", e);
-      connected = false;
-      connectBtn.textContent = "Connect";
-      accountInfo.textContent = "";
-    };
+  // connect WS (corrigé proprement)
+function connectDeriv() {
+  // Si déjà connecté, on ferme et on remet le bouton
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    console.log("Déconnexion demandée...");
+    ws.close();
+    ws = null;
+    connectBtn.textContent = "Connect";
+    return;
   }
+
+  console.log("Connexion à Deriv...");
+  ws = new WebSocket(WS_URL);
+  connectBtn.textContent = "Connecting...";
+
+  ws.onopen = () => {
+    console.log("WS ouvert, autorisation en cours...");
+    ws.send(JSON.stringify({ authorize: TOKEN }));
+  };
+
+  ws.onmessage = (evt) => {
+    try {
+      const data = JSON.parse(evt.data);
+
+      if (data.msg_type === "authorize") {
+        console.log("✅ Autorisé");
+        connectBtn.textContent = "Disconnect";
+        displaySymbols();
+
+      } else if (data.msg_type === "tick" && data.tick) {
+        handleTick(data.tick);
+
+      } else if (data.msg_type === "error") {
+        console.warn("⚠️ WS error:", data);
+      }
+
+    } catch (err) {
+      console.error("WS parse err", err);
+    }
+  };
+
+  ws.onclose = () => {
+    console.log("🔌 WS fermé");
+    connectBtn.textContent = "Connect";
+    ws = null;
+  };
+
+  ws.onerror = (e) => {
+    console.error("❌ WS erreur", e);
+    connectBtn.textContent = "Connect";
+    ws = null;
+  };
+}
 
   // subscribe symbol ticks (forget previous)
   function subscribeSymbol(symbol) {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
+      // open WS first (will authorize then subscribe)
       connectDeriv();
+      // wait small time then subscribe (simple approach)
       setTimeout(() => {
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ forget_all: "ticks" }));
@@ -167,6 +160,7 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log("Subscribed:", symbol);
     }
 
+    // reinit chart for new symbol
     initChart();
   }
 
@@ -176,37 +170,51 @@ document.addEventListener("DOMContentLoaded", () => {
     const quote = safe(Number(tick.quote));
     const epoch = Number(tick.epoch) || Math.floor(Date.now()/1000);
 
+    // store last price
     const prev = lastPrices[symbol] ?? quote;
     lastPrices[symbol] = quote;
     const change = quote - prev;
     recentChanges.push(change);
     if (recentChanges.length > 60) recentChanges.shift();
 
+    // update gauges (only if current chart exists)
     updateGauges();
 
+    // update chart series if exists
     if (areaSeries && chart) {
       const localTime = Math.floor(new Date(epoch * 1000).getTime() / 1000);
       const point = { time: localTime, value: quote };
+
+      // push or update smoothly
       chartData.push(point);
       if (chartData.length > 600) chartData.shift();
 
-      try {
-        if (chartData.length === 1) areaSeries.setData(chartData);
-        else areaSeries.update(point);
-      } catch (e) {
+      if (chartData.length === 1) {
         areaSeries.setData(chartData);
+      } else {
+        // protect update
+        try { areaSeries.update(point); } catch (e) {
+          // fallback to setData if update fails
+          areaSeries.setData(chartData);
+        }
       }
-      try { chart.timeScale().fitContent(); } catch(e){}
+      // fit time axis to data
+      try { chart.timeScale().fitContent(); } catch(e){ /* ignore */ }
     }
   }
 
   // compute gauges values and set visuals
   function updateGauges() {
     if (!recentChanges.length) return;
+    // volatility ~ mean absolute change normalized
     const meanAbs = recentChanges.reduce((a,b)=>a+Math.abs(b),0)/recentChanges.length;
-    const vol = Math.min(100, meanAbs * 1000);
+    const vol = Math.min(100, meanAbs * 1000); // scale factor tuned empirically
+
+    // trend strength ~ absolute sum of recent changes (slope-like)
     const sum = recentChanges.reduce((a,b)=>a+b,0);
     const trend = Math.min(100, Math.abs(sum) * 1000);
+
+    // probability ~ fraction of ticks in dominant direction
     const pos = recentChanges.filter(v=>v>0).length;
     const neg = recentChanges.filter(v=>v<0).length;
     const dominant = Math.max(pos,neg);
@@ -219,7 +227,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function setGauge(el, percent, color) {
     const smoothPrev = parseFloat(el.dataset.prev || 0);
-    const smooth = smoothPrev + (percent - smoothPrev) * 0.12;
+    const smooth = smoothPrev + (percent - smoothPrev) * 0.12; // smoothing
     el.dataset.prev = smooth;
     const deg = Math.max(0, Math.min(360, smooth * 3.6));
     el.style.background = `conic-gradient(${color} ${deg}deg, #eee ${deg}deg)`;
@@ -228,15 +236,20 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // wire up connect button
-  connectBtn.addEventListener("click", connectDeriv);
+ // Bouton Connect / Disconnect
+connectBtn.addEventListener("click", () => {
+  connectDeriv();
+  displaySymbols();
+});
 
   // initialization
   displaySymbols();
   initChart();
 
+  // resize handling
   window.addEventListener("resize", () => {
     if (chart) {
-      try { chart.resize(chartInner.clientWidth, chartInner.clientHeight); } catch(e){}
+      try { chart.resize(chartInner.clientWidth, chartInner.clientHeight); } catch(e){ /* ignore */ }
     }
   });
 });
