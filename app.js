@@ -89,18 +89,81 @@ document.addEventListener("DOMContentLoaded", () => {
       gaugesContainer = document.createElement("div");
       gaugesContainer.id = "gaugesContainer";
       gaugesContainer.style.position = "absolute";
-      gaugesContainer.style.top = "10px";
-      gaugesContainer.style.left = "10px";
+      gaugesContainer.style.top = "8px";
+      gaugesContainer.style.left = "8px";
       gaugesContainer.style.display = "flex";
-      gaugesContainer.style.gap = "10px";
-      gaugesContainer.style.opacity = "0.9";
-      gaugesContainer.style.zIndex = "10";
+      gaugesContainer.style.gap = "12px";
+      gaugesContainer.style.opacity = "0.95";
+      gaugesContainer.style.zIndex = "12";
+      gaugesContainer.style.pointerEvents = "none"; // évite d'interférer avec le chart
       chartInner.style.position = "relative";
       chartInner.appendChild(gaugesContainer);
-      gaugesContainer.appendChild(volGauge);
-      gaugesContainer.appendChild(trendGauge);
-      gaugesContainer.appendChild(probGauge);
+
+      // chaque gauge reçoit son conteneur (pour label + pourcent)
+      const vCont = createGaugeWrapper("volGaugeWrapper");
+      const tCont = createGaugeWrapper("trendGaugeWrapper");
+      const pCont = createGaugeWrapper("probGaugeWrapper");
+
+      // insérer dans le DOM : on place les wrappers dans gaugesContainer
+      gaugesContainer.appendChild(vCont.wrapper);
+      gaugesContainer.appendChild(tCont.wrapper);
+      gaugesContainer.appendChild(pCont.wrapper);
+
+      // déplacer les éléments existants (les div fournis) DANS chaque wrapper
+      // cela préserve tout style utilisateur sur volGauge, trendGauge, probGauge
+      vCont.content.appendChild(volGauge);
+      tCont.content.appendChild(trendGauge);
+      pCont.content.appendChild(probGauge);
+
+      // créer les noms des gauges
+      const nameVol = document.createElement("div");
+      nameVol.textContent = "Volatility";
+      nameVol.style.textAlign = "center";
+      nameVol.style.fontSize = "13px";
+      nameVol.style.fontWeight = "600";
+      nameVol.style.marginTop = "6px";
+      nameVol.style.pointerEvents = "none";
+
+      const nameTrend = document.createElement("div");
+      nameTrend.textContent = "Tendance";
+      nameTrend.style.textAlign = "center";
+      nameTrend.style.fontSize = "13px";
+      nameTrend.style.fontWeight = "600";
+      nameTrend.style.marginTop = "6px";
+      nameTrend.style.pointerEvents = "none";
+
+      const nameProb = document.createElement("div");
+      nameProb.textContent = "Probabilité";
+      nameProb.style.textAlign = "center";
+      nameProb.style.fontSize = "13px";
+      nameProb.style.fontWeight = "600";
+      nameProb.style.marginTop = "6px";
+      nameProb.style.pointerEvents = "none";
+
+      // ajouter les noms sous chaque wrapper
+      vCont.wrapper.appendChild(nameVol);
+      tCont.wrapper.appendChild(nameTrend);
+      pCont.wrapper.appendChild(nameProb);
     }
+  }
+
+  // crée une structure wrapper qui garde le container original (content)
+  function createGaugeWrapper(id) {
+    const wrapper = document.createElement("div");
+    wrapper.id = id;
+    wrapper.style.display = "flex";
+    wrapper.style.flexDirection = "column";
+    wrapper.style.alignItems = "center";
+    wrapper.style.width = "140px"; // espace suffisant pour canvas + label
+    wrapper.style.pointerEvents = "none";
+
+    // zone interne (où on placera l'élément original du DOM)
+    const content = document.createElement("div");
+    content.style.width = "100%";
+    content.style.pointerEvents = "none";
+
+    wrapper.appendChild(content);
+    return { wrapper, content };
   }
 
   function connectDeriv() {
@@ -131,6 +194,7 @@ document.addEventListener("DOMContentLoaded", () => {
           connectBtn.textContent = "Disconnect";
           accountInfo.textContent = `Account: ${acc} | Balance: ${bal.toFixed(2)} ${currency}`;
 
+          // Abonnement balance en temps réel
           ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
           displaySymbols();
         }
@@ -192,7 +256,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // === 🟢 GAUGES AGRANDIES ET DÉPLACÉES ===
+  // === 🟢 GAUGES AGRANDIES, AVEC LABELS ===
   function updateCircularGauges() {
     if (!recentChanges.length) return;
     const meanAbs = recentChanges.reduce((a,b)=>a+Math.abs(b),0)/recentChanges.length;
@@ -210,26 +274,34 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function drawCircularGauge(container, value, color) {
-    const size = 110; // ✅ plus grand
-    if (!container.querySelector("canvas")) {
-      const c = document.createElement("canvas");
-      c.width = c.height = size;
-      c.style.borderRadius = "50%";
-      c.style.display = "block";
-      c.style.margin = "auto";
-      container.innerHTML = "";
-      container.appendChild(c);
+    const size = 110; // taille des anneaux
+    // Ensure container exists and is visible
+    container.style.width = size + "px";
+    container.style.height = (size + 28) + "px"; // laisser place pour label en dessous
 
-      const label = document.createElement("div");
-      label.style.textAlign = "center";
-      label.style.marginTop = "-85px";
-      label.style.fontSize = "16px";
-      label.style.fontWeight = "700";
-      label.style.color = "#333";
-      container.appendChild(label);
+    // Create canvas + percent label if not exists
+    let canvas = container.querySelector("canvas");
+    let pct = container.querySelector(".gauge-percent");
+    if (!canvas) {
+      canvas = document.createElement("canvas");
+      canvas.width = canvas.height = size;
+      canvas.style.display = "block";
+      canvas.style.margin = "0 auto";
+      canvas.style.pointerEvents = "none";
+      container.innerHTML = "";
+      container.appendChild(canvas);
+
+      pct = document.createElement("div");
+      pct.className = "gauge-percent";
+      pct.style.textAlign = "center";
+      pct.style.marginTop = "-92px";
+      pct.style.fontSize = "16px";
+      pct.style.fontWeight = "700";
+      pct.style.color = "#222";
+      pct.style.pointerEvents = "none";
+      container.appendChild(pct);
     }
 
-    const canvas = container.querySelector("canvas");
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0,0,size,size);
 
@@ -253,10 +325,10 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.lineCap = "round";
     ctx.stroke();
 
-    const label = container.querySelector("div");
-    label.textContent = `${Math.round(value)}%`;
+    pct.textContent = `${Math.round(value)}%`;
   }
 
+  // wire up connect button
   connectBtn.addEventListener("click", () => {
     connectDeriv();
     displaySymbols();
@@ -264,4 +336,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   displaySymbols();
   initChart();
+
+  // reposition gauges on resize (keeps them inside chart)
+  window.addEventListener("resize", () => {
+    try { positionGauges(); } catch(e){}
+    if (chart) {
+      try { chart.resize(chartInner.clientWidth, chartInner.clientHeight); } catch(e){}
+    }
+  });
 });
