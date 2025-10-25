@@ -11,6 +11,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const trendGauge = document.getElementById("trendGauge");
   const probGauge = document.getElementById("probGauge");
 
+  let smoothVol = 0;
+  let smoothTrend = 0;
+
   // Élément pour afficher compte + balance
   const accountInfo = document.createElement("div");
   accountInfo.id = "accountInfo";
@@ -258,20 +261,33 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // === 🟢 GAUGES AGRANDIES, AVEC LABELS ===
   function updateCircularGauges() {
-    if (!recentChanges.length) return;
-    const meanAbs = recentChanges.reduce((a,b)=>a+Math.abs(b),0)/recentChanges.length;
-    const vol = Math.min(100, meanAbs * 1000);
-    const sum = recentChanges.reduce((a,b)=>a+b,0);
-    const trend = Math.min(100, Math.abs(sum) * 1000);
-    const pos = recentChanges.filter(v=>v>0).length;
-    const neg = recentChanges.filter(v=>v<0).length;
-    const dominant = Math.max(pos,neg);
-    const prob = recentChanges.length ? Math.round((dominant/recentChanges.length)*100) : 50;
+   if (!recentChanges.length) return;
 
-    drawCircularGauge(volGauge, vol, "#ff9800");
-    drawCircularGauge(trendGauge, trend, "#2962FF");
-    drawCircularGauge(probGauge, prob, "#4caf50");
+   // Moyenne de l'amplitude absolue → volatilité brute
+   const meanAbs = recentChanges.reduce((a, b) => a + Math.abs(b), 0) / recentChanges.length;
+   const volRaw = Math.min(100, meanAbs * 1000);
+
+   // Somme des changements → tendance brute
+   const sum = recentChanges.reduce((a, b) => a + b, 0);
+   const trendRaw = Math.min(100, Math.abs(sum) * 1000);
+
+   // Comptage des hausses / baisses → probabilité
+   const pos = recentChanges.filter(v => v > 0).length;
+   const neg = recentChanges.filter(v => v < 0).length;
+   const dominant = Math.max(pos, neg);
+   const prob = recentChanges.length ? Math.round((dominant / recentChanges.length) * 100) : 50;
+
+   // === ⚙️ Lissage exponentiel (EMA) pour stabiliser les gauges ===
+   // alpha = vitesse de réaction (0.05 = très lisse, 0.2 = plus réactif)
+   const alpha = 0.08;
+   smoothVol = smoothVol === 0 ? volRaw : smoothVol + alpha * (volRaw - smoothVol);
+   smoothTrend = smoothTrend === 0 ? trendRaw : smoothTrend + alpha * (trendRaw - smoothTrend);
+
+   drawCircularGauge(volGauge, smoothVol, "#ff9800");
+   drawCircularGauge(trendGauge, smoothTrend, "#2962FF");
+   drawCircularGauge(probGauge, prob, "#4caf50");
   }
+
 
   function drawCircularGauge(container, value, color) {
     const size = 110; // taille des anneaux
