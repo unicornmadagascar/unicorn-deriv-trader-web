@@ -1,6 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
   const WS_URL = "wss://ws.derivws.com/websockets/v3?app_id=105747";
-  const API_TOKEN = "YOUR_API_TOKEN_HERE"; // 🔒 Ton token Deriv ici
+  const API_TOKEN = "wgf8TFDsJ8Ecvze"; // 🔒 fixe ici ton token Deriv
 
   const connectBtn = document.getElementById("connectBtn");
   const statusSpan = document.getElementById("status");
@@ -15,7 +15,6 @@ document.addEventListener("DOMContentLoaded", () => {
   let areaSeries = null;
   let chartData = [];
   let lastPrices = {};
-  let previousPrice = {};
 
   const volatilitySymbols = [
     "BOOM1000", "CRASH1000", "BOOM900", "CRASH900",
@@ -26,7 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const setStatus = (txt) => (statusSpan.textContent = txt);
   const formatNum = (n) => Number(n).toFixed(2);
 
-  // ------------------ Gauges ------------------
+  // --- Gauges ---
   function updateGauge(gaugeId, value, color = "#2962FF") {
     const circle = document.querySelector(`#${gaugeId} .meter`);
     const offset = 283 - (283 * value) / 100;
@@ -35,41 +34,37 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function updateAllGauges(vol, trend, prob) {
-    updateGauge("volGauge", vol, vol > 60 ? "#e53935" : "#2962FF");
+    updateGauge("volGauge", vol, vol > 70 ? "#e53935" : "#2962FF");
     updateGauge("trendGauge", trend, trend > 60 ? "#43a047" : "#2962FF");
     updateGauge("probGauge", prob, prob > 50 ? "#fbc02d" : "#2962FF");
   }
 
-  // ------------------ Chart Init ------------------
+  // --- Chart ---
   function initChart() {
     chartContainer.querySelector("canvas")?.remove();
     chart = LightweightCharts.createChart(chartContainer, {
       width: chartContainer.clientWidth,
       height: chartContainer.clientHeight,
-      layout: { background: { type: "solid", color: "#fff" }, textColor: "#000" },
+      layout: { background: { color: "white" }, textColor: "black" },
       grid: { vertLines: { color: "#eee" }, horzLines: { color: "#eee" } },
       timeScale: { timeVisible: true, secondsVisible: true },
     });
-
     areaSeries = chart.addAreaSeries({
       lineColor: "#2962FF",
-      topColor: "rgba(41, 98, 255, 0.3)",
-      bottomColor: "rgba(41, 98, 255, 0.05)",
+      topColor: "rgba(41,98,255,0.3)",
+      bottomColor: "rgba(41,98,255,0.05)",
       lineWidth: 2,
     });
   }
 
-  // ------------------ Symbol List ------------------
+  // --- Symboles ---
   function initSymbols() {
     symbolList.innerHTML = "";
     volatilitySymbols.forEach((sym) => {
       const el = document.createElement("div");
       el.className = "symbolItem";
       el.id = `symbol-${sym}`;
-      el.innerHTML = `
-        <span>${sym}</span>
-        <div class="progress"><div class="progress-inner"></div></div>
-      `;
+      el.innerHTML = `<span>${sym}</span><span class="lastPrice">0</span>`;
       el.onclick = () => selectSymbol(sym);
       symbolList.appendChild(el);
     });
@@ -79,13 +74,14 @@ document.addEventListener("DOMContentLoaded", () => {
   function selectSymbol(sym) {
     currentSymbol = sym;
     document.querySelectorAll(".symbolItem").forEach((e) => e.classList.remove("selected"));
-    document.getElementById(`symbol-${sym}`).classList.add("selected");
+    const el = document.getElementById(`symbol-${sym}`);
+    if (el) el.classList.add("selected");
     chartData = [];
     initChart();
     subscribeTicks(sym);
   }
 
-  // ------------------ Deriv WebSocket ------------------
+  // --- WebSocket ---
   function connectDeriv() {
     if (ws) ws.close();
     ws = new WebSocket(WS_URL);
@@ -105,8 +101,11 @@ document.addEventListener("DOMContentLoaded", () => {
         ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
       }
 
-      if (data.msg_type === "balance" && data.balance)
-        userBalance.textContent = `Balance: ${formatNum(data.balance.balance)} ${data.balance.currency}`;
+      if (data.msg_type === "balance" && data.balance) {
+        const bal = parseFloat(data.balance.balance).toFixed(2);
+        const cur = data.balance.currency;
+        userBalance.textContent = `Balance: ${bal} ${cur}`;
+      }
 
       if (data.msg_type === "tick" && data.tick) handleTick(data.tick);
     };
@@ -116,8 +115,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function subscribeTicks(symbol) {
-    if (ws && ws.readyState === WebSocket.OPEN)
+    if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
+    }
   }
 
   function handleTick(tick) {
@@ -125,33 +125,29 @@ document.addEventListener("DOMContentLoaded", () => {
     const s = tick.symbol;
     const time = Math.floor(tick.epoch);
 
+    lastPrices[s] = p;
     const el = document.getElementById(`symbol-${s}`);
-    if (!el) return;
-
-    const inner = el.querySelector(".progress-inner");
-    const prev = previousPrice[s] || p;
-    const diff = p - prev;
-    const percent = Math.min(Math.abs(diff / prev) * 100, 100);
-    inner.style.width = `${percent}%`;
-    inner.style.backgroundColor = diff >= 0 ? "#43a047" : "#e53935";
-
-    previousPrice[s] = p;
+    if (el) el.querySelector(".lastPrice").textContent = formatNum(p);
 
     if (s === currentSymbol) {
       chartData.push({ time, value: p });
       if (chartData.length > 500) chartData.shift();
       areaSeries.setData(chartData);
 
+      // Simuler des valeurs de gauges basées sur la volatilité et tendance
       const vol = Math.min(Math.random() * 100, 100);
-      const trend = Math.abs(diff) * 120;
-      const prob = Math.random() * 100;
+      const trend = Math.abs((p % 50) - 25) * 4;
+      const prob = 50 + (Math.random() - 0.5) * 50;
       updateAllGauges(vol, trend, prob);
     }
   }
 
-  // ------------------ Init ------------------
+  // --- Init ---
   connectBtn.onclick = connectDeriv;
   initSymbols();
   initChart();
-  window.addEventListener("resize", () => chart.resize(chartContainer.clientWidth, chartContainer.clientHeight));
+
+  window.addEventListener("resize", () => {
+    chart.resize(chartContainer.clientWidth, chartContainer.clientHeight);
+  });
 });

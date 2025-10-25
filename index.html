@@ -3,15 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>🦄 Unicorn Madagascar — Trader Demo</title>
+  <title>🦄 Unicorn Madagascar — Deriv Trader</title>
 
-  <!-- Lightweight Charts Standalone -->
+  <!-- Lightweight Charts -->
   <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 
   <style>
     body {
       font-family: Arial, sans-serif;
       margin: 0;
+      padding: 0;
       background: #f9f9f9;
     }
     header {
@@ -28,16 +29,16 @@
     #symbolList {
       width: 200px;
       background: white;
-      border-right: 1px solid #ddd;
       overflow-y: auto;
+      border-right: 1px solid #ddd;
     }
     .symbolItem {
       padding: 8px 12px;
+      cursor: pointer;
       display: flex;
       justify-content: space-between;
       align-items: center;
       border-bottom: 1px solid #eee;
-      cursor: pointer;
       transition: 0.2s;
     }
     .symbolItem:hover {
@@ -47,19 +48,6 @@
       background: #2962FF;
       color: white;
       font-weight: bold;
-    }
-    .progress {
-      width: 40px;
-      height: 6px;
-      border-radius: 3px;
-      background: #ddd;
-      overflow: hidden;
-      margin-left: 8px;
-    }
-    .progress-inner {
-      height: 100%;
-      width: 50%;
-      transition: width 0.4s ease, background-color 0.4s ease;
     }
     #chartInner {
       flex: 1;
@@ -74,19 +62,19 @@
       align-items: center;
     }
 
-    /* Gauges section */
+    /* Gauges circulaires */
     .gauge-container {
       position: absolute;
       top: 10px;
-      right: 10px;
+      right: 15px;
       display: flex;
       gap: 20px;
       z-index: 10;
     }
     .gauge {
       position: relative;
-      width: 90px;
-      height: 90px;
+      width: 80px;
+      height: 80px;
     }
     .gauge svg {
       transform: rotate(-90deg);
@@ -114,8 +102,9 @@
       transform: translate(-50%, -50%);
       font-size: 12px;
       font-weight: bold;
-      text-align: center;
       color: #333;
+      text-align: center;
+      width: 100%;
     }
   </style>
 </head>
@@ -132,17 +121,27 @@
   <div id="container">
     <div id="symbolList"></div>
     <div id="chartInner">
+      <!-- Section des gauges -->
       <div class="gauge-container">
         <div class="gauge" id="volGauge">
-          <svg><circle class="bg" cx="45" cy="45" r="40"></circle><circle class="meter" cx="45" cy="45" r="40"></circle></svg>
+          <svg>
+            <circle class="bg" cx="40" cy="40" r="35"></circle>
+            <circle class="meter" cx="40" cy="40" r="35"></circle>
+          </svg>
           <div class="gauge-label">Volatility</div>
         </div>
         <div class="gauge" id="trendGauge">
-          <svg><circle class="bg" cx="45" cy="45" r="40"></circle><circle class="meter" cx="45" cy="45" r="40"></circle></svg>
+          <svg>
+            <circle class="bg" cx="40" cy="40" r="35"></circle>
+            <circle class="meter" cx="40" cy="40" r="35"></circle>
+          </svg>
           <div class="gauge-label">Trend</div>
         </div>
         <div class="gauge" id="probGauge">
-          <svg><circle class="bg" cx="45" cy="45" r="40"></circle><circle class="meter" cx="45" cy="45" r="40"></circle></svg>
+          <svg>
+            <circle class="bg" cx="40" cy="40" r="35"></circle>
+            <circle class="meter" cx="40" cy="40" r="35"></circle>
+          </svg>
           <div class="gauge-label">Probability</div>
         </div>
       </div>
