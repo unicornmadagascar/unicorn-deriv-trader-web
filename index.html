@@ -9,117 +9,41 @@
   <script defer src="app.js"></script>
 
   <style>
-    body {
-      font-family: "Poppins", sans-serif;
-      background: #f8f9fa;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      overflow: hidden;
-    }
-
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: white;
-      padding: 10px 20px;
-      border-bottom: 1px solid #ddd;
-    }
-
-    #symbolList {
-      display: flex;
-      gap: 10px;
-      overflow-x: auto;
-    }
-
-    .symbol-item {
-      padding: 6px 12px;
-      border-radius: 20px;
-      cursor: pointer;
-      background: #eee;
-      font-weight: 600;
-      transition: 0.3s;
-    }
-
-    .symbol-item:hover {
-      background: #007bff;
-      color: white;
-    }
-
-    #container {
-      flex: 1;
-      position: relative;
-    }
-
-    /* Gauges section */
-    #gauges {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      display: flex;
-      gap: 20px;
-      z-index: 5;
-    }
-
-    .gauge {
-      width: 110px;
-      height: 110px;
-      border-radius: 50%;
-      background: conic-gradient(#ccc 0deg, #ccc 360deg);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-      transition: background 0.8s ease;
-      box-shadow: 0 0 10px rgba(0,0,0,0.15);
-    }
-
-    .gauge span {
-      position: absolute;
-      text-align: center;
-      font-weight: bold;
-      color: #333;
-    }
-
-    .gauge-label {
-      font-size: 13px;
-      margin-top: 6px;
-      color: #555;
-    }
-
-    .gauge-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    #connectBtn {
-      background: #007bff;
-      color: white;
-      padding: 6px 14px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: 600;
-      transition: 0.3s;
-    }
-
-    #connectBtn:hover {
-      background: #0056b3;
-    }
+    body { font-family: Arial, sans-serif; margin:0; height:100vh; display:flex; flex-direction:column; background:#f8f9fa; }
+    header { display:flex; justify-content:space-between; align-items:center; padding:10px 16px; background:#fff; border-bottom:1px solid #e6e6e6; }
+    #symbolList { display:flex; gap:10px; overflow-x:auto; }
+    .symbol-item { padding:6px 12px; border-radius:20px; background:#eee; cursor:pointer; font-weight:600; transition:0.18s; }
+    .symbol-item:hover { background:#007bff; color:#fff; }
+    #container { position:relative; flex:1; display:flex; }
+    /* chart area */
+    #chartArea { flex:1; display:flex; flex-direction:column; }
+    #chartInner { flex:1; min-height:300px; background:#fff; margin:12px; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.06); overflow:hidden; }
+    /* gauges */
+    #gauges { position:absolute; top:18px; right:18px; display:flex; gap:16px; z-index:10; }
+    .gauge-container { display:flex; flex-direction:column; align-items:center; width:120px; }
+    .gauge { width:110px; height:110px; border-radius:50%; background: conic-gradient(#ddd 0deg, #ddd 360deg); display:flex; align-items:center; justify-content:center; box-shadow:0 6px 18px rgba(0,0,0,0.08); }
+    .gauge span { font-weight:700; color:#222; }
+    .gauge-label { margin-top:6px; color:#555; font-size:13px; text-align:center; }
+    #controls { padding:8px 16px; background:#fff; border-bottom:1px solid #eee; display:flex; gap:12px; align-items:center; }
+    #connectBtn { background:#007bff; color:#fff; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; }
+    #connectBtn:hover { background:#0056b3; }
   </style>
 </head>
-
 <body>
   <header>
     <div id="symbolList"></div>
-    <button id="connectBtn">Se connecter</button>
+    <div id="controls">
+      <button id="connectBtn">Se connecter</button>
+    </div>
   </header>
 
   <div id="container">
+    <div id="chartArea">
+      <!-- Gauges sont affichées par app.js dans #gaugesContainer ou on peut les garder statiques ici -->
+      <div id="chartInner"></div>
+    </div>
+
+    <!-- Gauges top-right (statiques dans HTML) -->
     <div id="gauges">
       <div class="gauge-container">
         <div id="volGauge" class="gauge"><span>0%</span></div>
