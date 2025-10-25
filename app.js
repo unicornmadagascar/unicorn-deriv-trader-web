@@ -1,153 +1,220 @@
 document.addEventListener("DOMContentLoaded", () => {
-  const WS_URL = "wss://ws.derivws.com/websockets/v3?app_id=105747";
-  const API_TOKEN = "wgf8TFDsJ8Ecvze"; // 🔒 fixe ici ton token Deriv
+  const APP_ID = 105747;
+  const TOKEN = "wgf8TFDsJ8Ecvze"; // <-- mettez votre token ici
+  const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
 
+  // UI
   const connectBtn = document.getElementById("connectBtn");
-  const statusSpan = document.getElementById("status");
-  const userBalance = document.getElementById("userBalance");
   const symbolList = document.getElementById("symbolList");
-  const chartContainer = document.getElementById("chartInner");
+  const chartInner = document.getElementById("chartInner");
+  const volGauge = document.getElementById("volGauge");
+  const trendGauge = document.getElementById("trendGauge");
+  const probGauge = document.getElementById("probGauge");
 
+  // state
   let ws = null;
-  let authorized = false;
-  let currentSymbol = "BOOM1000";
   let chart = null;
   let areaSeries = null;
   let chartData = [];
   let lastPrices = {};
+  let recentChanges = [];
 
-  const volatilitySymbols = [
-    "BOOM1000", "CRASH1000", "BOOM900", "CRASH900",
-    "BOOM600", "CRASH600", "BOOM500", "CRASH500",
-    "R_100", "R_75", "R_50", "R_25", "R_10"
+  // Symbols (Deriv indices only)
+  const SYMBOLS = [
+    { symbol: "BOOM1000", name: "Boom 1000" },
+    { symbol: "CRASH1000", name: "Crash 1000" },
+    { symbol: "BOOM500", name: "Boom 500" },
+    { symbol: "CRASH500", name: "Crash 500" },
+    { symbol: "BOOM900", name: "Boom 900" },
+    { symbol: "CRASH900", name: "Crash 900" },
+    { symbol: "BOOM600", name: "Boom 600" },
+    { symbol: "CRASH600", name: "Crash 600" },
+    { symbol: "R_100", name: "VIX 100" },
+    { symbol: "R_75", name: "VIX 75" },
+    { symbol: "R_50", name: "VIX 50" },
+    { symbol: "R_25", name: "VIX 25" },
+    { symbol: "R_10", name: "VIX 10" }
   ];
 
-  const setStatus = (txt) => (statusSpan.textContent = txt);
-  const formatNum = (n) => Number(n).toFixed(2);
+  // helpers
+  const fmt = n => Number(n).toFixed(2);
+  const safe = v => (typeof v === "number" && !isNaN(v)) ? v : 0;
 
-  // --- Gauges ---
-  function updateGauge(gaugeId, value, color = "#2962FF") {
-    const circle = document.querySelector(`#${gaugeId} .meter`);
-    const offset = 283 - (283 * value) / 100;
-    circle.style.strokeDashoffset = offset;
-    circle.style.stroke = color;
-  }
-
-  function updateAllGauges(vol, trend, prob) {
-    updateGauge("volGauge", vol, vol > 70 ? "#e53935" : "#2962FF");
-    updateGauge("trendGauge", trend, trend > 60 ? "#43a047" : "#2962FF");
-    updateGauge("probGauge", prob, prob > 50 ? "#fbc02d" : "#2962FF");
-  }
-
-  // --- Chart ---
-  function initChart() {
-    chartContainer.querySelector("canvas")?.remove();
-    chart = LightweightCharts.createChart(chartContainer, {
-      width: chartContainer.clientWidth,
-      height: chartContainer.clientHeight,
-      layout: { background: { color: "white" }, textColor: "black" },
-      grid: { vertLines: { color: "#eee" }, horzLines: { color: "#eee" } },
-      timeScale: { timeVisible: true, secondsVisible: true },
-    });
-    areaSeries = chart.addAreaSeries({
-      lineColor: "#2962FF",
-      topColor: "rgba(41,98,255,0.3)",
-      bottomColor: "rgba(41,98,255,0.05)",
-      lineWidth: 2,
-    });
-  }
-
-  // --- Symboles ---
-  function initSymbols() {
+  // init symbol list
+  function displaySymbols() {
     symbolList.innerHTML = "";
-    volatilitySymbols.forEach((sym) => {
+    SYMBOLS.forEach(s => {
       const el = document.createElement("div");
-      el.className = "symbolItem";
-      el.id = `symbol-${sym}`;
-      el.innerHTML = `<span>${sym}</span><span class="lastPrice">0</span>`;
-      el.onclick = () => selectSymbol(sym);
+      el.className = "symbol-item";
+      el.textContent = s.name;
+      el.dataset.symbol = s.symbol;
+      el.addEventListener("click", () => subscribeSymbol(s.symbol));
       symbolList.appendChild(el);
     });
-    selectSymbol(currentSymbol);
   }
 
-  function selectSymbol(sym) {
-    currentSymbol = sym;
-    document.querySelectorAll(".symbolItem").forEach((e) => e.classList.remove("selected"));
-    const el = document.getElementById(`symbol-${sym}`);
-    if (el) el.classList.add("selected");
+  // init chart — IMPORTANT: create the chart on #chartInner
+  function initChart() {
+    // destroy previous chart if any
+    try { if (chart) chart.remove(); } catch(e){ /* ignore */ }
+
+    // create chart on chartInner element
+    chartInner.innerHTML = ""; // clear
+    chart = LightweightCharts.createChart(chartInner, {
+      layout: { textColor: '#333', background: { type: 'solid', color: '#ffffff' } },
+      timeScale: { timeVisible: true, secondsVisible: true, rightOffset: 8 }
+    });
+
+    // use addSeries with the AreaSeries type from the standalone bundle
+    areaSeries = chart.addSeries(LightweightCharts.AreaSeries, {
+      lineColor: '#2962FF',
+      topColor: 'rgba(41,98,255,0.28)',
+      bottomColor: 'rgba(41,98,255,0.05)',
+      lineWidth: 2,
+      lineType: LightweightCharts.LineType.Smooth
+    });
+
     chartData = [];
-    initChart();
-    subscribeTicks(sym);
   }
 
-  // --- WebSocket ---
+  // connect WS
   function connectDeriv() {
-    if (ws) ws.close();
+    if (ws) { ws.close(); ws = null; }
+
     ws = new WebSocket(WS_URL);
-
     ws.onopen = () => {
-      setStatus("Connecting...");
-      ws.send(JSON.stringify({ authorize: API_TOKEN }));
+      console.log("WS open — authorizing");
+      ws.send(JSON.stringify({ authorize: TOKEN }));
     };
-
-    ws.onmessage = (msg) => {
-      const data = JSON.parse(msg.data);
-
-      if (data.msg_type === "authorize") {
-        setStatus(`Connected: ${data.authorize.loginid}`);
-        authorized = true;
-        volatilitySymbols.forEach((sym) => subscribeTicks(sym));
-        ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+    ws.onmessage = (evt) => {
+      try {
+        const data = JSON.parse(evt.data);
+        if (data.msg_type === "authorize") {
+          console.log("Authorized");
+          // show symbols
+          displaySymbols();
+        } else if (data.msg_type === "tick" && data.tick) {
+          handleTick(data.tick);
+        } else if (data.msg_type === "error") {
+          console.warn("WS error:", data);
+        }
+      } catch (err) {
+        console.error("WS message parse err", err);
       }
-
-      if (data.msg_type === "balance" && data.balance) {
-        const bal = parseFloat(data.balance.balance).toFixed(2);
-        const cur = data.balance.currency;
-        userBalance.textContent = `Balance: ${bal} ${cur}`;
-      }
-
-      if (data.msg_type === "tick" && data.tick) handleTick(data.tick);
     };
-
-    ws.onclose = () => setStatus("Disconnected");
-    ws.onerror = (e) => console.error("WS Error:", e);
+    ws.onclose = () => console.log("WS closed");
+    ws.onerror = (e) => console.error("WS err", e);
   }
 
-  function subscribeTicks(symbol) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
+  // subscribe symbol ticks (forget previous)
+  function subscribeSymbol(symbol) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      // open WS first (will authorize then subscribe)
+      connectDeriv();
+      // wait small time then subscribe (simple approach)
+      setTimeout(() => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ forget_all: "ticks" }));
+          ws.send(JSON.stringify({ ticks: symbol }));
+          console.log("Subscribed:", symbol);
+        }
+      }, 600);
+    } else {
+      ws.send(JSON.stringify({ forget_all: "ticks" }));
+      ws.send(JSON.stringify({ ticks: symbol }));
+      console.log("Subscribed:", symbol);
     }
+
+    // reinit chart for new symbol
+    initChart();
   }
 
+  // handle tick updates
   function handleTick(tick) {
-    const p = Number(tick.quote);
-    const s = tick.symbol;
-    const time = Math.floor(tick.epoch);
+    const symbol = tick.symbol;
+    const quote = safe(Number(tick.quote));
+    const epoch = Number(tick.epoch) || Math.floor(Date.now()/1000);
 
-    lastPrices[s] = p;
-    const el = document.getElementById(`symbol-${s}`);
-    if (el) el.querySelector(".lastPrice").textContent = formatNum(p);
+    // store last price
+    const prev = lastPrices[symbol] ?? quote;
+    lastPrices[symbol] = quote;
+    const change = quote - prev;
+    recentChanges.push(change);
+    if (recentChanges.length > 60) recentChanges.shift();
 
-    if (s === currentSymbol) {
-      chartData.push({ time, value: p });
-      if (chartData.length > 500) chartData.shift();
-      areaSeries.setData(chartData);
+    // update gauges (only if current chart exists)
+    updateGauges();
 
-      // Simuler des valeurs de gauges basées sur la volatilité et tendance
-      const vol = Math.min(Math.random() * 100, 100);
-      const trend = Math.abs((p % 50) - 25) * 4;
-      const prob = 50 + (Math.random() - 0.5) * 50;
-      updateAllGauges(vol, trend, prob);
+    // update chart series if exists
+    if (areaSeries && chart) {
+      const localTime = Math.floor(new Date(epoch * 1000).getTime() / 1000);
+      const point = { time: localTime, value: quote };
+
+      // push or update smoothly
+      chartData.push(point);
+      if (chartData.length > 600) chartData.shift();
+
+      if (chartData.length === 1) {
+        areaSeries.setData(chartData);
+      } else {
+        // protect update
+        try { areaSeries.update(point); } catch (e) {
+          // fallback to setData if update fails
+          areaSeries.setData(chartData);
+        }
+      }
+      // fit time axis to data
+      try { chart.timeScale().fitContent(); } catch(e){ /* ignore */ }
     }
   }
 
-  // --- Init ---
-  connectBtn.onclick = connectDeriv;
-  initSymbols();
+  // compute gauges values and set visuals
+  function updateGauges() {
+    if (!recentChanges.length) return;
+    // volatility ~ mean absolute change normalized
+    const meanAbs = recentChanges.reduce((a,b)=>a+Math.abs(b),0)/recentChanges.length;
+    const vol = Math.min(100, meanAbs * 1000); // scale factor tuned empirically
+
+    // trend strength ~ absolute sum of recent changes (slope-like)
+    const sum = recentChanges.reduce((a,b)=>a+b,0);
+    const trend = Math.min(100, Math.abs(sum) * 1000);
+
+    // probability ~ fraction of ticks in dominant direction
+    const pos = recentChanges.filter(v=>v>0).length;
+    const neg = recentChanges.filter(v=>v<0).length;
+    const dominant = Math.max(pos,neg);
+    const prob = recentChanges.length ? Math.round((dominant / recentChanges.length) * 100) : 50;
+
+    setGauge(volGauge, vol, "#ff9800");
+    setGauge(trendGauge, trend, "#2962FF");
+    setGauge(probGauge, prob, "#4caf50");
+  }
+
+  function setGauge(el, percent, color) {
+    const smoothPrev = parseFloat(el.dataset.prev || 0);
+    const smooth = smoothPrev + (percent - smoothPrev) * 0.12; // smoothing
+    el.dataset.prev = smooth;
+    const deg = Math.max(0, Math.min(360, smooth * 3.6));
+    el.style.background = `conic-gradient(${color} ${deg}deg, #eee ${deg}deg)`;
+    const span = el.querySelector("span");
+    if (span) span.innerText = `${Math.round(smooth)}%`;
+  }
+
+  // wire up connect button
+  connectBtn.addEventListener("click", () => {
+    connectDeriv();
+    // display symbols right away (if authorized later will refresh)
+    displaySymbols();
+  });
+
+  // initialization
+  displaySymbols();
   initChart();
 
+  // resize handling
   window.addEventListener("resize", () => {
-    chart.resize(chartContainer.clientWidth, chartContainer.clientHeight);
+    if (chart) {
+      try { chart.resize(chartInner.clientWidth, chartInner.clientHeight); } catch(e){ /* ignore */ }
+    }
   });
 });
