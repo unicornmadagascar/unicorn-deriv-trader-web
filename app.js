@@ -14,15 +14,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const controlPanelToggle = document.getElementById("controlPanelToggle");
   const accountInfo = document.getElementById("accountInfo");
 
-  let automationRunning = false;
-  let smoothVol = 0;
-  let smoothTrend = 0;
   let ws = null;
   let chart = null;
   let areaSeries = null;
   let chartData = [];
   let lastPrices = {};
   let recentChanges = [];
+  let smoothVol = 0;
+  let smoothTrend = 0;
+  let currentSymbol = null;
 
   const SYMBOLS = [
     { symbol: "BOOM1000", name: "Boom 1000" },
@@ -43,7 +43,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const fmt = n => Number(n).toFixed(2);
   const safe = v => (typeof v === "number" && !isNaN(v)) ? v : 0;
 
-  // --- SYMBOLS ---
+  // --- Afficher la liste des symboles
   function displaySymbols() {
     symbolList.innerHTML = "";
     SYMBOLS.forEach(s => {
@@ -56,28 +56,28 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // --- CHART INIT ---
+  // --- Initialiser le chart
   function initChart() {
-    try { if (chart) chart.remove(); } catch (e) {}
     chartInner.innerHTML = "";
-
     chart = LightweightCharts.createChart(chartInner, {
-      layout: { textColor: "#333", background: { type: "solid", color: "#fff" } },
+      layout: { textColor: '#333', background: { type: 'solid', color: '#fff' } },
       timeScale: { timeVisible: true, secondsVisible: true }
     });
 
     areaSeries = chart.addAreaSeries({
-      lineColor: "#2962FF",
-      topColor: "rgba(41,98,255,0.28)",
-      bottomColor: "rgba(41,98,255,0.05)",
-      lineWidth: 2
+      lineColor: '#2962FF',
+      topColor: 'rgba(41,98,255,0.28)',
+      bottomColor: 'rgba(41,98,255,0.05)',
+      lineWidth: 2,
     });
 
     chartData = [];
+    recentChanges = [];
+    lastPrices = {};
+
     positionGauges();
   }
 
-  // --- GAUGES ---
   function positionGauges() {
     let gaugesContainer = document.getElementById("gaugesContainer");
     if (!gaugesContainer) {
@@ -87,7 +87,7 @@ document.addEventListener("DOMContentLoaded", () => {
       gaugesContainer.style.top = "10px";
       gaugesContainer.style.left = "10px";
       gaugesContainer.style.display = "flex";
-      gaugesContainer.style.gap = "20px";
+      gaugesContainer.style.gap = "16px";
       gaugesContainer.style.zIndex = "12";
       chartInner.style.position = "relative";
       chartInner.appendChild(gaugesContainer);
@@ -123,7 +123,7 @@ document.addEventListener("DOMContentLoaded", () => {
     container.appendChild(wrapper);
   }
 
-  // --- DERIV CONNECTION ---
+  // --- Connexion WebSocket
   function connectDeriv() {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.close();
@@ -140,23 +140,20 @@ document.addEventListener("DOMContentLoaded", () => {
     ws.onopen = () => ws.send(JSON.stringify({ authorize: TOKEN }));
 
     ws.onmessage = (evt) => {
-      try {
-        const data = JSON.parse(evt.data);
-        if (data.msg_type === "authorize" && data.authorize) {
-          const acc = data.authorize.loginid;
-          const bal = data.authorize.balance;
-          const currency = data.authorize.currency || "";
-          connectBtn.textContent = "Disconnect";
-          accountInfo.textContent = `Account: ${acc} | Balance: ${bal.toFixed(2)} ${currency}`;
-          ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-          displaySymbols();
-        } else if (data.msg_type === "balance" && data.balance) {
-          accountInfo.textContent = `Account: ${data.balance.loginid} | Balance: ${data.balance.balance.toFixed(2)} ${data.balance.currency}`;
-        } else if (data.msg_type === "tick" && data.tick) {
-          handleTick(data.tick);
-        }
-      } catch (err) {
-        console.error("WS parse err", err);
+      const data = JSON.parse(evt.data);
+      if (data.msg_type === "authorize" && data.authorize) {
+        const acc = data.authorize.loginid;
+        const bal = data.authorize.balance;
+        const currency = data.authorize.currency || "";
+        connectBtn.textContent = "Disconnect";
+        accountInfo.textContent = `Account: ${acc} | Balance: ${bal.toFixed(2)} ${currency}`;
+        ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+        displaySymbols();
+      } else if (data.msg_type === "balance") {
+        const b = data.balance;
+        accountInfo.textContent = `Account: ${b.loginid} | Balance: ${b.balance.toFixed(2)} ${b.currency}`;
+      } else if (data.msg_type === "tick") {
+        handleTick(data.tick);
       }
     };
 
@@ -167,71 +164,73 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
-  // --- SUBSCRIBE ---
+  // --- Abonnement aux ticks
   function subscribeSymbol(symbol) {
+    currentSymbol = symbol;
+    initChart();
+
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       connectDeriv();
-      setTimeout(() => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ forget_all: "ticks" }));
-          ws.send(JSON.stringify({ ticks: symbol }));
-        }
-      }, 600);
-    } else {
-      ws.send(JSON.stringify({ forget_all: "ticks" }));
-      ws.send(JSON.stringify({ ticks: symbol }));
+      setTimeout(() => subscribeSymbol(symbol), 800);
+      return;
     }
-    initChart();
+
+    ws.send(JSON.stringify({ forget_all: "ticks" }));
+    ws.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
   }
 
-  // --- TICK HANDLER ---
+  // --- Réception d’un tick
   function handleTick(tick) {
-    const symbol = tick.symbol;
+    if (!tick || !tick.symbol || tick.symbol !== currentSymbol) return;
+
     const quote = safe(Number(tick.quote));
     const epoch = Number(tick.epoch) || Math.floor(Date.now() / 1000);
-    const prev = lastPrices[symbol] ?? quote;
-    lastPrices[symbol] = quote;
 
+    const prev = lastPrices[currentSymbol] ?? quote;
+    lastPrices[currentSymbol] = quote;
     const change = quote - prev;
     recentChanges.push(change);
     if (recentChanges.length > 60) recentChanges.shift();
+
     updateCircularGauges();
 
-    if (areaSeries && chart) {
-      const point = { time: epoch, value: quote };
-      chartData.push(point);
-      if (chartData.length > 600) chartData.shift();
+    if (areaSeries) {
+      chartData.push({ time: epoch, value: quote });
+      if (chartData.length > 500) chartData.shift();
       areaSeries.setData(chartData);
-      try { chart.timeScale().fitContent(); } catch (e) {}
+      chart.timeScale().fitContent();
     }
   }
 
-  // --- GAUGES UPDATE ---
+  // --- Gauges
   function updateCircularGauges() {
     if (!recentChanges.length) return;
+
     const mean = recentChanges.reduce((a, b) => a + b, 0) / recentChanges.length;
     const variance = recentChanges.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / recentChanges.length;
     const stdDev = Math.sqrt(variance);
     const volProb = Math.min(100, (stdDev / 0.07) * 100);
+
     const sum = recentChanges.reduce((a, b) => a + b, 0);
     const trendRaw = Math.min(100, Math.abs(sum) * 1000);
+
     const pos = recentChanges.filter(v => v > 0).length;
-    const neg = recentChanges.filter(v => v < 0).length;
-    const dominant = Math.max(pos, neg);
-    const prob = recentChanges.length ? Math.round((dominant / recentChanges.length) * 100) : 50;
+    const prob = Math.round((pos / recentChanges.length) * 100);
+
     const alpha = 0.5;
-    smoothVol = smoothVol === 0 ? volProb : smoothVol + alpha * (volProb - smoothVol);
-    smoothTrend = smoothTrend === 0 ? trendRaw : smoothTrend + alpha * (trendRaw - smoothTrend);
+    smoothVol = smoothVol + alpha * (volProb - smoothVol);
+    smoothTrend = smoothTrend + alpha * (trendRaw - smoothTrend);
+
     drawCircularGauge(volGauge, smoothVol, "#ff9800");
     drawCircularGauge(trendGauge, smoothTrend, "#2962FF");
     drawCircularGauge(probGauge, prob, "#4caf50");
   }
 
-  // --- DRAW GAUGE ---
   function drawCircularGauge(container, value, color) {
     const size = 110;
     container.style.width = size + "px";
-    container.style.height = (size + 28) + "px";
+    container.style.height = size + "px";
+
     let canvas = container.querySelector("canvas");
     let pct = container.querySelector(".gauge-percent");
     if (!canvas) {
@@ -239,63 +238,49 @@ document.addEventListener("DOMContentLoaded", () => {
       canvas.width = canvas.height = size;
       canvas.style.display = "block";
       canvas.style.margin = "0 auto";
-      canvas.style.pointerEvents = "none";
       container.innerHTML = "";
       container.appendChild(canvas);
+
       pct = document.createElement("div");
       pct.className = "gauge-percent";
       pct.style.textAlign = "center";
-      pct.style.marginTop = "-92px";
+      pct.style.marginTop = "-90px";
       pct.style.fontSize = "16px";
       pct.style.fontWeight = "700";
       pct.style.color = "#222";
-      pct.style.pointerEvents = "none";
       container.appendChild(pct);
     }
+
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, size, size);
+
     const center = size / 2;
     const radius = size / 2 - 8;
     const start = -Math.PI / 2;
     const end = start + (Math.min(value, 100) / 100) * 2 * Math.PI;
+
     ctx.beginPath();
     ctx.arc(center, center, radius, 0, 2 * Math.PI);
     ctx.strokeStyle = "#eee";
     ctx.lineWidth = 8;
     ctx.stroke();
+
     ctx.beginPath();
     ctx.arc(center, center, radius, start, end);
     ctx.strokeStyle = color;
     ctx.lineWidth = 8;
     ctx.lineCap = "round";
     ctx.stroke();
+
     pct.textContent = `${Math.round(value)}%`;
   }
 
-  // --- TOGGLE PANEL ---
+  // --- Toggle panneau
   controlPanelToggle.addEventListener("click", () => {
-    if (!controlFormPanel) return;
-    if (controlFormPanel.classList.contains("active")) {
-      controlFormPanel.classList.remove("active");
-      controlFormPanel.style.display = "none";
-    } else {
-      controlFormPanel.style.display = "flex";
-      setTimeout(() => controlFormPanel.classList.add("active"), 10);
-    }
+    controlFormPanel.style.display = controlFormPanel.style.display === "none" ? "flex" : "none";
   });
 
-  connectBtn.addEventListener("click", () => {
-    connectDeriv();
-    displaySymbols();
-  });
-
+  connectBtn.addEventListener("click", connectDeriv);
   displaySymbols();
   initChart();
-
-  window.addEventListener("resize", () => {
-    try { positionGauges(); } catch (e) {}
-    if (chart) {
-      try { chart.resize(chartInner.clientWidth, chartInner.clientHeight); } catch (e) {}
-    }
-  });
 });
