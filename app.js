@@ -24,11 +24,6 @@ document.addEventListener("DOMContentLoaded", () => {
   let lastPrices = {};
   let recentChanges = [];
 
-  // --- NEW: current symbol & pending subscribe ---
-  let currentSymbol = null;
-  let pendingSubscribe = null;
-  let authorized = false;
-
   const SYMBOLS = [
     { symbol: "BOOM1000", name: "Boom 1000" },
     { symbol: "CRASH1000", name: "Crash 1000" },
@@ -71,7 +66,6 @@ document.addEventListener("DOMContentLoaded", () => {
       timeScale: { timeVisible: true, secondsVisible: true }
     });
 
-    // use addAreaSeries (works with standalone bundle)
     areaSeries = chart.addAreaSeries({
       lineColor: "#2962FF",
       topColor: "rgba(41,98,255,0.28)",
@@ -80,9 +74,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     chartData = [];
-    recentChanges = [];
-    lastPrices = {};
-
     positionGauges();
   }
 
@@ -132,12 +123,11 @@ document.addEventListener("DOMContentLoaded", () => {
     container.appendChild(wrapper);
   }
 
-  // --- CONNECT DERIV ---
+  // --- DERIV CONNECTION ---
   function connectDeriv() {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.close();
       ws = null;
-      authorized = false;
       connectBtn.textContent = "Se connecter";
       accountInfo.textContent = "";
       return;
@@ -147,58 +137,24 @@ document.addEventListener("DOMContentLoaded", () => {
     connectBtn.textContent = "Connecting...";
     accountInfo.textContent = "Connecting...";
 
-    ws.onopen = () => {
-      // send authorize
-      ws.send(JSON.stringify({ authorize: TOKEN }));
-    };
+    ws.onopen = () => ws.send(JSON.stringify({ authorize: TOKEN }));
 
     ws.onmessage = (evt) => {
       try {
         const data = JSON.parse(evt.data);
-
-        // authorize response
         if (data.msg_type === "authorize" && data.authorize) {
-          authorized = true;
           const acc = data.authorize.loginid;
           const bal = data.authorize.balance;
           const currency = data.authorize.currency || "";
           connectBtn.textContent = "Disconnect";
-          accountInfo.textContent = `Account: ${acc} | Balance: ${Number(bal).toFixed(2)} ${currency}`;
-
-          // subscribe balance updates
+          accountInfo.textContent = `Account: ${acc} | Balance: ${bal.toFixed(2)} ${currency}`;
           ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-
-          // if there was a pending subscribe requested earlier, do it now
-          if (pendingSubscribe) {
-            // small delay to ensure WS state consistent
-            setTimeout(() => {
-              if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ forget_all: "ticks" }));
-                ws.send(JSON.stringify({ ticks: pendingSubscribe }));
-                currentSymbol = pendingSubscribe;
-                pendingSubscribe = null;
-              }
-            }, 100);
-          }
-
           displaySymbols();
-          return;
-        }
-
-        // balance update
-        if (data.msg_type === "balance" && data.balance) {
-          const b = data.balance;
-          accountInfo.textContent = `Account: ${b.loginid} | Balance: ${Number(b.balance).toFixed(2)} ${b.currency}`;
-          return;
-        }
-
-        // tick handling
-        if (data.msg_type === "tick" && data.tick) {
+        } else if (data.msg_type === "balance" && data.balance) {
+          accountInfo.textContent = `Account: ${data.balance.loginid} | Balance: ${data.balance.balance.toFixed(2)} ${data.balance.currency}`;
+        } else if (data.msg_type === "tick" && data.tick) {
           handleTick(data.tick);
-          return;
         }
-
-        // other messages are ignored here
       } catch (err) {
         console.error("WS parse err", err);
       }
@@ -208,90 +164,46 @@ document.addEventListener("DOMContentLoaded", () => {
       connectBtn.textContent = "Se connecter";
       accountInfo.textContent = "";
       ws = null;
-      authorized = false;
-    };
-
-    ws.onerror = (e) => {
-      console.error("WS error", e);
     };
   }
 
-  // --- SUBSCRIBE SYMBOL ---
+  // --- SUBSCRIBE ---
   function subscribeSymbol(symbol) {
-    // set desired symbol and reinit chart immediately
-    currentSymbol = symbol;
-    initChart(); // reinit chart so areaSeries exists before ticks arrive
-
-    // if WS not ready, set pendingSubscribe and open connection
-    if (!ws || ws.readyState !== WebSocket.OPEN || !authorized) {
-      pendingSubscribe = symbol;
-      if (!ws || ws.readyState === WebSocket.CLOSED) {
-        connectDeriv();
-      }
-      // we'll actually send subscription after authorize in ws.onmessage
-      return;
-    }
-
-    // WS open and authorized -> subscribe now
-    try {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      connectDeriv();
+      setTimeout(() => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ forget_all: "ticks" }));
+          ws.send(JSON.stringify({ ticks: symbol }));
+        }
+      }, 600);
+    } else {
       ws.send(JSON.stringify({ forget_all: "ticks" }));
       ws.send(JSON.stringify({ ticks: symbol }));
-    } catch (e) {
-      // fallback: queue for after authorize
-      pendingSubscribe = symbol;
-      console.warn("Failed to send subscribe immediately, queued", e);
     }
+    initChart();
   }
 
   // --- TICK HANDLER ---
   function handleTick(tick) {
-    // ensure tick belongs to current symbol (or accept if no currentSymbol)
-    if (!tick || !tick.symbol) return;
-    if (currentSymbol && tick.symbol !== currentSymbol) return;
-
+    const symbol = tick.symbol;
     const quote = safe(Number(tick.quote));
-    // Deriv epoch is seconds; lightweight-charts accepts number seconds
     const epoch = Number(tick.epoch) || Math.floor(Date.now() / 1000);
-
-    // update lastPrices per symbol key (keep generic)
-    const prev = lastPrices[tick.symbol] ?? quote;
-    lastPrices[tick.symbol] = quote;
+    const prev = lastPrices[symbol] ?? quote;
+    lastPrices[symbol] = quote;
 
     const change = quote - prev;
     recentChanges.push(change);
     if (recentChanges.length > 60) recentChanges.shift();
-
     updateCircularGauges();
 
-    // update chartData and series
-    if (!areaSeries || !chart) return;
-
-    const point = { time: epoch, value: quote };
-
-    // if first data point, setData with small array to initialize
-    if (!chartData.length) {
-      chartData.push(point);
-      try {
-        areaSeries.setData(chartData);
-      } catch (e) {
-        // fallback: try update
-        try { areaSeries.update(point); } catch (err) {}
-      }
-    } else {
-      // append and update
+    if (areaSeries && chart) {
+      const point = { time: epoch, value: quote };
       chartData.push(point);
       if (chartData.length > 600) chartData.shift();
-
-      // Prefer update (faster); fallback to setData if update throws
-      try {
-        areaSeries.update(point);
-      } catch (e) {
-        try { areaSeries.setData(chartData); } catch (err) {}
-      }
+      areaSeries.setData(chartData);
+      try { chart.timeScale().fitContent(); } catch (e) {}
     }
-
-    // try to auto-fit time scale (safe)
-    try { chart.timeScale().fitContent(); } catch (e) {}
   }
 
   // --- GAUGES UPDATE ---
@@ -301,19 +213,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const variance = recentChanges.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / recentChanges.length;
     const stdDev = Math.sqrt(variance);
     const volProb = Math.min(100, (stdDev / 0.07) * 100);
-
     const sum = recentChanges.reduce((a, b) => a + b, 0);
     const trendRaw = Math.min(100, Math.abs(sum) * 1000);
-
     const pos = recentChanges.filter(v => v > 0).length;
     const neg = recentChanges.filter(v => v < 0).length;
     const dominant = Math.max(pos, neg);
     const prob = recentChanges.length ? Math.round((dominant / recentChanges.length) * 100) : 50;
-
-    const alpha = 0.25; // smoother
+    const alpha = 0.5;
     smoothVol = smoothVol === 0 ? volProb : smoothVol + alpha * (volProb - smoothVol);
     smoothTrend = smoothTrend === 0 ? trendRaw : smoothTrend + alpha * (trendRaw - smoothTrend);
-
     drawCircularGauge(volGauge, smoothVol, "#ff9800");
     drawCircularGauge(trendGauge, smoothTrend, "#2962FF");
     drawCircularGauge(probGauge, prob, "#4caf50");
@@ -324,7 +232,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const size = 110;
     container.style.width = size + "px";
     container.style.height = (size + 28) + "px";
-
     let canvas = container.querySelector("canvas");
     let pct = container.querySelector(".gauge-percent");
     if (!canvas) {
@@ -335,7 +242,6 @@ document.addEventListener("DOMContentLoaded", () => {
       canvas.style.pointerEvents = "none";
       container.innerHTML = "";
       container.appendChild(canvas);
-
       pct = document.createElement("div");
       pct.className = "gauge-percent";
       pct.style.textAlign = "center";
@@ -346,27 +252,23 @@ document.addEventListener("DOMContentLoaded", () => {
       pct.style.pointerEvents = "none";
       container.appendChild(pct);
     }
-
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, size, size);
     const center = size / 2;
     const radius = size / 2 - 8;
     const start = -Math.PI / 2;
     const end = start + (Math.min(value, 100) / 100) * 2 * Math.PI;
-
     ctx.beginPath();
     ctx.arc(center, center, radius, 0, 2 * Math.PI);
     ctx.strokeStyle = "#eee";
     ctx.lineWidth = 8;
     ctx.stroke();
-
     ctx.beginPath();
     ctx.arc(center, center, radius, start, end);
     ctx.strokeStyle = color;
     ctx.lineWidth = 8;
     ctx.lineCap = "round";
     ctx.stroke();
-
     pct.textContent = `${Math.round(value)}%`;
   }
 
@@ -382,17 +284,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // wire connect button
   connectBtn.addEventListener("click", () => {
     connectDeriv();
     displaySymbols();
   });
 
-  // startup
   displaySymbols();
   initChart();
 
-  // resize handling
   window.addEventListener("resize", () => {
     try { positionGauges(); } catch (e) {}
     if (chart) {
