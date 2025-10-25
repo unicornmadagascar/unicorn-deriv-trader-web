@@ -47,7 +47,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const fmt = n => Number(n).toFixed(2);
   const safe = v => (typeof v === "number" && !isNaN(v)) ? v : 0;
 
-  // afficher liste symboles
   function displaySymbols() {
     symbolList.innerHTML = "";
     SYMBOLS.forEach(s => {
@@ -60,7 +59,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // init chart
   function initChart() {
     try { if (chart) chart.remove(); } catch (e) {}
     chartInner.innerHTML = "";
@@ -79,12 +77,34 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     chartData = [];
+
+    // Positionner les gauges dans le chart
+    positionGauges();
   }
 
-  // connect WS
+  function positionGauges() {
+    // Conteneur pour toutes les gauges
+    let gaugesContainer = document.getElementById("gaugesContainer");
+    if (!gaugesContainer) {
+      gaugesContainer = document.createElement("div");
+      gaugesContainer.id = "gaugesContainer";
+      gaugesContainer.style.position = "absolute";
+      gaugesContainer.style.top = "10px";
+      gaugesContainer.style.left = "10px";
+      gaugesContainer.style.display = "flex";
+      gaugesContainer.style.gap = "10px";
+      gaugesContainer.style.opacity = "0.9";
+      gaugesContainer.style.zIndex = "10";
+      chartInner.style.position = "relative";
+      chartInner.appendChild(gaugesContainer);
+      gaugesContainer.appendChild(volGauge);
+      gaugesContainer.appendChild(trendGauge);
+      gaugesContainer.appendChild(probGauge);
+    }
+  }
+
   function connectDeriv() {
     const accountInfo = document.getElementById("accountInfo");
-
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.close();
       ws = null;
@@ -104,7 +124,6 @@ document.addEventListener("DOMContentLoaded", () => {
     ws.onmessage = (evt) => {
       try {
         const data = JSON.parse(evt.data);
-
         if (data.msg_type === "authorize" && data.authorize) {
           const acc = data.authorize.loginid;
           const bal = data.authorize.balance;
@@ -112,20 +131,17 @@ document.addEventListener("DOMContentLoaded", () => {
           connectBtn.textContent = "Disconnect";
           accountInfo.textContent = `Account: ${acc} | Balance: ${bal.toFixed(2)} ${currency}`;
 
-          // Abonnement balance en temps réel
           ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
           displaySymbols();
         }
 
         else if (data.msg_type === "balance" && data.balance) {
-          // mise à jour live de la balance
           accountInfo.textContent = `Account: ${data.balance.loginid} | Balance: ${data.balance.balance.toFixed(2)} ${data.balance.currency}`;
         }
 
         else if (data.msg_type === "tick" && data.tick) {
           handleTick(data.tick);
         }
-
       } catch (err) {
         console.error("WS parse err", err);
       }
@@ -176,7 +192,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // === 🔵 NOUVELLES GAUGES CIRCULAIRES ===
+  // === 🟢 GAUGES AGRANDIES ET DÉPLACÉES ===
   function updateCircularGauges() {
     if (!recentChanges.length) return;
     const meanAbs = recentChanges.reduce((a,b)=>a+Math.abs(b),0)/recentChanges.length;
@@ -193,9 +209,8 @@ document.addEventListener("DOMContentLoaded", () => {
     drawCircularGauge(probGauge, prob, "#4caf50");
   }
 
-  // Dessin circulaire progress bar sur <canvas>
   function drawCircularGauge(container, value, color) {
-    const size = 80;
+    const size = 110; // ✅ plus grand
     if (!container.querySelector("canvas")) {
       const c = document.createElement("canvas");
       c.width = c.height = size;
@@ -204,20 +219,22 @@ document.addEventListener("DOMContentLoaded", () => {
       c.style.margin = "auto";
       container.innerHTML = "";
       container.appendChild(c);
+
       const label = document.createElement("div");
       label.style.textAlign = "center";
-      label.style.marginTop = "-65px";
-      label.style.fontSize = "14px";
-      label.style.fontWeight = "600";
+      label.style.marginTop = "-85px";
+      label.style.fontSize = "16px";
+      label.style.fontWeight = "700";
       label.style.color = "#333";
       container.appendChild(label);
     }
+
     const canvas = container.querySelector("canvas");
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0,0,size,size);
 
     const center = size/2;
-    const radius = size/2 - 6;
+    const radius = size/2 - 8;
     const start = -Math.PI/2;
     const end = start + (Math.min(value,100)/100)*2*Math.PI;
 
@@ -225,14 +242,14 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.beginPath();
     ctx.arc(center,center,radius,0,2*Math.PI);
     ctx.strokeStyle = "#eee";
-    ctx.lineWidth = 6;
+    ctx.lineWidth = 8;
     ctx.stroke();
 
     // arc coloré
     ctx.beginPath();
     ctx.arc(center,center,radius,start,end);
     ctx.strokeStyle = color;
-    ctx.lineWidth = 6;
+    ctx.lineWidth = 8;
     ctx.lineCap = "round";
     ctx.stroke();
 
@@ -240,7 +257,6 @@ document.addEventListener("DOMContentLoaded", () => {
     label.textContent = `${Math.round(value)}%`;
   }
 
-  // bouton connect
   connectBtn.addEventListener("click", () => {
     connectDeriv();
     displaySymbols();
