@@ -10,9 +10,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const volGauge = document.getElementById("volGauge");
   const trendGauge = document.getElementById("trendGauge");
   const probGauge = document.getElementById("probGauge");
-  const controlBtn = document.getElementById("controlBtn");
-  const controlPanel = document.getElementById("controlPanel");
-  const toggleAutomation = document.getElementById("toggleAutomation");
+  const controlFormPanel = document.getElementById("controlFormPanel");
+  const controlPanelToggle = document.getElementById("controlPanelToggle");
 
   let automationRunning = false;
   let smoothVol = 0;
@@ -358,12 +357,14 @@ document.addEventListener("DOMContentLoaded", () => {
     displaySymbols();
   });
 
-  // Afficher / cacher le panneau au clic sur le bouton
-controlBtn.addEventListener("click", () => {
-    controlPanel.style.display = controlPanel.style.display === "none" ? "block" : "none";
-});
+
+  // Toggle panel visibility
+  controlPanelToggle.addEventListener("click", () => {
+    controlFormPanel.style.display = controlFormPanel.style.display === "none" ? "block" : "none";
+  });
 
   // Toggle Automation
+  const toggleAutomation = document.getElementById("toggleAutomation");
   toggleAutomation.addEventListener("click", () => {
     automationRunning = !automationRunning;
     toggleAutomation.textContent = automationRunning ? "Stop Automation" : "Launch Automation";
@@ -372,27 +373,34 @@ controlBtn.addEventListener("click", () => {
 
   // BUY
   document.getElementById("buyBtn").addEventListener("click", () => {
-    console.log("BUY action triggered");
-    // Ici tu peux appeler ta fonction d'achat
+    const stake = Number(document.getElementById("stakeInput").value);
+    const buyNum = Number(document.getElementById("buyNumberInput").value);
+    const multiplier = Number(document.getElementById("multiplierSelect").value);
+    console.log("BUY:", stake, "x", buyNum, "Multiplier:", multiplier);
+    // Appelle ta fonction BUY ici
   });
 
   // SELL
   document.getElementById("sellBtn").addEventListener("click", () => {
-    console.log("SELL action triggered");
-    // Ici tu peux appeler ta fonction de vente
+    const stake = Number(document.getElementById("stakeInput").value);
+    const sellNum = Number(document.getElementById("sellNumberInput").value);
+    const multiplier = Number(document.getElementById("multiplierSelect").value);
+    console.log("SELL:", stake, "x", sellNum, "Multiplier:", multiplier);
+    // Appelle ta fonction SELL ici
   });
 
   // Close Winning
   document.getElementById("closeWinning").addEventListener("click", () => {
-     console.log("Close Winning triggered");
-     // Ici tu peux appeler ta fonction pour fermer les trades gagnants
+    console.log("Close Winning triggered");
+    // Appelle ta fonction de fermeture des trades gagnants
   });
 
   // Close All
   document.getElementById("closeAll").addEventListener("click", () => {
     console.log("Close All triggered");
-    // Ici tu peux appeler ta fonction pour fermer tous les trades
+    // Appelle ta fonction de fermeture de tous les trades
   });
+
 
   displaySymbols();
   initChart();
