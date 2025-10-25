@@ -87,59 +87,79 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // connect WS
-  // connect WS (corrigé proprement)
-function connectDeriv() {
-  // Si déjà connecté, on ferme et on remet le bouton
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    console.log("Déconnexion demandée...");
-    ws.close();
-    ws = null;
-    connectBtn.textContent = "Connect";
-    return;
-  }
+  function connectDeriv() {
+   const accountInfo = document.getElementById("accountInfo");
 
-  console.log("Connexion à Deriv...");
-  ws = new WebSocket(WS_URL);
-  connectBtn.textContent = "Connecting...";
+   // Si déjà connecté → déconnexion
+   if (ws && ws.readyState === WebSocket.OPEN) {
+     console.log("Déconnexion demandée...");
+     ws.close();
+     ws = null;
+     connectBtn.textContent = "Connect";
+     accountInfo.textContent = ""; // efface le nom et la balance
+     return;
+   }
 
-  ws.onopen = () => {
-    console.log("WS ouvert, autorisation en cours...");
-    ws.send(JSON.stringify({ authorize: TOKEN }));
-  };
+   console.log("Connexion à Deriv...");
+   ws = new WebSocket(WS_URL);
+   connectBtn.textContent = "Connecting...";
+   accountInfo.textContent = "Connecting...";
 
-  ws.onmessage = (evt) => {
+   ws.onopen = () => {
+     console.log("WS ouvert, autorisation en cours...");
+     ws.send(JSON.stringify({ authorize: TOKEN }));
+   };
+
+   ws.onmessage = (evt) => {
     try {
       const data = JSON.parse(evt.data);
 
-      if (data.msg_type === "authorize") {
-        console.log("✅ Autorisé");
-        connectBtn.textContent = "Disconnect";
-        displaySymbols();
+       if (data.msg_type === "authorize" && data.authorize) {
+         console.log("✅ Autorisé");
 
-      } else if (data.msg_type === "tick" && data.tick) {
-        handleTick(data.tick);
+         const acc = data.authorize.loginid;
+         const bal = data.authorize.balance;
+         const currency = data.authorize.currency || "";
 
-      } else if (data.msg_type === "error") {
-        console.warn("⚠️ WS error:", data);
-      }
+         connectBtn.textContent = "Disconnect";
+         accountInfo.textContent = `Account: ${acc} | Balance: ${bal.toFixed(2)} ${currency}`;
 
-    } catch (err) {
-      console.error("WS parse err", err);
-    }
-  };
+         // afficher les symboles
+         displaySymbols();
 
-  ws.onclose = () => {
-    console.log("🔌 WS fermé");
-    connectBtn.textContent = "Connect";
-    ws = null;
-  };
+       } else if (data.msg_type === "balance" && data.balance) {
+         // mise à jour de la balance en temps réel
+         accountInfo.textContent = `Account: ${data.balance.loginid} | Balance: ${data.balance.balance.toFixed(2)} ${data.balance.currency}`;
+       }
 
-  ws.onerror = (e) => {
-    console.error("❌ WS erreur", e);
-    connectBtn.textContent = "Connect";
-    ws = null;
-  };
-}
+       else if (data.msg_type === "tick" && data.tick) {
+         handleTick(data.tick);
+       }
+
+       else if (data.msg_type === "error") {
+         console.warn("⚠️ WS error:", data);
+       }
+
+     } catch (err) {
+       console.error("WS parse err", err);
+     }
+   };
+
+   ws.onclose = () => {
+     console.log("🔌 WS fermé");
+     connectBtn.textContent = "Connect";
+     accountInfo.textContent = "";
+     ws = null;
+   };
+
+   ws.onerror = (e) => {
+     console.error("❌ WS erreur", e);
+     connectBtn.textContent = "Connect";
+     accountInfo.textContent = "Error connecting";
+     ws = null;
+   };
+  }
+
 
   // subscribe symbol ticks (forget previous)
   function subscribeSymbol(symbol) {
