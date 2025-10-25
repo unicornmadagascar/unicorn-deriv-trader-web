@@ -38,29 +38,66 @@
     </div>
   </header>
 
-  <!-- Bouton de contrôle principal pour afficher la section -->
-<button id="controlBtn" style="position: fixed; top: 20px; right: 20px; z-index: 1000;">⚙️</button>
-
-<!-- Section flottante blanche (initialement cachée) -->
-<div id="controlPanel" style="
+  <!-- Panneau complet de contrôle sous le chart -->
+<div id="controlFormPanel" style="
     display: none;
-    position: fixed;
-    top: 60px;
-    right: 20px;
+    position: relative;
     background: #fff;
     border-radius: 10px;
     box-shadow: 0 4px 15px rgba(0,0,0,0.2);
     padding: 15px;
-    z-index: 1000;
-    width: 180px;
-    text-align: center;
+    margin-top: 10px;
+    width: 100%;
+    box-sizing: border-box;
 ">
-    <button id="toggleAutomation" style="width: 100%; margin: 5px 0;">Launch Automation</button>
-    <button id="buyBtn" style="width: 100%; margin: 5px 0; background-color: #4caf50; color: #fff;">BUY</button>
-    <button id="sellBtn" style="width: 100%; margin: 5px 0; background-color: #f44336; color: #fff;">SELL</button>
-    <button id="closeWinning" style="width: 100%; margin: 5px 0;">Close Winning</button>
-    <button id="closeAll" style="width: 100%; margin: 5px 0;">Close All</button>
-</div>
+    <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: flex-start;">
+        <!-- Toggle Automation -->
+        <button id="toggleAutomation" style="flex: 1 1 150px;">Launch Automation</button>
+        
+        <!-- BUY / SELL -->
+        <button id="buyBtn" style="flex: 1 1 80px; background-color: #4caf50; color: #fff;">BUY</button>
+        <button id="sellBtn" style="flex: 1 1 80px; background-color: #f44336; color: #fff;">SELL</button>
+        
+        <!-- Close Buttons -->
+        <button id="closeWinning" style="flex: 1 1 120px;">Close Winning</button>
+        <button id="closeAll" style="flex: 1 1 120px;">Close All</button>
+
+        <!-- ComboBox Multiplier -->
+        <label style="flex: 1 1 80px;">Multiplier:
+            <select id="multiplierSelect" style="width: 100%;">
+                <option value="100">100</option>
+                <option value="200">200</option>
+                <option value="300">300</option>
+                <option value="400">400</option>
+                <option value="500">500</option>
+            </select>
+        </label>
+
+        <!-- SpinEdits -->
+        <label style="flex: 1 1 80px;">Stake:
+            <input type="number" id="stakeInput" value="1" min="1" style="width: 100%;">
+        </label>
+
+        <label style="flex: 1 1 80px;">Buy Number:
+            <input type="number" id="buyNumberInput" value="1" min="1" style="width: 100%;">
+        </label>
+
+        <label style="flex: 1 1 80px;">Sell Number:
+            <input type="number" id="sellNumberInput" value="1" min="1" style="width: 100%;">
+        </label>
+
+        <label style="flex: 1 1 80px;">TP:
+            <input type="number" id="tpInput" value="0" min="0" style="width: 100%;">
+        </label>
+
+        <label style="flex: 1 1 80px;">SL:
+            <input type="number" id="slInput" value="0" min="0" style="width: 100%;">
+        </label>
+    </div>
+  </div>
+
+<!-- Bouton pour afficher / cacher le panneau -->
+  <button id="controlPanelToggle" style="margin-top: 5px;">⚙️ Show Controls</button>
 
 
   <div id="container">

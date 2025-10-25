@@ -18,14 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let smoothTrend = 0;
 
   // Élément pour afficher compte + balance
-  const accountInfo = document.createElement("div");
-  accountInfo.id = "accountInfo";
-  accountInfo.style.display = "inline-block";
-  accountInfo.style.marginRight = "10px";
-  accountInfo.style.fontSize = "14px";
-  accountInfo.style.fontWeight = "600";
-  accountInfo.style.color = "#333";
-  connectBtn.parentNode.insertBefore(accountInfo, connectBtn);
+  const accountInfo = document.getElementById("accountInfo");
 
   let ws = null;
   let chart = null;
@@ -53,6 +46,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const fmt = n => Number(n).toFixed(2);
   const safe = v => (typeof v === "number" && !isNaN(v)) ? v : 0;
 
+  // Affiche les symboles
   function displaySymbols() {
     symbolList.innerHTML = "";
     SYMBOLS.forEach(s => {
@@ -84,100 +78,59 @@ document.addEventListener("DOMContentLoaded", () => {
 
     chartData = [];
 
-    // Positionner les gauges dans le chart
     positionGauges();
   }
 
   function positionGauges() {
-    // Conteneur pour toutes les gauges
     let gaugesContainer = document.getElementById("gaugesContainer");
     if (!gaugesContainer) {
       gaugesContainer = document.createElement("div");
       gaugesContainer.id = "gaugesContainer";
       gaugesContainer.style.position = "absolute";
-      gaugesContainer.style.top = "8px";
-      gaugesContainer.style.left = "8px";
+      gaugesContainer.style.top = "10px";
+      gaugesContainer.style.left = "10px";
       gaugesContainer.style.display = "flex";
-      gaugesContainer.style.gap = "12px";
-      gaugesContainer.style.opacity = "0.95";
+      gaugesContainer.style.gap = "16px";
       gaugesContainer.style.zIndex = "12";
-      gaugesContainer.style.pointerEvents = "none"; // évite d'interférer avec le chart
       chartInner.style.position = "relative";
       chartInner.appendChild(gaugesContainer);
 
-      // chaque gauge reçoit son conteneur (pour label + pourcent)
-      const vCont = createGaugeWrapper("volGaugeWrapper");
-      const tCont = createGaugeWrapper("trendGaugeWrapper");
-      const pCont = createGaugeWrapper("probGaugeWrapper");
-
-      // insérer dans le DOM : on place les wrappers dans gaugesContainer
-      gaugesContainer.appendChild(vCont.wrapper);
-      gaugesContainer.appendChild(tCont.wrapper);
-      gaugesContainer.appendChild(pCont.wrapper);
-
-      // déplacer les éléments existants (les div fournis) DANS chaque wrapper
-      // cela préserve tout style utilisateur sur volGauge, trendGauge, probGauge
-      vCont.content.appendChild(volGauge);
-      tCont.content.appendChild(trendGauge);
-      pCont.content.appendChild(probGauge);
-
-      // créer les noms des gauges
-      const nameVol = document.createElement("div");
-      nameVol.textContent = "Volatility";
-      nameVol.style.textAlign = "center";
-      nameVol.style.fontSize = "13px";
-      nameVol.style.fontWeight = "600";
-      nameVol.style.marginTop = "6px";
-      nameVol.style.pointerEvents = "none";
-
-      const nameTrend = document.createElement("div");
-      nameTrend.textContent = "Tendance";
-      nameTrend.style.textAlign = "center";
-      nameTrend.style.fontSize = "13px";
-      nameTrend.style.fontWeight = "600";
-      nameTrend.style.marginTop = "6px";
-      nameTrend.style.pointerEvents = "none";
-
-      const nameProb = document.createElement("div");
-      nameProb.textContent = "Probabilité";
-      nameProb.style.textAlign = "center";
-      nameProb.style.fontSize = "13px";
-      nameProb.style.fontWeight = "600";
-      nameProb.style.marginTop = "6px";
-      nameProb.style.pointerEvents = "none";
-
-      // ajouter les noms sous chaque wrapper
-      vCont.wrapper.appendChild(nameVol);
-      tCont.wrapper.appendChild(nameTrend);
-      pCont.wrapper.appendChild(nameProb);
+      appendGauge(gaugesContainer, volGauge, "Volatility");
+      appendGauge(gaugesContainer, trendGauge, "Tendance");
+      appendGauge(gaugesContainer, probGauge, "Probabilité");
     }
   }
 
-  // crée une structure wrapper qui garde le container original (content)
-  function createGaugeWrapper(id) {
+  function appendGauge(container, gaugeDiv, labelText) {
     const wrapper = document.createElement("div");
-    wrapper.id = id;
     wrapper.style.display = "flex";
     wrapper.style.flexDirection = "column";
     wrapper.style.alignItems = "center";
-    wrapper.style.width = "140px"; // espace suffisant pour canvas + label
+    wrapper.style.width = "140px";
     wrapper.style.pointerEvents = "none";
 
-    // zone interne (où on placera l'élément original du DOM)
     const content = document.createElement("div");
     content.style.width = "100%";
-    content.style.pointerEvents = "none";
-
+    content.appendChild(gaugeDiv);
     wrapper.appendChild(content);
-    return { wrapper, content };
+
+    const label = document.createElement("div");
+    label.textContent = labelText;
+    label.style.fontSize = "13px";
+    label.style.fontWeight = "600";
+    label.style.textAlign = "center";
+    label.style.marginTop = "6px";
+    label.style.pointerEvents = "none";
+    wrapper.appendChild(label);
+
+    container.appendChild(wrapper);
   }
 
   function connectDeriv() {
-    const accountInfo = document.getElementById("accountInfo");
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.close();
       ws = null;
-      connectBtn.textContent = "Connect";
+      connectBtn.textContent = "Se connecter";
       accountInfo.textContent = "";
       return;
     }
@@ -193,6 +146,7 @@ document.addEventListener("DOMContentLoaded", () => {
     ws.onmessage = (evt) => {
       try {
         const data = JSON.parse(evt.data);
+
         if (data.msg_type === "authorize" && data.authorize) {
           const acc = data.authorize.loginid;
           const bal = data.authorize.balance;
@@ -200,7 +154,6 @@ document.addEventListener("DOMContentLoaded", () => {
           connectBtn.textContent = "Disconnect";
           accountInfo.textContent = `Account: ${acc} | Balance: ${bal.toFixed(2)} ${currency}`;
 
-          // Abonnement balance en temps réel
           ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
           displaySymbols();
         }
@@ -218,7 +171,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     ws.onclose = () => {
-      connectBtn.textContent = "Connect";
+      connectBtn.textContent = "Se connecter";
       accountInfo.textContent = "";
       ws = null;
     };
@@ -262,47 +215,36 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // === 🟢 GAUGES AGRANDIES, AVEC LABELS ===
   function updateCircularGauges() {
-   if (!recentChanges.length) return;
+    if (!recentChanges.length) return;
 
-   // === 🔹 1. Écart-type comme mesure de volatilité ===
-   const mean = recentChanges.reduce((a, b) => a + b, 0) / recentChanges.length;
-   const variance = recentChanges.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / recentChanges.length;
-   const stdDev = Math.sqrt(variance); // écart-type
+    const mean = recentChanges.reduce((a, b) => a + b, 0) / recentChanges.length;
+    const variance = recentChanges.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / recentChanges.length;
+    const stdDev = Math.sqrt(variance);
+    const volProb = Math.min(100, (stdDev / 0.07) * 100);
 
-   // Normalisation en probabilité 0–100 %
-   // Ajuste le facteur selon la sensibilité de ta gauge
-   const volProb = Math.min(100, (stdDev / 0.07) * 100);
+    const sum = recentChanges.reduce((a, b) => a + b, 0);
+    const trendRaw = Math.min(100, Math.abs(sum) * 1000);
 
-   // === 🔹 2. Tendance brute (somme des variations) ===
-   const sum = recentChanges.reduce((a, b) => a + b, 0);
-   const trendRaw = Math.min(100, Math.abs(sum) * 1000);
+    const pos = recentChanges.filter(v => v > 0).length;
+    const neg = recentChanges.filter(v => v < 0).length;
+    const dominant = Math.max(pos, neg);
+    const prob = recentChanges.length ? Math.round((dominant / recentChanges.length) * 100) : 50;
 
-   // === 🔹 3. Probabilité de direction dominante ===
-   const pos = recentChanges.filter(v => v > 0).length;
-   const neg = recentChanges.filter(v => v < 0).length;
-   const dominant = Math.max(pos, neg);
-   const prob = recentChanges.length ? Math.round((dominant / recentChanges.length) * 100) : 50;
+    const alpha = 0.5; 
+    smoothVol = smoothVol === 0 ? volProb : smoothVol + alpha * (volProb - smoothVol);
+    smoothTrend = smoothTrend === 0 ? trendRaw : smoothTrend + alpha * (trendRaw - smoothTrend);
 
-   // === 🔹 4. Lissage EMA pour stabilité ===
-   const alpha = 0.5; // plus petit = plus lisse
-   smoothVol = smoothVol === 0 ? volProb : smoothVol + alpha * (volProb - smoothVol);
-   smoothTrend = smoothTrend === 0 ? trendRaw : smoothTrend + alpha * (trendRaw - smoothTrend);
-
-   // === 🔹 5. Dessin des jauges ===
-   drawCircularGauge(volGauge, smoothVol, "#ff9800"); // Volatilité basée sur écart-type
-   drawCircularGauge(trendGauge, smoothTrend, "#2962FF");
-   drawCircularGauge(probGauge, prob, "#4caf50");
+    drawCircularGauge(volGauge, smoothVol, "#ff9800");
+    drawCircularGauge(trendGauge, smoothTrend, "#2962FF");
+    drawCircularGauge(probGauge, prob, "#4caf50");
   }
 
   function drawCircularGauge(container, value, color) {
-    const size = 110; // taille des anneaux
-    // Ensure container exists and is visible
+    const size = 110;
     container.style.width = size + "px";
-    container.style.height = (size + 28) + "px"; // laisser place pour label en dessous
+    container.style.height = (size + 28) + "px";
 
-    // Create canvas + percent label if not exists
     let canvas = container.querySelector("canvas");
     let pct = container.querySelector(".gauge-percent");
     if (!canvas) {
@@ -333,14 +275,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const start = -Math.PI/2;
     const end = start + (Math.min(value,100)/100)*2*Math.PI;
 
-    // fond gris
     ctx.beginPath();
     ctx.arc(center,center,radius,0,2*Math.PI);
     ctx.strokeStyle = "#eee";
     ctx.lineWidth = 8;
     ctx.stroke();
 
-    // arc coloré
     ctx.beginPath();
     ctx.arc(center,center,radius,start,end);
     ctx.strokeStyle = color;
@@ -351,61 +291,19 @@ document.addEventListener("DOMContentLoaded", () => {
     pct.textContent = `${Math.round(value)}%`;
   }
 
-  // wire up connect button
+  // Show/hide control form
+  controlPanelToggle.addEventListener("click", () => {
+    controlFormPanel.style.display = controlFormPanel.style.display === "none" ? "flex" : "none";
+  });
+
   connectBtn.addEventListener("click", () => {
     connectDeriv();
     displaySymbols();
   });
 
-
-  // Toggle panel visibility
-  controlPanelToggle.addEventListener("click", () => {
-    controlFormPanel.style.display = controlFormPanel.style.display === "none" ? "block" : "none";
-  });
-
-  // Toggle Automation
-  const toggleAutomation = document.getElementById("toggleAutomation");
-  toggleAutomation.addEventListener("click", () => {
-    automationRunning = !automationRunning;
-    toggleAutomation.textContent = automationRunning ? "Stop Automation" : "Launch Automation";
-    console.log("Automation running:", automationRunning);
-  });
-
-  // BUY
-  document.getElementById("buyBtn").addEventListener("click", () => {
-    const stake = Number(document.getElementById("stakeInput").value);
-    const buyNum = Number(document.getElementById("buyNumberInput").value);
-    const multiplier = Number(document.getElementById("multiplierSelect").value);
-    console.log("BUY:", stake, "x", buyNum, "Multiplier:", multiplier);
-    // Appelle ta fonction BUY ici
-  });
-
-  // SELL
-  document.getElementById("sellBtn").addEventListener("click", () => {
-    const stake = Number(document.getElementById("stakeInput").value);
-    const sellNum = Number(document.getElementById("sellNumberInput").value);
-    const multiplier = Number(document.getElementById("multiplierSelect").value);
-    console.log("SELL:", stake, "x", sellNum, "Multiplier:", multiplier);
-    // Appelle ta fonction SELL ici
-  });
-
-  // Close Winning
-  document.getElementById("closeWinning").addEventListener("click", () => {
-    console.log("Close Winning triggered");
-    // Appelle ta fonction de fermeture des trades gagnants
-  });
-
-  // Close All
-  document.getElementById("closeAll").addEventListener("click", () => {
-    console.log("Close All triggered");
-    // Appelle ta fonction de fermeture de tous les trades
-  });
-
-
   displaySymbols();
   initChart();
 
-  // reposition gauges on resize (keeps them inside chart)
   window.addEventListener("resize", () => {
     try { positionGauges(); } catch(e){}
     if (chart) {
