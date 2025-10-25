@@ -1,6 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
   const APP_ID = 105747;
-  const TOKEN = "wgf8TFDsJ8Ecvze"; // <-- mettez votre token ici
+  const TOKEN = "wgf8TFDsJ8Ecvze";
   const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
 
   // UI
@@ -21,16 +21,13 @@ document.addEventListener("DOMContentLoaded", () => {
   accountInfo.style.color = "#333";
   connectBtn.parentNode.insertBefore(accountInfo, connectBtn);
 
-  // state
   let ws = null;
   let chart = null;
   let areaSeries = null;
   let chartData = [];
   let lastPrices = {};
   let recentChanges = [];
-  let connected = false;
 
-  // Symbols (Deriv indices only)
   const SYMBOLS = [
     { symbol: "BOOM1000", name: "Boom 1000" },
     { symbol: "CRASH1000", name: "Crash 1000" },
@@ -47,11 +44,10 @@ document.addEventListener("DOMContentLoaded", () => {
     { symbol: "R_10", name: "VIX 10" }
   ];
 
-  // helpers
   const fmt = n => Number(n).toFixed(2);
   const safe = v => (typeof v === "number" && !isNaN(v)) ? v : 0;
 
-  // init symbol list
+  // afficher liste symboles
   function displaySymbols() {
     symbolList.innerHTML = "";
     SYMBOLS.forEach(s => {
@@ -64,17 +60,16 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // init chart — IMPORTANT: create the chart on #chartInner
+  // init chart
   function initChart() {
     try { if (chart) chart.remove(); } catch (e) {}
-
     chartInner.innerHTML = "";
+
     chart = LightweightCharts.createChart(chartInner, {
-      layout: { textColor: '#333', background: { type: 'solid', color: '#ffffff' } },
-      timeScale: { timeVisible: true, secondsVisible: true, rightOffset: 8 }
+      layout: { textColor: '#333', background: { type: 'solid', color: '#fff' } },
+      timeScale: { timeVisible: true, secondsVisible: true }
     });
 
-    // <-- Correction : utiliser addSeries avec LightweightCharts.AreaSeries (comme dans ton code d'origine)
     areaSeries = chart.addSeries(LightweightCharts.AreaSeries, {
       lineColor: '#2962FF',
       topColor: 'rgba(41,98,255,0.28)',
@@ -88,188 +83,169 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // connect WS
   function connectDeriv() {
-   const accountInfo = document.getElementById("accountInfo");
+    const accountInfo = document.getElementById("accountInfo");
 
-   // Si déjà connecté → déconnexion
-   if (ws && ws.readyState === WebSocket.OPEN) {
-     console.log("Déconnexion demandée...");
-     ws.close();
-     ws = null;
-     connectBtn.textContent = "Connect";
-     accountInfo.textContent = ""; // efface le nom et la balance
-     return;
-   }
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.close();
+      ws = null;
+      connectBtn.textContent = "Connect";
+      accountInfo.textContent = "";
+      return;
+    }
 
-   console.log("Connexion à Deriv...");
-   ws = new WebSocket(WS_URL);
-   connectBtn.textContent = "Connecting...";
-   accountInfo.textContent = "Connecting...";
+    ws = new WebSocket(WS_URL);
+    connectBtn.textContent = "Connecting...";
+    accountInfo.textContent = "Connecting...";
 
-   ws.onopen = () => {
-     console.log("WS ouvert, autorisation en cours...");
-     ws.send(JSON.stringify({ authorize: TOKEN }));
-   };
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ authorize: TOKEN }));
+    };
 
-   ws.onmessage = (evt) => {
-    try {
-      const data = JSON.parse(evt.data);
+    ws.onmessage = (evt) => {
+      try {
+        const data = JSON.parse(evt.data);
 
-       if (data.msg_type === "authorize" && data.authorize) {
-         console.log("✅ Autorisé");
+        if (data.msg_type === "authorize" && data.authorize) {
+          const acc = data.authorize.loginid;
+          const bal = data.authorize.balance;
+          const currency = data.authorize.currency || "";
+          connectBtn.textContent = "Disconnect";
+          accountInfo.textContent = `Account: ${acc} | Balance: ${bal.toFixed(2)} ${currency}`;
 
-         const acc = data.authorize.loginid;
-         const bal = data.authorize.balance;
-         const currency = data.authorize.currency || "";
+          // Abonnement balance en temps réel
+          ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+          displaySymbols();
+        }
 
-         connectBtn.textContent = "Disconnect";
-         accountInfo.textContent = `Account: ${acc} | Balance: ${bal.toFixed(2)} ${currency}`;
+        else if (data.msg_type === "balance" && data.balance) {
+          // mise à jour live de la balance
+          accountInfo.textContent = `Account: ${data.balance.loginid} | Balance: ${data.balance.balance.toFixed(2)} ${data.balance.currency}`;
+        }
 
-         // afficher les symboles
-         displaySymbols();
+        else if (data.msg_type === "tick" && data.tick) {
+          handleTick(data.tick);
+        }
 
-       } else if (data.msg_type === "balance" && data.balance) {
-         // mise à jour de la balance en temps réel
-         accountInfo.textContent = `Account: ${data.balance.loginid} | Balance: ${data.balance.balance.toFixed(2)} ${data.balance.currency}`;
-       }
+      } catch (err) {
+        console.error("WS parse err", err);
+      }
+    };
 
-       else if (data.msg_type === "tick" && data.tick) {
-         handleTick(data.tick);
-       }
-
-       else if (data.msg_type === "error") {
-         console.warn("⚠️ WS error:", data);
-       }
-
-     } catch (err) {
-       console.error("WS parse err", err);
-     }
-   };
-
-   ws.onclose = () => {
-     console.log("🔌 WS fermé");
-     connectBtn.textContent = "Connect";
-     accountInfo.textContent = "";
-     ws = null;
-   };
-
-   ws.onerror = (e) => {
-     console.error("❌ WS erreur", e);
-     connectBtn.textContent = "Connect";
-     accountInfo.textContent = "Error connecting";
-     ws = null;
-   };
+    ws.onclose = () => {
+      connectBtn.textContent = "Connect";
+      accountInfo.textContent = "";
+      ws = null;
+    };
   }
 
-
-  // subscribe symbol ticks (forget previous)
   function subscribeSymbol(symbol) {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      // open WS first (will authorize then subscribe)
       connectDeriv();
-      // wait small time then subscribe (simple approach)
       setTimeout(() => {
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ forget_all: "ticks" }));
           ws.send(JSON.stringify({ ticks: symbol }));
-          console.log("Subscribed:", symbol);
         }
       }, 600);
     } else {
       ws.send(JSON.stringify({ forget_all: "ticks" }));
       ws.send(JSON.stringify({ ticks: symbol }));
-      console.log("Subscribed:", symbol);
     }
-
-    // reinit chart for new symbol
     initChart();
   }
 
-  // handle tick updates
   function handleTick(tick) {
     const symbol = tick.symbol;
     const quote = safe(Number(tick.quote));
-    const epoch = Number(tick.epoch) || Math.floor(Date.now()/1000);
+    const epoch = Number(tick.epoch) || Math.floor(Date.now() / 1000);
 
-    // store last price
     const prev = lastPrices[symbol] ?? quote;
     lastPrices[symbol] = quote;
     const change = quote - prev;
     recentChanges.push(change);
     if (recentChanges.length > 60) recentChanges.shift();
 
-    // update gauges (only if current chart exists)
-    updateGauges();
+    updateCircularGauges();
 
-    // update chart series if exists
     if (areaSeries && chart) {
-      const localTime = Math.floor(new Date(epoch * 1000).getTime() / 1000);
-      const point = { time: localTime, value: quote };
-
-      // push or update smoothly
+      const point = { time: epoch, value: quote };
       chartData.push(point);
       if (chartData.length > 600) chartData.shift();
-
-      if (chartData.length === 1) {
-        areaSeries.setData(chartData);
-      } else {
-        // protect update
-        try { areaSeries.update(point); } catch (e) {
-          // fallback to setData if update fails
-          areaSeries.setData(chartData);
-        }
-      }
-      // fit time axis to data
-      try { chart.timeScale().fitContent(); } catch(e){ /* ignore */ }
+      areaSeries.setData(chartData);
+      try { chart.timeScale().fitContent(); } catch(e){}
     }
   }
 
-  // compute gauges values and set visuals
-  function updateGauges() {
+  // === 🔵 NOUVELLES GAUGES CIRCULAIRES ===
+  function updateCircularGauges() {
     if (!recentChanges.length) return;
-    // volatility ~ mean absolute change normalized
     const meanAbs = recentChanges.reduce((a,b)=>a+Math.abs(b),0)/recentChanges.length;
-    const vol = Math.min(100, meanAbs * 1000); // scale factor tuned empirically
-
-    // trend strength ~ absolute sum of recent changes (slope-like)
+    const vol = Math.min(100, meanAbs * 1000);
     const sum = recentChanges.reduce((a,b)=>a+b,0);
     const trend = Math.min(100, Math.abs(sum) * 1000);
-
-    // probability ~ fraction of ticks in dominant direction
     const pos = recentChanges.filter(v=>v>0).length;
     const neg = recentChanges.filter(v=>v<0).length;
     const dominant = Math.max(pos,neg);
-    const prob = recentChanges.length ? Math.round((dominant / recentChanges.length) * 100) : 50;
+    const prob = recentChanges.length ? Math.round((dominant/recentChanges.length)*100) : 50;
 
-    setGauge(volGauge, vol, "#ff9800");
-    setGauge(trendGauge, trend, "#2962FF");
-    setGauge(probGauge, prob, "#4caf50");
+    drawCircularGauge(volGauge, vol, "#ff9800");
+    drawCircularGauge(trendGauge, trend, "#2962FF");
+    drawCircularGauge(probGauge, prob, "#4caf50");
   }
 
-  function setGauge(el, percent, color) {
-    const smoothPrev = parseFloat(el.dataset.prev || 0);
-    const smooth = smoothPrev + (percent - smoothPrev) * 0.12; // smoothing
-    el.dataset.prev = smooth;
-    const deg = Math.max(0, Math.min(360, smooth * 3.6));
-    el.style.background = `conic-gradient(${color} ${deg}deg, #eee ${deg}deg)`;
-    const span = el.querySelector("span");
-    if (span) span.innerText = `${Math.round(smooth)}%`;
+  // Dessin circulaire progress bar sur <canvas>
+  function drawCircularGauge(container, value, color) {
+    const size = 80;
+    if (!container.querySelector("canvas")) {
+      const c = document.createElement("canvas");
+      c.width = c.height = size;
+      c.style.borderRadius = "50%";
+      c.style.display = "block";
+      c.style.margin = "auto";
+      container.innerHTML = "";
+      container.appendChild(c);
+      const label = document.createElement("div");
+      label.style.textAlign = "center";
+      label.style.marginTop = "-65px";
+      label.style.fontSize = "14px";
+      label.style.fontWeight = "600";
+      label.style.color = "#333";
+      container.appendChild(label);
+    }
+    const canvas = container.querySelector("canvas");
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0,0,size,size);
+
+    const center = size/2;
+    const radius = size/2 - 6;
+    const start = -Math.PI/2;
+    const end = start + (Math.min(value,100)/100)*2*Math.PI;
+
+    // fond gris
+    ctx.beginPath();
+    ctx.arc(center,center,radius,0,2*Math.PI);
+    ctx.strokeStyle = "#eee";
+    ctx.lineWidth = 6;
+    ctx.stroke();
+
+    // arc coloré
+    ctx.beginPath();
+    ctx.arc(center,center,radius,start,end);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 6;
+    ctx.lineCap = "round";
+    ctx.stroke();
+
+    const label = container.querySelector("div");
+    label.textContent = `${Math.round(value)}%`;
   }
 
-  // wire up connect button
- // Bouton Connect / Disconnect
-connectBtn.addEventListener("click", () => {
-  connectDeriv();
-  displaySymbols();
-});
+  // bouton connect
+  connectBtn.addEventListener("click", () => {
+    connectDeriv();
+    displaySymbols();
+  });
 
-  // initialization
   displaySymbols();
   initChart();
-
-  // resize handling
-  window.addEventListener("resize", () => {
-    if (chart) {
-      try { chart.resize(chartInner.clientWidth, chartInner.clientHeight); } catch(e){ /* ignore */ }
-    }
-  });
 });
