@@ -263,31 +263,35 @@ document.addEventListener("DOMContentLoaded", () => {
   function updateCircularGauges() {
    if (!recentChanges.length) return;
 
-   // Moyenne de l'amplitude absolue → volatilité brute
-   const meanAbs = recentChanges.reduce((a, b) => a + Math.abs(b), 0) / recentChanges.length;
-   const volRaw = Math.min(100, meanAbs * 1000);
+   // === 🔹 1. Écart-type comme mesure de volatilité ===
+   const mean = recentChanges.reduce((a, b) => a + b, 0) / recentChanges.length;
+   const variance = recentChanges.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / recentChanges.length;
+   const stdDev = Math.sqrt(variance); // écart-type
 
-   // Somme des changements → tendance brute
+   // Normalisation en probabilité 0–100 %
+   // Ajuste le facteur selon la sensibilité de ta gauge
+   const volProb = Math.min(100, (stdDev / 0.07) * 100);
+
+   // === 🔹 2. Tendance brute (somme des variations) ===
    const sum = recentChanges.reduce((a, b) => a + b, 0);
    const trendRaw = Math.min(100, Math.abs(sum) * 1000);
 
-   // Comptage des hausses / baisses → probabilité
+   // === 🔹 3. Probabilité de direction dominante ===
    const pos = recentChanges.filter(v => v > 0).length;
    const neg = recentChanges.filter(v => v < 0).length;
    const dominant = Math.max(pos, neg);
    const prob = recentChanges.length ? Math.round((dominant / recentChanges.length) * 100) : 50;
 
-   // === ⚙️ Lissage exponentiel (EMA) pour stabiliser les gauges ===
-   // alpha = vitesse de réaction (0.05 = très lisse, 0.2 = plus réactif)
-   const alpha = 0.08;
-   smoothVol = smoothVol === 0 ? volRaw : smoothVol + alpha * (volRaw - smoothVol);
+   // === 🔹 4. Lissage EMA pour stabilité ===
+   const alpha = 0.08; // plus petit = plus lisse
+   smoothVol = smoothVol === 0 ? volProb : smoothVol + alpha * (volProb - smoothVol);
    smoothTrend = smoothTrend === 0 ? trendRaw : smoothTrend + alpha * (trendRaw - smoothTrend);
 
-   drawCircularGauge(volGauge, smoothVol, "#ff9800");
+   // === 🔹 5. Dessin des jauges ===
+   drawCircularGauge(volGauge, smoothVol, "#ff9800"); // Volatilité basée sur écart-type
    drawCircularGauge(trendGauge, smoothTrend, "#2962FF");
    drawCircularGauge(probGauge, prob, "#4caf50");
   }
-
 
   function drawCircularGauge(container, value, color) {
     const size = 110; // taille des anneaux
