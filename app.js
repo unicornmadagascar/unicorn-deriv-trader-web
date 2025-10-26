@@ -291,18 +291,6 @@ document.addEventListener("DOMContentLoaded", () => {
     pct.textContent = `${Math.round(value)}%`;
   }
 
-  // --- TOGGLE PANEL ---
-  controlPanelToggle.addEventListener("click", () => {
-    if (!controlFormPanel) return;
-    if (controlFormPanel.classList.contains("active")) {
-      controlFormPanel.classList.remove("active");
-      controlFormPanel.style.display = "none";
-    } else {
-      controlFormPanel.style.display = "flex";
-      setTimeout(() => controlFormPanel.classList.add("active"), 10);
-    }
-  });
-
   // Show/hide control form
   controlPanelToggle.addEventListener("click", () => {
     controlFormPanel.style.display = controlFormPanel.style.display === "none" ? "flex" : "none";
