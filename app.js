@@ -370,6 +370,33 @@ document.addEventListener("DOMContentLoaded", () => {
     pct.textContent = `${Math.round(value)}%`;
   }
 
+   // === Automation Toggle ===
+  const toggleAutomationBtn = document.getElementById("toggleAutomation");
+  toggleAutomationBtn.addEventListener("click", () => {
+    automationRunning = !automationRunning;
+    if (automationRunning) {
+      toggleAutomationBtn.textContent = "Stop Automation";
+      toggleAutomationBtn.style.background = "linear-gradient(90deg,#f44336,#e57373)";
+      startAutomation();
+    } else {
+      toggleAutomationBtn.textContent = "Launch Automation";
+      toggleAutomationBtn.style.background = "linear-gradient(90deg,#4caf50,#81c784)";
+      stopAutomation();
+    }
+  });
+
+  function startAutomation() {
+    if (automationInterval) clearInterval(automationInterval);
+    automationInterval = setInterval(() => {
+      console.log("Running automation check...");
+    }, 2000);
+  }
+
+  function stopAutomation() {
+    if (automationInterval) clearInterval(automationInterval);
+    automationInterval = null;
+  }
+
   // --- TOGGLE PANEL ---
   controlPanelToggle.addEventListener("click", () => {
     if (!controlFormPanel) return;
