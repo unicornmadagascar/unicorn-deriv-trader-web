@@ -521,7 +521,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   closewinning.onclick=()=>{
-    console.log("🔒 Closing all profitable trades...");
+    
     const ws = new WebSocket(WS_URL);
     ws.onopen = () => {
       ws.send(JSON.stringify({ authorize: TOKEN }));
