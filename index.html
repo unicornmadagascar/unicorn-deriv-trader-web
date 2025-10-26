@@ -21,11 +21,57 @@
     #chartInner { flex:1; min-height:300px; background:#fff; margin:12px; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.06); overflow:hidden; }
 
     /* gauges */
-    #gauges { position:absolute; top:18px; right:18px; display:flex; gap:16px; z-index:10; }
+    /*#gauges { position:absolute; top:18px; right:18px; display:flex; gap:16px; z-index:10; }
     .gauge-container { display:flex; flex-direction:column; align-items:center; width:120px; }
     .gauge { width:110px; height:110px; border-radius:50%; background: conic-gradient(#ddd 0deg, #ddd 360deg); display:flex; align-items:center; justify-content:center; box-shadow:0 6px 18px rgba(0,0,0,0.08); }
     .gauge span { font-weight:700; color:#222; }
-    .gauge-label { margin-top:6px; color:#555; font-size:13px; text-align:center; }
+    .gauge-label { margin-top:6px; color:#555; font-size:13px; text-align:center; }*/
+
+    /* gauges */
+   #gauges {
+     position: absolute;
+     top: 18px;
+     right: 18px;
+     display: flex;
+     flex-direction: row;
+     align-items: flex-start;
+     justify-content: flex-end;
+     gap: 20px;
+     z-index: 10;
+   }
+
+  .gauge-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    width: 120px;
+  }
+
+  .gauge {
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    background: conic-gradient(#ddd 0deg, #ddd 360deg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  }
+
+  .gauge span {
+    font-weight: 700;
+    color: #222;
+    font-size: 16px;
+  }
+
+  .gauge-label {
+    margin-top: 6px;
+    color: #555;
+    font-size: 13px;
+    text-align: center;
+    font-weight: 500;
+   }
 
     /* top controls */
     #controls { padding:8px 16px; background:#fff; border-bottom:1px solid #eee; display:flex; gap:12px; align-items:center; }
