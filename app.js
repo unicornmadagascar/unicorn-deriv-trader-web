@@ -13,7 +13,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const controlFormPanel = document.getElementById("controlFormPanel");
   const controlPanelToggle = document.getElementById("controlPanelToggle");
   const accountInfo = document.getElementById("accountInfo");
-
+  const toggleAutomationBtn = document.getElementById("toggleAutomation");
+  
+  let automationRunning__ = false;
   let automationRunning = false;
   let smoothVol = 0;
   let smoothTrend = 0;
@@ -399,4 +401,38 @@ document.addEventListener("DOMContentLoaded", () => {
       try { chart.resize(chartInner.clientWidth, chartInner.clientHeight); } catch (e) {}
     }
   });
+
+  toggleAutomationBtn.addEventListener("click", () => {
+    automationRunning__ = !automationRunning__;
+
+    if (automationRunning__) {
+      // ---- Mode ON ----
+      toggleAutomationBtn.textContent = "Stop Automation";
+      toggleAutomationBtn.style.background = "linear-gradient(90deg, #f44336, #e57373)";
+      toggleAutomationBtn.style.boxShadow = "0 0 12px rgba(244,67,54,0.5)";
+    
+      console.log("🚀 Automation started");
+      // 👉 Ici tu peux lancer ton script de trading automatique
+      startAutomation();
+    } else {
+      // ---- Mode OFF ----
+      toggleAutomationBtn.textContent = "Launch Automation";
+      toggleAutomationBtn.style.background = "linear-gradient(90deg, #4caf50, #81c784)";
+      toggleAutomationBtn.style.boxShadow = "0 0 6px rgba(76,175,80,0.4)";
+
+      console.log("🛑 Automation stopped");
+      // 👉 Ici tu peux arrêter ton script de trading automatique
+      stopAutomation();
+    }
+  });
+
+  function startAutomation() {
+    // Exemple : tu peux activer un intervalle ou lancer un process
+    console.log("Automation is now running...");
+  }
+
+  function stopAutomation() {
+    // Exemple : tu peux nettoyer ou stopper les timers
+    console.log("Automation stopped cleanly.");
+  }
 });
