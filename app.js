@@ -13,7 +13,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const controlFormPanel = document.getElementById("controlFormPanel");
   const controlPanelToggle = document.getElementById("controlPanelToggle");
   const accountInfo = document.getElementById("accountInfo");
-
+  const plGauge = document.getElementById("plGauge");
+ 
+  let totalPL = 0; // cumul des profits et pertes
   let automationRunning = false;
   let smoothVol = 0;
   let smoothTrend = 0;
@@ -370,6 +372,18 @@ document.addEventListener("DOMContentLoaded", () => {
     pct.textContent = `${Math.round(value)}%`;
   }
 
+  function updatePLGauge(plValue) {
+    // On garde une moyenne lissée
+    totalPL = 0.75 * totalPL + 0.25 * plValue;
+
+    // Couleur dynamique : vert si positif, rouge si négatif
+    const color = totalPL >= 0 ? "#4caf50" : "#f44336";
+    const deg = Math.min(360, Math.abs(totalPL) * 3.6); // 100 = 360°
+
+    plGauge.style.background = `conic-gradient(${color} ${deg}deg, #ddd ${deg}deg)`;
+    plGauge.querySelector("span").textContent = `${totalPL >= 0 ? "+" : ""}${totalPL.toFixed(2)}$`;
+  }
+
    // === Automation Toggle ===
   const toggleAutomationBtn = document.getElementById("toggleAutomation");
   toggleAutomationBtn.addEventListener("click", () => {
@@ -426,4 +440,10 @@ document.addEventListener("DOMContentLoaded", () => {
       try { chart.resize(chartInner.clientWidth, chartInner.clientHeight); } catch (e) {}
     }
   });
+  
+  // Simulation : mise à jour toutes les 2 secondes
+  setInterval(() => {
+    const randomPL = (Math.random() - 0.5) * 10; // variation aléatoire entre -5 et +5
+    updatePLGauge(randomPL);
+  }, 2000);
 });
