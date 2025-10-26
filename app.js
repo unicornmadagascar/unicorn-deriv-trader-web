@@ -14,6 +14,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const controlPanelToggle = document.getElementById("controlPanelToggle");
   const accountInfo = document.getElementById("accountInfo");
   const plGauge = document.getElementById("plGauge");
+  const multiplier = document.getElementById("multiplierSelect");
+  const buyBtn = document.getElementById("buyBtn"); 
+  const sellBtn = document.getElementById("sellBtn"); 
+  const stakeInput = document.getElementById("stakeInput");
+  const takeProfitInput = document.getElementById("tpInput");
+  const stopLossInput = document.getElementById("slInput");
+  const closewinning = document.getElementById("closeWininng");
+  const closeAll = document.getElementById("closeAll");
+  const buyNum = document.getElementById("buyNumberInput");
+  const sellNum = document.getElementById("sellNumberInput");
  
   let totalPL = 0; // cumul des profits et pertes
   let automationRunning = false;
@@ -218,6 +228,18 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
+  function startAutomation() {
+    if (automationInterval) clearInterval(automationInterval);
+    automationInterval = setInterval(() => {
+      console.log("Running automation check...");
+    }, 2000);
+  }
+
+  function stopAutomation() {
+    if (automationInterval) clearInterval(automationInterval);
+    automationInterval = null;
+  }
+
   // --- SUBSCRIBE SYMBOL ---
   function subscribeSymbol(symbol) {
     // set desired symbol and reinit chart immediately
@@ -399,17 +421,166 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  function startAutomation() {
-    if (automationInterval) clearInterval(automationInterval);
-    automationInterval = setInterval(() => {
-      console.log("Running automation check...");
-    }, 2000);
+  buyBtn.onclick=()=>executeTrade("BUY");
+  sellBtn.onclick=()=>executeTrade("SELL");
+
+  //--- Trades (New)
+  function executeTrade(type){
+    const stake=parseFloat(stakeInput.value)||1;
+    const multiplier=parseInt(multiplier.value)||300;
+
+    if(authorized && ws && ws.readyState===WebSocket.OPEN){
+       const payload = {
+        buy: 1,
+        price: stake.toFixed(2),
+        parameters: {
+          contract_type: type==="BUY"?"MULTUP":"MULTDOWN",
+          symbol: currentSymbol,
+          currency: "USD",
+          basis: "stake",
+          amount: stake.toFixed(2),
+          multiplier: multiplier,
+          //limit_order: { stop_loss: slInitial, take_profit: tpInitial }
+        }
+      };
+
+      if (type === "BUY")
+       {
+        numb_ = parseInt(buyNum.value)||1;
+       }
+      else if (type === "SELL")
+       {
+        numb_ = parseInt(sellNum.value)||1;
+       }
+
+      for (let i=0;i < numb_; i++)
+       {
+         ws.send(JSON.stringify(payload));
+       }
+    }
   }
 
-  function stopAutomation() {
-    if (automationInterval) clearInterval(automationInterval);
-    automationInterval = null;
-  }
+  closewinning.onclick = () => {
+
+    console.log("🔒 Closing all profitable trades...");
+
+    const token = "wgf8TFDsJ8Ecvze";
+    const ws = new WebSocket(WS_URL);
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ authorize: token }));
+    };
+
+    ws.onerror = (e) => {
+      console.log("❌ WS Error: " + JSON.stringify(e));
+    };
+
+    ws.onmessage = (msg) => {
+       const data = JSON.parse(msg.data);
+
+      // Authorization successful
+      if (data.msg_type === "authorize") {
+         console.log("✅ Authorized successfully. Fetching portfolio...");
+         ws.send(JSON.stringify({ portfolio: 1 }));
+      }
+
+      // Portfolio received
+      if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0) {
+         const contracts = data.portfolio.contracts;
+         console.log("📊 Found " + contracts.length + " active contracts.");
+
+         contracts.forEach((contract,i) => {
+         setTimeout(() => {
+            ws.send(
+              JSON.stringify({
+                 proposal_open_contract: 1,
+                 contract_id: contract.contract_id,
+              })
+            );
+          }, i * 100); // Délai de 500ms entre chaque demande
+      });
+    }
+
+    // Proposal open contract (detail for each active trade)
+    if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
+      const poc = data.proposal_open_contract;
+      const profit = parseFloat(poc.profit);
+
+      if (profit > 0) {
+        console.log(
+          `💰 Closing profitable trade ${poc.contract_id} with profit ${profit.toFixed(2)}`
+        );
+
+        ws.send(
+          JSON.stringify({
+            sell: poc.contract_id,
+            price: 0, // 0 = sell at market price
+          })
+        );
+      }
+    }
+
+    // Sell confirmation
+    if (data.msg_type === "sell") {
+      const profit = parseFloat(data.sell.profit);
+      console.log(`✅ Trade ${data.sell.contract_id} closed with profit: ${profit.toFixed(2)}`);
+    }
+
+    // No open contracts
+    if (data.msg_type === "portfolio" && (!data.portfolio || !data.portfolio.contracts.length)) {
+      console.log("⚠️ No active contracts found.");
+    }
+   };
+ };
+
+closeAll.onclick=()=>{
+  
+    ws = new WebSocket(WS_URL);
+    
+    ws.onopen=()=>{ ws.send(JSON.stringify({ authorize: "wgf8TFDsJ8Ecvze" })); };
+    ws.onclose=()=>{ console.log("Disconnected"); console.log("WS closed"); };
+    ws.onerror=e=>{ console.log("WS error "+JSON.stringify(e)); };
+    ws.onmessage=msg=>{
+    const data=JSON.parse(msg.data);
+    if(data.msg_type==="authorize")
+     {
+        if(!data.authorize?.loginid){ console.log("Token not authorized"); return; }
+        authorized=true; 
+        console.log("connection Authorized.");
+
+        if(authorized && ws && ws.readyState===WebSocket.OPEN)
+        {
+           const portfoliopayload = { portfolio : 1};
+           console.log('The request is open...');
+           console.log('Request in process...');   
+
+           ws.send(JSON.stringify(portfoliopayload));
+       
+           ws.onmessage = msg => {
+           const data = JSON.parse(msg.data);
+           if (data.msg_type === "portfolio" && data.portfolio?.contracts?.length > 0)
+            {
+             const contracts = data.portfolio.contracts;
+             console.log('Found '+ contracts.length + ' active contracts - close all...');   
+             for (const contract of contracts)
+              {
+               console.log('Closing contract '+ contract.contract_id + '(' + contract.contract_type + ')');
+               ws.send(JSON.stringify({
+                 "sell": contract.contract_id,
+                 "price": 0
+               }));
+             }
+            }
+            
+            if (contracts.length === 0)
+            {
+              console.log('No active contracts found.');
+            }
+          };
+        } 
+      }
+    };
+  }; 
 
   // --- TOGGLE PANEL ---
   controlPanelToggle.addEventListener("click", () => {
