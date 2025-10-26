@@ -540,7 +540,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  closewinning.onclick = () => {
+  /*closewinning.onclick=()=>{
 
     console.log("🔒 Closing all profitable trades...");
 
@@ -611,7 +611,7 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log("⚠️ No active contracts found.");
     }
    };
- };
+ }; */
 
 closeAll.onclick=()=>{
   
