@@ -14,7 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const controlPanelToggle = document.getElementById("controlPanelToggle");
   const accountInfo = document.getElementById("accountInfo");
   const plGauge = document.getElementById("plGauge");
-  const multiplier = document.getElementById("multiplierSelect");
+  const multiplierInput = document.getElementById("multiplierSelect");
   const buyBtn = document.getElementById("buyBtn"); 
   const sellBtn = document.getElementById("sellBtn"); 
   const stakeInput = document.getElementById("stakeInput");
@@ -229,15 +229,11 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function startAutomation() {
-    if (automationInterval) clearInterval(automationInterval);
-    automationInterval = setInterval(() => {
-      console.log("Running automation check...");
-    }, 2000);
+    
   }
 
   function stopAutomation() {
-    if (automationInterval) clearInterval(automationInterval);
-    automationInterval = null;
+    
   }
 
   // --- SUBSCRIBE SYMBOL ---
@@ -480,8 +476,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Initialisation
   function initPLGauge() {
-    const gauge = document.getElementById("plGauge");
-    if (!gauge) return;
+    const gauge__ = document.getElementById("plGauge");
+    if (!gauge__) return;
     updatePLGauge(0);
   }
 
@@ -507,7 +503,7 @@ document.addEventListener("DOMContentLoaded", () => {
   //--- Trades (New)
   function executeTrade(type){
     const stake=parseFloat(stakeInput.value)||1;
-    const multiplier=parseInt(multiplier.value)||300;
+    const multiplier=parseInt(multiplierInput.value)||300;
 
     if(authorized && ws && ws.readyState===WebSocket.OPEN){
        const payload = {
@@ -683,7 +679,7 @@ closeAll.onclick=()=>{
   // startup
   displaySymbols();
   initChart();
-  //initPLGauge();
+  initPLGauge();
 
   // resize handling
   window.addEventListener("resize", () => {
