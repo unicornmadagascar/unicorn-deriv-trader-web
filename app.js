@@ -218,6 +218,16 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
+  function startAutomation() {
+    // Exemple : tu peux activer un intervalle ou lancer un process
+    console.log("Automation is now running...");
+  }
+
+  function stopAutomation() {
+    // Exemple : tu peux nettoyer ou stopper les timers
+    console.log("Automation stopped cleanly.");
+  }
+
   // --- SUBSCRIBE SYMBOL ---
   function subscribeSymbol(symbol) {
     // set desired symbol and reinit chart immediately
@@ -425,14 +435,4 @@ document.addEventListener("DOMContentLoaded", () => {
       stopAutomation();
     }
   });
-
-  function startAutomation() {
-    // Exemple : tu peux activer un intervalle ou lancer un process
-    console.log("Automation is now running...");
-  }
-
-  function stopAutomation() {
-    // Exemple : tu peux nettoyer ou stopper les timers
-    console.log("Automation stopped cleanly.");
-  }
 });
