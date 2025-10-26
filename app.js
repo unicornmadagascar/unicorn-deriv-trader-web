@@ -481,22 +481,6 @@ document.addEventListener("DOMContentLoaded", () => {
     updatePLGauge(0);
   }
 
-
-   // === Automation Toggle ===
-  const toggleAutomationBtn = document.getElementById("toggleAutomation");
-  toggleAutomationBtn.addEventListener("click", () => {
-    automationRunning = !automationRunning;
-    if (automationRunning) {
-      toggleAutomationBtn.textContent = "Stop Automation";
-      toggleAutomationBtn.style.background = "linear-gradient(90deg,#f44336,#e57373)";
-      startAutomation();
-    } else {
-      toggleAutomationBtn.textContent = "Launch Automation";
-      toggleAutomationBtn.style.background = "linear-gradient(90deg,#4caf50,#81c784)";
-      stopAutomation();
-    }
-  });
-
   buyBtn.onclick=()=>executeTrade("BUY");
   sellBtn.onclick=()=>executeTrade("SELL");
 
@@ -536,15 +520,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  /*closewinning.onclick=()=>{
-
+  closewinning.onclick=()=>{
     console.log("🔒 Closing all profitable trades...");
-
-    const token = "wgf8TFDsJ8Ecvze";
     const ws = new WebSocket(WS_URL);
-
     ws.onopen = () => {
-      ws.send(JSON.stringify({ authorize: token }));
+      ws.send(JSON.stringify({ authorize: TOKEN }));
     };
 
     ws.onerror = (e) => {
@@ -573,7 +553,7 @@ document.addEventListener("DOMContentLoaded", () => {
                  contract_id: contract.contract_id,
               })
             );
-          }, i * 100); // Délai de 500ms entre chaque demande
+          }, i * 200); // Délai de 500ms entre chaque demande
       });
     }
 
@@ -607,7 +587,7 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log("⚠️ No active contracts found.");
     }
    };
- }; */
+ };
 
 closeAll.onclick=()=>{
   
@@ -657,6 +637,21 @@ closeAll.onclick=()=>{
       }
     };
   }; 
+
+  // === Automation Toggle ===
+  const toggleAutomationBtn = document.getElementById("toggleAutomation");
+  toggleAutomationBtn.addEventListener("click", () => {
+    automationRunning = !automationRunning;
+    if (automationRunning) {
+      toggleAutomationBtn.textContent = "Stop Automation";
+      toggleAutomationBtn.style.background = "linear-gradient(90deg,#f44336,#e57373)";
+      startAutomation();
+    } else {
+      toggleAutomationBtn.textContent = "Launch Automation";
+      toggleAutomationBtn.style.background = "linear-gradient(90deg,#4caf50,#81c784)";
+      stopAutomation();
+    }
+  });
 
   // --- TOGGLE PANEL ---
   controlPanelToggle.addEventListener("click", () => {
