@@ -683,7 +683,7 @@ closeAll.onclick=()=>{
   // startup
   displaySymbols();
   initChart();
-  initPLGauge();
+  //initPLGauge();
 
   // resize handling
   window.addEventListener("resize", () => {
