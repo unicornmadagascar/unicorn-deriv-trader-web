@@ -20,7 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const stakeInput = document.getElementById("stakeInput");
   const takeProfitInput = document.getElementById("tpInput");
   const stopLossInput = document.getElementById("slInput");
-  const closewinning = document.getElementById("closeWininng");
+  const closewinning = document.getElementById("closeWinning");
   const closeAll = document.getElementById("closeAll");
   const buyNum = document.getElementById("buyNumberInput");
   const sellNum = document.getElementById("sellNumberInput");
@@ -521,8 +521,11 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   closewinning.onclick=()=>{
-    
+
+    console.log("Closing all profitable trades...");
+
     const ws = new WebSocket(WS_URL);
+    
     ws.onopen = () => {
       ws.send(JSON.stringify({ authorize: TOKEN }));
     };
