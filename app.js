@@ -38,7 +38,6 @@ document.addEventListener("DOMContentLoaded", () => {
     { symbol: "CRASH900", name: "Crash 900" },
     { symbol: "BOOM600", name: "Boom 600" },
     { symbol: "CRASH600", name: "Crash 600" },
-    { symbol: "BOOM300", name: "Boom 300" },
     { symbol: "R_100", name: "VIX 100" },
     { symbol: "R_75", name: "VIX 75" },
     { symbol: "R_50", name: "VIX 50" },
