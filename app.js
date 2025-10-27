@@ -408,6 +408,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // On garde une moyenne lissée
     totalPL = plValue;   
     
+    ws = new WebSocket(WS_URL);
+    
     // Connexion WebSocket
     ws.onopen = () => {
       console.log("✅ Connecté au WebSocket Deriv");
@@ -847,7 +849,7 @@ closeAll.onclick=()=>{
   
   // Simulation : mise à jour toutes les 2 secondes
   ws = new WebSocket(WS_URL);
-  ActivePositions(ws,currentSymbol);
+  //ActivePositions(ws,currentSymbol);
   setInterval(() => {
       contractentry(totalPL => {
         updatePLGauge(ws,totalPL);
