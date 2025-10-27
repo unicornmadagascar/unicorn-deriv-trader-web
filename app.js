@@ -261,6 +261,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       ws.send(JSON.stringify({ forget_all: "ticks" }));
       ws.send(JSON.stringify({ ticks: symbol }));
+      ActivePositions(ws, currentSymbol);
     } catch (e) {
       // fallback: queue for after authorize
       pendingSubscribe = symbol;
@@ -287,7 +288,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (recentChanges.length > 60) recentChanges.shift();
 
     updateCircularGauges();
-    ActivePositions(currentSymbol):
 
     // update chartData and series
     if (!areaSeries || !chart) return;
@@ -492,7 +492,7 @@ document.addEventListener("DOMContentLoaded", () => {
      return (1 - 1 / (1 + Math.exp(-x)));
   }
 
-  function ActivePositions(symbol){
+  function ActivePositions(ws, symbol){
     
     if (!authorized){ console.log("Request Non authorized."); return 0;}
 
@@ -774,8 +774,6 @@ closeAll.onclick=()=>{
      ActivePositions(currentSymbol);
     }   
   }, 1000); */
-  
-  ActivePositions
 
   // resize handling
   window.addEventListener("resize", () => {
