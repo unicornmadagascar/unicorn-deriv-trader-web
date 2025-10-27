@@ -441,19 +441,17 @@ document.addEventListener("DOMContentLoaded", () => {
              if (profitHistory.length === 3) {
                 const [p1, p2, p3] = profitHistory;
                 const mean__ = (p1 + p2 + p3) / 3;
-                const dispersion__ = ecartType(profitHistory);
-                const delta__ = (p3 - mean__) / dispersion__;
+                const dispersion__ = ecartType(profitHistory);              
                 if (dispersion__ !== 0)
                 {
+                  const delta__ = (p3 - mean__) / dispersion__;
                   signal__ = 1 / (1 + Math.exp(-delta__)) * 100;
                   console.log(`📈 Sigmoid(${delta__.toFixed(6)}) = ${signal__.toFixed(6)}`);
                 }
                 else
                 {
-                  
+                 signal__ = 0;
                 }
-
-                
              }
           }
         }
@@ -466,7 +464,7 @@ document.addEventListener("DOMContentLoaded", () => {
     drawCircularGauge(plGauge, signal__, color);
     
     plGauge.style.background = `conic-gradient(${color} ${deg}deg, #ddd ${deg}deg)`;
-    plGauge.querySelector("span").textContent = `${totalPL >= 0 ? "+" : ""}${totalPL.toFixed(2)}$`;
+    //plGauge.querySelector("span").textContent = `${totalPL >= 0 ? "+" : ""}${totalPL.toFixed(2)}$`;
   }
 
   // === P/L LIVE FUNCTION ===
