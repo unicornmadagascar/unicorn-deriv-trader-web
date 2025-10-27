@@ -847,10 +847,10 @@ closeAll.onclick=()=>{
   
   // Simulation : mise à jour toutes les 2 secondes
   ws = new WebSocket(WS_URL);
+  ActivePositions(ws,currentSymbol);
   setInterval(() => {
       contractentry(totalPL => {
         updatePLGauge(ws,totalPL);
       });
   }, 500);
-  ActivePositions(ws,currentSymbol);
 });
