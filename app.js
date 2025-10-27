@@ -456,16 +456,13 @@ document.addEventListener("DOMContentLoaded", () => {
   function contractentry(onUpdate) {
    
   if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.close();
-      ws = null;
-      authorized = false;
-      connectBtn.textContent = "Se connecter";
-      accountInfo.textContent = "";
-      return;
+    ws.close();
+    ws = null;
+    authorized = false;
+    return;
   }
 
    ws = new WebSocket(WS_URL);
-   
 
    if (!TOKEN) {
      console.log("Please, verify your token, and try again.");
