@@ -39,6 +39,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let Dispersion;
   // Historique local des ticks
   let tickHistory = [];
+  // Historique de profits
+let profitHistory = [];
 
   // --- NEW: current symbol & pending subscribe ---
   let currentSymbol = null;
@@ -234,11 +236,15 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function startAutomation() {
-    console.log("Start Automation");
+    
   }
 
   function stopAutomation() {
-    console.log("Stop Automation");
+    if (ws && ws.readyState === WebSocket.OPEN) {
+       // Envoyer unsubscribe avant de fermer
+       ws.send(JSON.stringify({ forget_all: "ticks" }));
+       ws.close();
+    }
   }
 
   // --- SUBSCRIBE SYMBOL ---
@@ -398,11 +404,57 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function updatePLGauge(plValue) {
     // On garde une moyenne lissée
-    totalPL = plValue;
+    totalPL = plValue;   
+    const ws = new WebSocket(WS_URL);
+    // Connexion WebSocket
+    ws.onopen = () => {
+      console.log("✅ Connecté au WebSocket Deriv");
+      ws.send(JSON.stringify({ authorize: TOKEN }));
+   };
+   
+     // Gestion des messages WebSocket
+     ws.onmessage = (msg) => {
+       const data = JSON.parse(msg.data);
+
+       // Étape 1 : Autorisation
+       if (data.authorize) {
+          console.log("🔑 Autorisé. Souscription aux contrats ouverts...");
+          ws.send(JSON.stringify({ proposal_open_contract: 1, subscribe: 1 }));
+       }
+
+       // Étape 2 : Réception d’un contrat ouvert (ou mis à jour)
+       if (data.proposal_open_contract) {
+          const contract = data.proposal_open_contract;
+
+          // Vérifie si le contrat est encore ouvert
+          if (contract.is_valid_to_sell === 1 && !contract.is_expired) {
+             const entry = parseFloat(contract.buy_price);
+             const current = parseFloat(contract.current_spot);
+             const profit = parseFloat(contract.profit);
+
+             // Ajoute le profit à l’historique
+             profitHistory.push(profit);
+             if (profitHistory.length > 3) profitHistory.shift();
+
+             // Quand on a 3 points, calcul de la tendance locale
+             if (profitHistory.length === 3) {
+                const [p1, p2, p3] = profitHistory;
+                const mean__ = (p1 + p2 + p3) / 3;
+                const dispersion__ = ecartType(profitHistory);
+                const delta__ = (p3 - mean__) / dispersion__;
+                const signal__ = 1 / (1 + Math.exp(-delta__)) * 100;
+
+                console.log(`📈 Sigmoid(${delta__.toFixed(6)}) = ${signal__.toFixed(6)}`);
+             }
+          }
+        }
+    };
 
     // Couleur dynamique : vert si positif, rouge si négatif
     const color = totalPL >= 0 ? "#4caf50" : "#f44336";
     const deg = Math.min(360, Math.abs(totalPL) * 3.6); // 100 = 360°
+
+    drawCircularGauge(plGauge, signal__, color);
     
     plGauge.style.background = `conic-gradient(${color} ${deg}deg, #ddd ${deg}deg)`;
     plGauge.querySelector("span").textContent = `${totalPL >= 0 ? "+" : ""}${totalPL.toFixed(2)}$`;
@@ -472,9 +524,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const contractlength = poc.length;
       if (contractlength === 0)
         return 0;
-
-      //const plpercentage = 1/(1 + Math.exp(-totalPL)) * 100; // Sigmoid for smoother gauge
-      //drawCircularGauge(plGauge, plpercentage, color);
 
       // Callback → gauge mis à jour à chaque tick
       if (typeof onUpdate === "function") onUpdate(totalPL);
@@ -763,17 +812,6 @@ closeAll.onclick=()=>{
   initChart();
   initPLGauge();
 
-  ws = new WebSocket(WS_URL);
-
-  setInterval(() => {
-    console.log("Current Symbol : " + currentSymbol);
-    console.log("WS Authorization : " + authorized);
-    if (authorized === true)
-    {
-     ActivePositions(ws, currentSymbol);
-    }   
-  }, 1000); 
-
   // resize handling
   window.addEventListener("resize", () => {
     try { positionGauges(); } catch (e) {}
@@ -787,5 +825,5 @@ closeAll.onclick=()=>{
     contractentry(totalPL => {
       updatePLGauge(totalPL);
     });
-  }, 1000);
+  }, 500);
 });
