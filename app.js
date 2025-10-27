@@ -36,6 +36,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let lastPrices = {};
   let recentChanges = [];
   let signal;
+  let Dispersion;
   // Historique local des ticks
   let tickHistory = [];
 
@@ -492,9 +493,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function ActivePositions(symbol){
-
-    ws = new WebSocket(WS_URL);
     
+    ws = new WebSocket(WS_URL);
+
     ws.onopen = () => {
       console.log("✅ Connecté au WebSocket Deriv");
       ws.send(JSON.stringify({ authorize: TOKEN }));
@@ -529,7 +530,7 @@ document.addEventListener("DOMContentLoaded", () => {
            
            // On peut aussi normaliser avec la moyenne
            const mean = (p1 + p2 + p3) / 3;
-           const Dispersion = ecartType(tickHistory);
+           Dispersion = ecartType(tickHistory);
            console.log("Dispersion : " + Dispersion);
            if (Dispersion !==0)
            {
