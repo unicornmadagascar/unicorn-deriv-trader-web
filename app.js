@@ -287,6 +287,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (recentChanges.length > 60) recentChanges.shift();
 
     updateCircularGauges();
+    ActivePositions(currentSymbol):
 
     // update chartData and series
     if (!areaSeries || !chart) return;
@@ -773,6 +774,8 @@ closeAll.onclick=()=>{
      ActivePositions(currentSymbol);
     }   
   }, 1000); */
+  
+  ActivePositions
 
   // resize handling
   window.addEventListener("resize", () => {
