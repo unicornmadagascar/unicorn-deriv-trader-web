@@ -116,6 +116,7 @@ document.addEventListener("DOMContentLoaded", () => {
       appendGauge(gaugesContainer, volGauge, "Volatility");
       appendGauge(gaugesContainer, trendGauge, "Tendance");
       appendGauge(gaugesContainer, probGauge, "Probabilité");
+      appendGauge(gaugesContainer, plGauge, "Probabilité");
     }
   }
 
