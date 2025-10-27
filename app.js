@@ -524,12 +524,14 @@ document.addEventListener("DOMContentLoaded", () => {
             // Calcul sur le vecteur des 3 derniers ticks
             const [p1, p2, p3] = tickHistory;
 
+            let Tickvector[] = [p1,p2,p3];
+
            // Exemple de "variation moyenne" locale
            const variation = (p3 - p1) / 3; 
            
            // On peut aussi normaliser avec la moyenne
            const mean = (p1 + p2 + p3) / 3;
-           const Dispersion = ecartType(tickHistory);
+           const Dispersion = ecartType(Tickvector);
            console.log("Dispersion : " + Dispersion);
            if (Dispersion !==0)
            {
