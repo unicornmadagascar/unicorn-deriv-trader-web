@@ -42,6 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let tickHistory = [];
   // Historique de profits
   let profitHistory = [];
+  const contractsData = {}; // stockage des contrats {id: {profits: [], infos: {…}}}
 
   // --- NEW: current symbol & pending subscribe ---
   let currentSymbol = null;
@@ -406,12 +407,94 @@ document.addEventListener("DOMContentLoaded", () => {
   function updatePLGauge(plValue) {
     // On garde une moyenne lissée
     totalPL = plValue;   
-    const ws = new WebSocket(WS_URL);
+    
     // Connexion WebSocket
     ws.onopen = () => {
       console.log("✅ Connecté au WebSocket Deriv");
       ws.send(JSON.stringify({ authorize: TOKEN }));
    };
+   
+    ws.onmessage = (msg) => {
+     const data = JSON.parse(msg.data);
+
+     // 1️⃣ Autorisation réussie → récupérer la liste des contrats ouverts
+     if (data.authorize) {
+       console.log("🔑 Autorisé, récupération du portefeuille...");
+       ws.send(JSON.stringify({ portfolio: 1 }));
+     }
+
+     // 2️⃣ Liste des contrats ouverts
+     if (data.portfolio) {
+       const contracts = data.portfolio.contracts || [];
+       console.log(`📦 ${contracts.length} contrat(s) ouvert(s) trouvé(s).`);
+       let profit_arr = [];
+       const i = 0;
+       contracts.forEach((c) => {
+         const id = c.contract_id;
+         console.log(`🟢 Abonnement au contrat #${id} (${c.contract_type})`);
+
+         // Abonnement individuel
+         ws.send(JSON.stringify({
+           proposal_open_contract: 1,
+           contract_id: id,
+           subscribe: 1
+         }));
+         
+         // 3️⃣ Mise à jour en temps réel d’un contrat
+         if (data.proposal_open_contract) {
+            const contract = data.proposal_open_contract;
+            const id = contract.contract_id;
+
+            if (!id) return;
+
+            // Ajout du profit dans l’historique local
+            const profit = parseFloat(contract.profit);
+            
+            profit_arr[i] = profit;
+
+            i = i + 1;
+         }
+       });
+
+       // Calcul de la sigmoïde si assez de points
+       if (profit_arr.length === 0) return;
+
+       const dispersion__ = ecartType(profit_arr);
+       const mean__ = profit_arr.reduce((a, b) => a + b, 0) / profit_arr.length;
+
+      if (dispersion__ !== 0)
+       {
+        const delta__ = (profit_arr[i] - mean__) / dispersion__;
+        signal__ = 1 / (1 + Math.exp(-delta__)) * 100;
+       }
+      else
+       {
+        signal__ = 0;
+       }
+     }
+    };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
    
      // Gestion des messages WebSocket
      ws.onmessage = (msg) => {
@@ -435,7 +518,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
              // Ajoute le profit à l’historique
              profitHistory.push(profit);
-             if (profitHistory.length > 3) profitHistory.shift();
+             if (profitHistory.length > contract) profitHistory.shift();
 
              // Quand on a 3 points, calcul de la tendance locale
              if (profitHistory.length === 3) {
@@ -445,7 +528,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (dispersion__ !== 0)
                 {
                   const delta__ = (p3 - mean__) / dispersion__;
-                  signal__ = 1 / (1 + Math.exp(-delta__)) * 100;
+                  signal__ = 1 / (1 + Math.exp(-delta__ * 10)) * 100;
                   console.log(`📈 Sigmoid(${delta__.toFixed(6)}) = ${signal__.toFixed(6)}`);
                 }
                 else
