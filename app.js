@@ -399,8 +399,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // Couleur dynamique : vert si positif, rouge si négatif
     const color = totalPL >= 0 ? "#4caf50" : "#f44336";
     const deg = Math.min(360, Math.abs(totalPL) * 3.6); // 100 = 360°
+    const plpercentage = 1/(1 + Math.exp(-totalPL)) * 100; // Sigmoid for smoother gauge
     
-    drawCircularGauge(probGauge, prob, "#4caf50");
+    drawCircularGauge(plGauge, plpercentage, color);
     plGauge.style.background = `conic-gradient(${color} ${deg}deg, #ddd ${deg}deg)`;
     plGauge.querySelector("span").textContent = `${totalPL >= 0 ? "+" : ""}${totalPL.toFixed(2)}$`;
   }
