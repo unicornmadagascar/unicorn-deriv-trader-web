@@ -35,6 +35,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let chartData = [];
   let lastPrices = {};
   let recentChanges = [];
+  // Historique local des ticks
+  let tickHistory = [];
 
   // --- NEW: current symbol & pending subscribe ---
   let currentSymbol = null;
@@ -483,42 +485,63 @@ document.addEventListener("DOMContentLoaded", () => {
    return totalPL;
   }
 
+  function sigmoid(x) {
+     return (1 - 1 / (1 + Math.exp(-x)));
+  }
+
   function ActivePositions(){
+   
+    //ws = new WebSocket(WS_URL);
+
+    if (authorized === false) return 0;
+    
     ws.onopen = () => {
-      console.log("✅ Connecté à Deriv WebSocket");
-      // Remplace par ton token Deriv
+      console.log("✅ Connecté au WebSocket Deriv");
       ws.send(JSON.stringify({ authorize: TOKEN }));
     };
 
-  ws.onmessage = (msg) => {
-    const data = JSON.parse(msg.data);
+    ws.onmessage = (msg) => {
+      const data = JSON.parse(msg.data);
 
-    // Après autorisation : demander la liste des positions ouvertes
-    if (data.authorize) {
-      ws.send(JSON.stringify({ active_positions: 1 }));
-    }
-
-    // Quand on reçoit la réponse des contrats ouverts
-    if (data.active_positions) {
-      const positions = data.active_positions.positions;
-
-      if (!positions || positions.length === 0) {
-        console.log("Aucun contrat ouvert");
-        return;
+      // Autorisation réussie → abonnement aux ticks
+      if (data.authorize) {
+         console.log("🔑 Autorisé, abonnement aux ticks...");
+         ws.send(JSON.stringify({ ticks: SYMBOL, subscribe: 1 }));
       }
 
-      // Sélectionner les 5 plus récents (ou moins s’il y en a moins)
-      const last5 = positions.slice(-5);
+      // Quand un tick arrive
+      if (data.tick) {
+         const price = parseFloat(data.tick.quote);
+         const time = new Date(data.tick.epoch * 1000).toLocaleTimeString();
 
-      // Exemple : on calcule l’écart-type des profits actuels
-      const profits = last5.map(p => parseFloat(p.profit || 0));
+         tickHistory.push(price);
+         if (tickHistory.length > 3) tickHistory.shift(); // garder seulement les 3 derniers ticks
 
-      const stdDev = ecartType(profits);
+         console.clear();
+         console.log(`🕒 Tick reçu à ${time} | Prix : ${price}`);
 
-      console.log("💰 Profits des 5 contrats :", profits);
-      console.log("📉 Écart-type :", stdDev.toFixed(4));
-    }
-   };
+         if (tickHistory.length === 3) {
+            // Calcul sur le vecteur des 3 derniers ticks
+            const [p1, p2, p3] = tickHistory;
+
+           // Exemple de "variation moyenne" locale
+           const variation = (p3 - p1) / 3; 
+
+           // On peut aussi normaliser avec la moyenne
+           const mean = (p1 + p2 + p3) / 3;
+           const delta = (p3 - mean) / mean; // variation relative
+
+           // Application de la sigmoïde
+           const signal = sigmoid(delta * 10); // *10 = facteur de sensibilité
+
+           console.log(`📊 Derniers ticks : ${tickHistory.map(x => x.toFixed(3)).join(", ")}`);
+           console.log(`⚙️ Variation moyenne : ${variation.toFixed(6)}`);
+           console.log(`📈 Sigmoid : ${signal.toFixed(6)}`);
+         }
+      }
+    };
+
+    return signal;
   }
 
   // Fonction pour calculer l’écart-type (population)
