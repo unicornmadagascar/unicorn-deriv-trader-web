@@ -35,6 +35,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let chartData = [];
   let lastPrices = {};
   let recentChanges = [];
+  let signal;
   // Historique local des ticks
   let tickHistory = [];
 
@@ -532,7 +533,7 @@ document.addEventListener("DOMContentLoaded", () => {
            const delta = (p3 - mean) / mean; // variation relative
 
            // Application de la sigmoïde
-           const signal = sigmoid(delta * 10); // *10 = facteur de sensibilité
+           signal = sigmoid(delta * 10); // *10 = facteur de sensibilité
 
            console.log(`📊 Derniers ticks : ${tickHistory.map(x => x.toFixed(3)).join(", ")}`);
            console.log(`⚙️ Variation moyenne : ${variation.toFixed(6)}`);
@@ -771,8 +772,7 @@ closeAll.onclick=()=>{
     {
      ActivePositions(ws);
     }
-     
-  },100);
+  },1000);
   
   // Simulation : mise à jour toutes les 2 secondes
   setInterval(() => {
