@@ -201,7 +201,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 currentSymbol = pendingSubscribe;
                 pendingSubscribe = null;
               }
-            }, 100);
+            }, 300);
           }
 
           displaySymbols();
@@ -244,8 +244,6 @@ document.addEventListener("DOMContentLoaded", () => {
       ws.close();
       ws = null;
       authorized = false;
-      connectBtn.textContent = "Se connecter";
-      accountInfo.textContent = "";
       return;
     }
 
@@ -253,7 +251,7 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log("Connecting...");
 
     ws.onopen = () => {
-      statusDiv.textContent = "Connected";
+      console.log("Connected");
       // Exemple : abonnement aux ticks
       ws.send(JSON.stringify({
         ticks: "R_100",
@@ -456,7 +454,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function contractentry(onUpdate) {
    
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.close();
+    //ws.close();
     ws = null;
     authorized = false;
     return;
