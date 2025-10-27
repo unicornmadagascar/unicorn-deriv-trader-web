@@ -493,7 +493,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function ActivePositions(symbol){
 
-    if (authorized === false) return 0;
+    ws = new WebSocket(WS_URL);
     
     ws.onopen = () => {
       console.log("✅ Connecté au WebSocket Deriv");
