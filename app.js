@@ -482,7 +482,7 @@ document.addEventListener("DOMContentLoaded", () => {
     drawCircularGauge(plGauge, signal__, color);
     
     plGauge.style.background = `conic-gradient(${color} ${deg}deg, #ddd ${deg}deg)`;
-    plGauge.querySelector("span").textContent = `${totalPL >= 0 ? "+" : ""}${totalPL.toFixed(2)}$`;
+    //plGauge.querySelector("span").textContent = `${totalPL >= 0 ? "+" : ""}${totalPL.toFixed(2)}$`;
   }
 
   // === P/L LIVE FUNCTION ===
@@ -565,7 +565,7 @@ document.addEventListener("DOMContentLoaded", () => {
      return (1 - 1 / (1 + Math.exp(-x)));
   }
 
-  /*function ActivePositions(ws, symbol){
+  function ActivePositions(ws, symbol){
 
     ws.onopen = () => {
       console.log("✅ Connecté au WebSocket Deriv");
@@ -615,14 +615,14 @@ document.addEventListener("DOMContentLoaded", () => {
            }
           else
            {
-             signal = null;
+             signal = 0;
            }
          }
       }
     };
 
     return signal;
-  } */
+  } 
 
   // Fonction pour calculer l’écart-type (population)
   function ecartType(values) {
