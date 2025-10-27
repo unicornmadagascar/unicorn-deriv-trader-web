@@ -116,7 +116,7 @@ document.addEventListener("DOMContentLoaded", () => {
       appendGauge(gaugesContainer, volGauge, "Volatility");
       appendGauge(gaugesContainer, trendGauge, "Tendance");
       appendGauge(gaugesContainer, probGauge, "Probabilité");
-      appendGauge(gaugesContainer, plGauge, "Probabilité");
+      appendGauge(gaugesContainer, plGauge, "P/L Live");
     }
   }
 
@@ -230,11 +230,11 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function startAutomation() {
-    
+    console.log("Start Automation");
   }
 
   function stopAutomation() {
-    
+    console.log("Stop Automation");
   }
 
   // --- SUBSCRIBE SYMBOL ---
@@ -338,6 +338,7 @@ document.addEventListener("DOMContentLoaded", () => {
     drawCircularGauge(volGauge, smoothVol, "#ff9800");
     drawCircularGauge(trendGauge, smoothTrend, "#2962FF");
     drawCircularGauge(probGauge, prob, "#4caf50");
+    
   }
 
   // --- DRAW GAUGE ---
@@ -398,7 +399,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // Couleur dynamique : vert si positif, rouge si négatif
     const color = totalPL >= 0 ? "#4caf50" : "#f44336";
     const deg = Math.min(360, Math.abs(totalPL) * 3.6); // 100 = 360°
-
+    
+    drawCircularGauge(probGauge, prob, "#4caf50");
     plGauge.style.background = `conic-gradient(${color} ${deg}deg, #ddd ${deg}deg)`;
     plGauge.querySelector("span").textContent = `${totalPL >= 0 ? "+" : ""}${totalPL.toFixed(2)}$`;
   }
