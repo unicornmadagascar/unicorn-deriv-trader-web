@@ -399,9 +399,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Couleur dynamique : vert si positif, rouge si négatif
     const color = totalPL >= 0 ? "#4caf50" : "#f44336";
     const deg = Math.min(360, Math.abs(totalPL) * 3.6); // 100 = 360°
-    const plpercentage = 1/(1 + Math.exp(-totalPL)) * 100; // Sigmoid for smoother gauge
     
-    drawCircularGauge(plGauge, plpercentage, color);
     plGauge.style.background = `conic-gradient(${color} ${deg}deg, #ddd ${deg}deg)`;
     plGauge.querySelector("span").textContent = `${totalPL >= 0 ? "+" : ""}${totalPL.toFixed(2)}$`;
   }
@@ -467,6 +465,13 @@ document.addEventListener("DOMContentLoaded", () => {
       // Calcule le P/L total
       const totalPL = Object.values(contracts).reduce((a, b) => a + b, 0);
 
+      const contractlength = poc.length;
+      if (contractlength === 0)
+        return 0;
+
+      //const plpercentage = 1/(1 + Math.exp(-totalPL)) * 100; // Sigmoid for smoother gauge
+      //drawCircularGauge(plGauge, plpercentage, color);
+
       // Callback → gauge mis à jour à chaque tick
       if (typeof onUpdate === "function") onUpdate(totalPL);
     }
@@ -476,6 +481,52 @@ document.addEventListener("DOMContentLoaded", () => {
    ws.onclose = () => console.log("Disconnected from Deriv WebSocket.");
 
    return totalPL;
+  }
+
+  function ActivePositions(){
+    ws.onopen = () => {
+      console.log("✅ Connecté à Deriv WebSocket");
+      // Remplace par ton token Deriv
+      ws.send(JSON.stringify({ authorize: TOKEN }));
+    };
+
+  ws.onmessage = (msg) => {
+    const data = JSON.parse(msg.data);
+
+    // Après autorisation : demander la liste des positions ouvertes
+    if (data.authorize) {
+      ws.send(JSON.stringify({ active_positions: 1 }));
+    }
+
+    // Quand on reçoit la réponse des contrats ouverts
+    if (data.active_positions) {
+      const positions = data.active_positions.positions;
+
+      if (!positions || positions.length === 0) {
+        console.log("Aucun contrat ouvert");
+        return;
+      }
+
+      // Sélectionner les 5 plus récents (ou moins s’il y en a moins)
+      const last5 = positions.slice(-5);
+
+      // Exemple : on calcule l’écart-type des profits actuels
+      const profits = last5.map(p => parseFloat(p.profit || 0));
+
+      const stdDev = ecartType(profits);
+
+      console.log("💰 Profits des 5 contrats :", profits);
+      console.log("📉 Écart-type :", stdDev.toFixed(4));
+    }
+   };
+  }
+
+  // Fonction pour calculer l’écart-type (population)
+  function ecartType(values) {
+    if (values.length === 0) return 0;
+    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+    const variance = values.map(x => (x - mean) ** 2).reduce((a, b) => a + b, 0) / values.length;
+    return Math.sqrt(variance);
   }
 
   // Initialisation
