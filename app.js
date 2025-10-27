@@ -489,7 +489,7 @@ document.addEventListener("DOMContentLoaded", () => {
      return (1 - 1 / (1 + Math.exp(-x)));
   }
 
-  function ActivePositions(){
+  function ActivePositions(ws){
    
     //ws = new WebSocket(WS_URL);
 
@@ -764,6 +764,15 @@ closeAll.onclick=()=>{
       try { chart.resize(chartInner.clientWidth, chartInner.clientHeight); } catch (e) {}
     }
   });
+
+  setInterval(() => {
+    console.log("WS AUTHORIZED : " + authorized);
+    if (authorized === true)
+    {
+     ActivePositions(ws);
+    }
+     
+  },100);
   
   // Simulation : mise à jour toutes les 2 secondes
   setInterval(() => {
