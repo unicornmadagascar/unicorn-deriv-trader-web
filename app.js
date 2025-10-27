@@ -407,6 +407,8 @@ document.addEventListener("DOMContentLoaded", () => {
   function updatePLGauge(plValue) {
     // On garde une moyenne lissée
     totalPL = plValue;   
+
+    ws = new WebSocket(WS_URL);
     
     // Connexion WebSocket
     ws.onopen = () => {
@@ -451,7 +453,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const profit = parseFloat(contract.profit);
             
             profit_arr[i] = profit;
-
+            console.log(`📈 Contrat #${id} profit mis à jour : ${profit_arr[i].toFixed(2)}$`);
             i = i + 1;
          }
        });
@@ -462,82 +464,17 @@ document.addEventListener("DOMContentLoaded", () => {
        const dispersion__ = ecartType(profit_arr);
        const mean__ = profit_arr.reduce((a, b) => a + b, 0) / profit_arr.length;
 
-      if (dispersion__ !== 0)
+       if (dispersion__ !== 0)
        {
         const delta__ = (profit_arr[i] - mean__) / dispersion__;
         signal__ = 1 / (1 + Math.exp(-delta__)) * 100;
+        console.log("Sigmoid : " + signal__);
        }
-      else
+       else
        {
         signal__ = 0;
        }
      }
-    };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-   
-     // Gestion des messages WebSocket
-     ws.onmessage = (msg) => {
-       const data = JSON.parse(msg.data);
-
-       // Étape 1 : Autorisation
-       if (data.authorize) {
-          console.log("🔑 Autorisé. Souscription aux contrats ouverts...");
-          ws.send(JSON.stringify({ proposal_open_contract: 1, subscribe: 1 }));
-       }
-
-       // Étape 2 : Réception d’un contrat ouvert (ou mis à jour)
-       if (data.proposal_open_contract) {
-          const contract = data.proposal_open_contract;
-
-          // Vérifie si le contrat est encore ouvert
-          if (contract.is_valid_to_sell === 1 && !contract.is_expired) {
-             const entry = parseFloat(contract.buy_price);
-             const current = parseFloat(contract.current_spot);
-             const profit = parseFloat(contract.profit);
-
-             // Ajoute le profit à l’historique
-             profitHistory.push(profit);
-             if (profitHistory.length > contract) profitHistory.shift();
-
-             // Quand on a 3 points, calcul de la tendance locale
-             if (profitHistory.length === 3) {
-                const [p1, p2, p3] = profitHistory;
-                const mean__ = (p1 + p2 + p3) / 3;
-                const dispersion__ = ecartType(profitHistory);              
-                if (dispersion__ !== 0)
-                {
-                  const delta__ = (p3 - mean__) / dispersion__;
-                  signal__ = 1 / (1 + Math.exp(-delta__ * 10)) * 100;
-                  console.log(`📈 Sigmoid(${delta__.toFixed(6)}) = ${signal__.toFixed(6)}`);
-                }
-                else
-                {
-                 signal__ = 0;
-                }
-             }
-          }
-        }
     };
 
     // Couleur dynamique : vert si positif, rouge si négatif
