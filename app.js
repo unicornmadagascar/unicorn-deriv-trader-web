@@ -765,14 +765,14 @@ closeAll.onclick=()=>{
   initChart();
   initPLGauge();
 
-  setInterval(() => {
+  /*setInterval(() => {
     console.log("Current Symbol : " + currentSymbol);
     console.log("WS Authorization : " + authorized);
     if (authorized === true)
     {
      ActivePositions(currentSymbol);
     }   
-  }, 5000);
+  }, 1000); */
 
   // resize handling
   window.addEventListener("resize", () => {
@@ -787,5 +787,5 @@ closeAll.onclick=()=>{
     contractentry(totalPL => {
       updatePLGauge(totalPL);
     });
-  }, 5000);
+  }, 1000);
 });
