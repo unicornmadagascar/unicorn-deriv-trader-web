@@ -251,6 +251,7 @@ document.addEventListener("DOMContentLoaded", () => {
       pendingSubscribe = symbol;
       if (!ws || ws.readyState === WebSocket.CLOSED) {
         connectDeriv();
+        ActivePositions(symbol);
       }
       // we'll actually send subscription after authorize in ws.onmessage
       return;
@@ -490,9 +491,7 @@ document.addEventListener("DOMContentLoaded", () => {
      return (1 - 1 / (1 + Math.exp(-x)));
   }
 
-  function ActivePositions(ws){
-   
-    //ws = new WebSocket(WS_URL);
+  function ActivePositions(symbol){
 
     if (authorized === false) return 0;
     
@@ -507,7 +506,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // Autorisation réussie → abonnement aux ticks
       if (data.authorize) {
          console.log("🔑 Autorisé, abonnement aux ticks...");
-         ws.send(JSON.stringify({ ticks: SYMBOL, subscribe: 1 }));
+         ws.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
       }
 
       // Quand un tick arrive
@@ -527,17 +526,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
            // Exemple de "variation moyenne" locale
            const variation = (p3 - p1) / 3; 
-
+           
            // On peut aussi normaliser avec la moyenne
            const mean = (p1 + p2 + p3) / 3;
-           const delta = (p3 - mean) / mean; // variation relative
+           const Dispersion = ecartType(tickHistory);
+           console.log("Dispersion : " + Dispersion);
+           if (Dispersion !==0)
+           {
+            const delta = (p3 - mean) / Dispersion; // variation relative
+            // Application de la sigmoïde
+            signal = sigmoid(delta); // delta*10 ou 10 = facteur de sensibilité
 
-           // Application de la sigmoïde
-           signal = sigmoid(delta * 10); // *10 = facteur de sensibilité
-
-           console.log(`📊 Derniers ticks : ${tickHistory.map(x => x.toFixed(3)).join(", ")}`);
-           console.log(`⚙️ Variation moyenne : ${variation.toFixed(6)}`);
-           console.log(`📈 Sigmoid : ${signal.toFixed(6)}`);
+            console.log(`📊 Derniers ticks : ${tickHistory.map(x => x.toFixed(3)).join(", ")}`);
+            console.log(`⚙️ Variation moyenne : ${variation.toFixed(6)}`);
+            console.log(`📈 Sigmoid : ${signal.toFixed(6)}`);
+           }
+          else
+           {
+             signal = null;
+           }
          }
       }
     };
@@ -765,14 +772,6 @@ closeAll.onclick=()=>{
       try { chart.resize(chartInner.clientWidth, chartInner.clientHeight); } catch (e) {}
     }
   });
-
-  setInterval(() => {
-    console.log("WS AUTHORIZED : " + authorized);
-    if (authorized === true)
-    {
-     ActivePositions(ws);
-    }
-  },1000);
   
   // Simulation : mise à jour toutes les 2 secondes
   setInterval(() => {
