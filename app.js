@@ -36,11 +36,12 @@ document.addEventListener("DOMContentLoaded", () => {
   let lastPrices = {};
   let recentChanges = [];
   let signal;
+  let signal__;
   let Dispersion;
   // Historique local des ticks
   let tickHistory = [];
   // Historique de profits
-let profitHistory = [];
+  let profitHistory = [];
 
   // --- NEW: current symbol & pending subscribe ---
   let currentSymbol = null;
@@ -442,9 +443,17 @@ let profitHistory = [];
                 const mean__ = (p1 + p2 + p3) / 3;
                 const dispersion__ = ecartType(profitHistory);
                 const delta__ = (p3 - mean__) / dispersion__;
-                const signal__ = 1 / (1 + Math.exp(-delta__)) * 100;
+                if (dispersion__ !== 0)
+                {
+                  signal__ = 1 / (1 + Math.exp(-delta__)) * 100;
+                  console.log(`📈 Sigmoid(${delta__.toFixed(6)}) = ${signal__.toFixed(6)}`);
+                }
+                else
+                {
+                  
+                }
 
-                console.log(`📈 Sigmoid(${delta__.toFixed(6)}) = ${signal__.toFixed(6)}`);
+                
              }
           }
         }
