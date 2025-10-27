@@ -43,6 +43,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // Historique de profits
   let profitHistory = [];
   const contractsData = {}; // stockage des contrats {id: {profits: [], infos: {…}}}
+  let contracts = {};
+  let portfolioReceived = false;
 
   // --- NEW: current symbol & pending subscribe ---
   let currentSymbol = null;
@@ -452,10 +454,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
+   
+  if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.close();
+      ws = null;
+      authorized = false;
+      connectBtn.textContent = "Se connecter";
+      accountInfo.textContent = "";
+      return;
+  }
+
    ws = new WebSocket(WS_URL);
-   let contracts = {};
-   let authorized = false;
-   let portfolioReceived = false;
+   
 
    if (!TOKEN) {
      console.log("Please, verify your token, and try again.");
