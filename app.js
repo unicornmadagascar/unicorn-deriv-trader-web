@@ -252,7 +252,6 @@ document.addEventListener("DOMContentLoaded", () => {
       pendingSubscribe = symbol;
       if (!ws || ws.readyState === WebSocket.CLOSED) {
         connectDeriv();
-        ActivePositions(symbol);
       }
       // we'll actually send subscription after authorize in ws.onmessage
       return;
@@ -494,7 +493,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function ActivePositions(symbol){
     
-    ws = new WebSocket(WS_URL);
+    if (!authorized){ console.log("Request Non authorized."); return 0;}
 
     ws.onopen = () => {
       console.log("✅ Connecté au WebSocket Deriv");
@@ -765,6 +764,15 @@ closeAll.onclick=()=>{
   displaySymbols();
   initChart();
   initPLGauge();
+
+  setInterval(() => {
+    console.log("Current Symbol : " + currentSymbol);
+    console.log("WS Authorization : " + authorized);
+    if (authorized === true)
+    {
+     ActivePositions(currentSymbol);
+    }   
+  }, 5000);
 
   // resize handling
   window.addEventListener("resize", () => {
