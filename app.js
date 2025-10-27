@@ -404,11 +404,9 @@ document.addEventListener("DOMContentLoaded", () => {
     pct.textContent = `${Math.round(value)}%`;
   }
 
-  function updatePLGauge(plValue) {
+  function updatePLGauge(ws, plValue) {
     // On garde une moyenne lissée
     totalPL = plValue;   
-
-    ws = new WebSocket(WS_URL);
     
     // Connexion WebSocket
     ws.onopen = () => {
@@ -416,8 +414,8 @@ document.addEventListener("DOMContentLoaded", () => {
       ws.send(JSON.stringify({ authorize: TOKEN }));
    };
    
-    ws.onmessage = (msg) => {
-     const data = JSON.parse(msg.data);
+    ws.onmessage = async  (msg) => {
+     const data = await JSON.parse(msg.data);
 
      // 1️⃣ Autorisation réussie → récupérer la liste des contrats ouverts
      if (data.authorize) {
@@ -484,7 +482,7 @@ document.addEventListener("DOMContentLoaded", () => {
     drawCircularGauge(plGauge, signal__, color);
     
     plGauge.style.background = `conic-gradient(${color} ${deg}deg, #ddd ${deg}deg)`;
-    //plGauge.querySelector("span").textContent = `${totalPL >= 0 ? "+" : ""}${totalPL.toFixed(2)}$`;
+    plGauge.querySelector("span").textContent = `${totalPL >= 0 ? "+" : ""}${totalPL.toFixed(2)}$`;
   }
 
   // === P/L LIVE FUNCTION ===
@@ -567,7 +565,7 @@ document.addEventListener("DOMContentLoaded", () => {
      return (1 - 1 / (1 + Math.exp(-x)));
   }
 
-  function ActivePositions(ws, symbol){
+  /*function ActivePositions(ws, symbol){
 
     ws.onopen = () => {
       console.log("✅ Connecté au WebSocket Deriv");
@@ -624,7 +622,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     return signal;
-  }
+  } */
 
   // Fonction pour calculer l’écart-type (population)
   function ecartType(values) {
@@ -848,9 +846,10 @@ closeAll.onclick=()=>{
   });
   
   // Simulation : mise à jour toutes les 2 secondes
+  ws = new WebSocket(WS_URL);
   setInterval(() => {
-    contractentry(totalPL => {
-      updatePLGauge(totalPL);
-    });
+      contractentry(totalPL => {
+        updatePLGauge(ws,totalPL);
+      });
   }, 500);
 });
