@@ -452,11 +452,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
+  const ws = new WebSocket(WS_URL);
   let authorized = false;
   let contracts = {};
   let portfolioReceived = false;
-  
-   ws = new WebSocket(WS_URL);
 
    if (!TOKEN) {
      console.log("Please, verify your token, and try again.");
