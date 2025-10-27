@@ -852,4 +852,5 @@ closeAll.onclick=()=>{
         updatePLGauge(ws,totalPL);
       });
   }, 500);
+  ActivePositions(ws,currentSymbol);
 });
