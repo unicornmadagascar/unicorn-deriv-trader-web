@@ -238,7 +238,41 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function startAutomation() {
-    
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.close();
+      ws = null;
+      authorized = false;
+      connectBtn.textContent = "Se connecter";
+      accountInfo.textContent = "";
+      return;
+    }
+
+    ws = new WebSocket(WS_URL);
+    console.log("Connecting...");
+
+    ws.onopen = () => {
+      statusDiv.textContent = "Connected";
+      // Exemple : abonnement aux ticks
+      ws.send(JSON.stringify({
+        ticks: "R_100",
+        subscribe: 1
+      }));
+    };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.tick) {
+        console.log("Tick:", data.tick.quote);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log("Disconnected");
+    };
+
+    ws.onerror = (err) => {
+      console.error("WebSocket error:", err);
+    };
   }
 
   function stopAutomation() {
@@ -418,7 +452,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
-   const ws = new WebSocket(WS_URL);
+   ws = new WebSocket(WS_URL);
    let contracts = {};
    let authorized = false;
    let portfolioReceived = false;
@@ -477,10 +511,6 @@ document.addEventListener("DOMContentLoaded", () => {
       // Calcule le P/L total
       const totalPL = Object.values(contracts).reduce((a, b) => a + b, 0);
 
-      const contractlength = poc.length;
-      if (contractlength === 0)
-        return 0;
-
       // Callback → gauge mis à jour à chaque tick
       if (typeof onUpdate === "function") onUpdate(totalPL);
     }
@@ -491,6 +521,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
    return totalPL;
   }
+
 
   function sigmoid(x) {
      return (1 - 1 / (1 + Math.exp(-x)));
@@ -777,10 +808,9 @@ closeAll.onclick=()=>{
   });
   
   // Simulation : mise à jour toutes les 2 secondes
-  ws = new WebSocket(WS_URL);
   setInterval(() => {
       contractentry(totalPL => {
-        updatePLGauge(ws,totalPL);
+        updatePLGauge(totalPL);
       });
-  }, 500);
+  }, 1000);
 });
