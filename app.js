@@ -261,7 +261,6 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       ws.send(JSON.stringify({ forget_all: "ticks" }));
       ws.send(JSON.stringify({ ticks: symbol }));
-      ActivePositions(ws, currentSymbol);
     } catch (e) {
       // fallback: queue for after authorize
       pendingSubscribe = symbol;
@@ -492,9 +491,7 @@ document.addEventListener("DOMContentLoaded", () => {
      return (1 - 1 / (1 + Math.exp(-x)));
   }
 
-  function ActivePositions(ws, symbol){
-    
-    if (!authorized){ console.log("Request Non authorized."); return 0;}
+  function ActivePositions(ws){
 
     ws.onopen = () => {
       console.log("✅ Connecté au WebSocket Deriv");
