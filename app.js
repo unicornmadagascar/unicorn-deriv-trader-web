@@ -491,7 +491,7 @@ document.addEventListener("DOMContentLoaded", () => {
      return (1 - 1 / (1 + Math.exp(-x)));
   }
 
-  function ActivePositions(ws){
+  function ActivePositions(ws, symbol){
 
     ws.onopen = () => {
       console.log("✅ Connecté au WebSocket Deriv");
@@ -763,14 +763,16 @@ closeAll.onclick=()=>{
   initChart();
   initPLGauge();
 
-  /*setInterval(() => {
+  ws = new WebSocket(WS_URL);
+
+  setInterval(() => {
     console.log("Current Symbol : " + currentSymbol);
     console.log("WS Authorization : " + authorized);
     if (authorized === true)
     {
-     ActivePositions(currentSymbol);
+     ActivePositions(ws, currentSymbol);
     }   
-  }, 1000); */
+  }, 1000); 
 
   // resize handling
   window.addEventListener("resize", () => {
