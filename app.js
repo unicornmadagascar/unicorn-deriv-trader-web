@@ -404,96 +404,36 @@ document.addEventListener("DOMContentLoaded", () => {
     pct.textContent = `${Math.round(value)}%`;
   }
 
-  function updatePLGauge(data, plValue) {
-     // On garde une moyenne lissée
-     totalPL = plValue;   
-   
-     // 1️⃣ Autorisation réussie → récupérer la liste des contrats ouverts
-     if (data.authorize) {
-       console.log("🔑 Autorisé, récupération du portefeuille...");
-       ws.send(JSON.stringify({ portfolio: 1 }));
-     }
-
-     // 2️⃣ Liste des contrats ouverts
-     if (data.portfolio) {
-       const contracts = data.portfolio.contracts || [];
-       console.log(`📦 ${contracts.length} contrat(s) ouvert(s) trouvé(s).`);
-       let profit_arr = [];
-       const i = 0;
-       contracts.forEach((c) => {
-         const id = c.contract_id;
-         console.log(`🟢 Abonnement au contrat #${id} (${c.contract_type})`);
-
-         // Abonnement individuel
-         ws.send(JSON.stringify({
-           proposal_open_contract: 1,
-           contract_id: id,
-           subscribe: 1
-         }));
-         
-         // 3️⃣ Mise à jour en temps réel d’un contrat
-         if (data.proposal_open_contract) {
-            const contract = data.proposal_open_contract;
-            const id = contract.contract_id;
-
-            if (!id) return;
-
-            // Ajout du profit dans l’historique local
-            const profit = parseFloat(contract.profit);
-            
-            profit_arr[i] = profit;
-            console.log(`📈 Contrat #${id} profit mis à jour : ${profit_arr[i].toFixed(2)}$`);
-            i = i + 1;
-         }
-       });
-
-       // Calcul de la sigmoïde si assez de points
-       if (profit_arr.length === 0) return;
-
-       const dispersion__ = ecartType(profit_arr);
-       const mean__ = profit_arr.reduce((a, b) => a + b, 0) / profit_arr.length;
-
-       if (dispersion__ !== 0)
-       {
-        const delta__ = (profit_arr[i] - mean__) / dispersion__;
-        signal__ = 1 / (1 + Math.exp(-delta__)) * 100;
-        console.log("Sigmoid : " + signal__);
-       }
-       else
-       {
-        signal__ = 0;
-       }
-     }
-
+  function updatePLGauge(plValue) {
+    // On garde une moyenne lissée
+    totalPL = plValue;   
 
     // Couleur dynamique : vert si positif, rouge si négatif
     const color = totalPL >= 0 ? "#4caf50" : "#f44336";
     const deg = Math.min(360, Math.abs(totalPL) * 3.6); // 100 = 360°
-
-    drawCircularGauge(plGauge, signal__, color);
     
     plGauge.style.background = `conic-gradient(${color} ${deg}deg, #ddd ${deg}deg)`;
-    //plGauge.querySelector("span").textContent = `${totalPL >= 0 ? "+" : ""}${totalPL.toFixed(2)}$`;
+    plGauge.querySelector("span").textContent = `${totalPL >= 0 ? "+" : ""}${totalPL.toFixed(2)}$`;
   }
 
   // === P/L LIVE FUNCTION ===
-  function contractentry(data) {
-   //const ws = new WebSocket(WS_URL);
+  function contractentry(onUpdate) {
+   const ws = new WebSocket(WS_URL);
    let contracts = {};
    let authorized = false;
    let portfolioReceived = false;
 
-   //if (!TOKEN) {
-   //  console.log("Please, verify your token, and try again.");
-   //  return;
-   //}
+   if (!TOKEN) {
+     console.log("Please, verify your token, and try again.");
+     return;
+   }
 
-   /*ws.onopen = () => {
+   ws.onopen = () => {
     ws.send(JSON.stringify({ authorize: TOKEN }));
-   };*/
+   };
 
-  // ws.onmessage = (msg) => {
-  //  const data = JSON.parse(msg.data);
+   ws.onmessage = (msg) => {
+    const data = JSON.parse(msg.data);
 
     // Étape 1️⃣ : autorisation OK → on demande le portefeuille
     if (data.msg_type === "authorize" && !authorized) {
@@ -507,7 +447,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const contractsList = data.portfolio.contracts || [];
       if (contractsList.length === 0) {
-        //if (typeof onUpdate === "function") onUpdate(0);
+        if (typeof onUpdate === "function") onUpdate(0);
         return;
       }
 
@@ -544,10 +484,10 @@ document.addEventListener("DOMContentLoaded", () => {
       // Callback → gauge mis à jour à chaque tick
       if (typeof onUpdate === "function") onUpdate(totalPL);
     }
-   //};
+   };
 
-   //ws.onerror = (err) => console.error("WebSocket error:", err);
-   //ws.onclose = () => console.log("Disconnected from Deriv WebSocket.");
+   ws.onerror = (err) => console.error("WebSocket error:", err);
+   ws.onclose = () => console.log("Disconnected from Deriv WebSocket.");
 
    return totalPL;
   }
@@ -556,7 +496,7 @@ document.addEventListener("DOMContentLoaded", () => {
      return (1 - 1 / (1 + Math.exp(-x)));
   }
 
-  function ActivePositions(ws, symbol){
+  /*function ActivePositions(ws, symbol){
 
     ws.onopen = () => {
       console.log("✅ Connecté au WebSocket Deriv");
@@ -606,14 +546,14 @@ document.addEventListener("DOMContentLoaded", () => {
            }
           else
            {
-             signal = 0;
+             signal = null;
            }
          }
       }
     };
 
     return signal;
-  } 
+  } */
 
   // Fonction pour calculer l’écart-type (population)
   function ecartType(values) {
@@ -838,16 +778,9 @@ closeAll.onclick=()=>{
   
   // Simulation : mise à jour toutes les 2 secondes
   ws = new WebSocket(WS_URL);
-
-  // Connexion WebSocket
-  ws.onopen = () => {
-     console.log("✅ Connecté au WebSocket Deriv");
-     ws.send(JSON.stringify({ authorize: TOKEN }));
-  };
-
-  ws.onmessage = async  (msg) => {
-     const data = await JSON.parse(msg.data);
-     const profit__ = contractentry(data);
-     updatePLGauge(data, profit__);
-  };
+  setInterval(() => {
+      contractentry(totalPL => {
+        updatePLGauge(ws,totalPL);
+      });
+  }, 500);
 });
