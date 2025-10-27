@@ -455,7 +455,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let authorized = false;
   let contracts = {};
   let portfolioReceived = false;
-
+  
    ws = new WebSocket(WS_URL);
 
    if (!TOKEN) {
