@@ -239,9 +239,14 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
-  function startAutomation() {
-    let ws = new WebSocket(WS_URL);
+  function startAutomation(ws) {
     console.log("Connecting...");
+
+    if (currentSymbol === null) {
+      console.log("Please select a symbol first.");
+      automationRunning = false;
+      return;
+    }
 
     ws.onopen = () => {
       console.log("✅ Connecté au WebSocket Deriv");
@@ -797,14 +802,15 @@ closeAll.onclick=()=>{
   const toggleAutomationBtn = document.getElementById("toggleAutomation");
   toggleAutomationBtn.addEventListener("click", () => {
     automationRunning = !automationRunning;
+    let ws = new WebSocket(WS_URL);
     if (automationRunning) {
       toggleAutomationBtn.textContent = "Stop Automation";
       toggleAutomationBtn.style.background = "linear-gradient(90deg,#f44336,#e57373)";
-      startAutomation();
+      startAutomation(ws);
     } else {
       toggleAutomationBtn.textContent = "Launch Automation";
       toggleAutomationBtn.style.background = "linear-gradient(90deg,#4caf50,#81c784)";
-      stopAutomation();
+      stopAutomation(ws);
     }
   });
 
