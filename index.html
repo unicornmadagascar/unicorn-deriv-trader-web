@@ -178,44 +178,53 @@
   .trade-table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 10px;
-    font-size: 13px;
+    font-family: 'Segoe UI', sans-serif;
+    background-color: #0f172a; /* fond général sombre */
   }
 
-  .trade-table th { color: #e2e8f0;
-    border: 1px solid #ffffff;
-    color: white;
-    padding: 6px 8px;
+  /* En-têtes */
+  .trade-table th {
+    background-color: #1e293b;
+    color: #facc15;
+    padding: 8px;
     text-align: center;
+    border-bottom: 2px solid #334155;
   }
 
-  .trade-table td { 
-    border: 1px solid #ffffff;
-    color: #323334;
-    padding: 6px 8px;
+  /* Cellules générales */
+  .trade-table td {
+    color: #e2e8f0;
+    padding: 8px;
     text-align: center;
+    border-bottom: 1px solid #334155;
   }
 
-  .trade-table thead {
-    background: #007bff;
+  /* Lignes survolées */
+  .trade-table tr:hover {
+    background-color: #1e293b;
   }
 
-  .trade-table tr:nth-child(even) {
-    background: #fcfbfb;
-  }
-
-  .trade-table .buy {
-    color: #10b981;
+  /* Contrats BUY et SELL */
+  .trade-table td.buy {
+    color: #22c55e;
     font-weight: bold;
   }
 
-  .trade-table .sell {
-     color: #ef4444;
-     font-weight: bold;
+  .trade-table td.sell {
+    color: #ef4444;
+    font-weight: bold;
   }
 
-  .trade-table td.profit-positive { color: #16a34a; font-weight: bold; }
-  .trade-table td.profit-negative { color: #dc2626; font-weight: bold; }
+  /* Profit positif/négatif */
+  .trade-table td.profit-positive {
+    color: #16a34a;
+    font-weight: bold;
+  }
+
+  .trade-table td.profit-negative {
+    color: #dc2626;
+    font-weight: bold;
+  }
   </style>
 </head>
 <body>
