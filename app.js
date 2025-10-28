@@ -504,7 +504,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
-    if (ws && ws.readyState===WebSocket.OPEN)
+    if (!ws || ws.readyState!==WebSocket.OPEN)
      {
       ws.onopen = () => {
         ws.send(JSON.stringify({ authorize: TOKEN }));
@@ -520,6 +520,10 @@ document.addEventListener("DOMContentLoaded", () => {
      console.log("Please, verify your token, and try again.");
      return;
    }
+
+   ws.onopen = () => {
+     ws.send(JSON.stringify({ authorize: TOKEN }));
+   };
 
    ws.onmessage = async (msg) => {
     const data = await JSON.parse(msg.data);
