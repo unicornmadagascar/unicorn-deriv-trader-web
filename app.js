@@ -814,7 +814,7 @@ closeAll.onclick=()=>{
     };
   }; 
 
-  // === TABLEAU HTML ===
+// === TABLEAU HTML ===
 function initTable() {
   const autoHistoryList = document.getElementById("autoHistoryList");
   autoHistoryList.innerHTML = `
@@ -836,26 +836,33 @@ function initTable() {
       </thead>
       <tbody id="autoTradeBody"></tbody>
     </table>
-    <button id="deleteSelected" style="margin-top:8px; background:#dc2626; color:white; border:none; padding:6px 10px; border-radius:6px; cursor:pointer;">🗑 Delete Selected</button>
   `;
 }
 
 // === METTRE À JOUR LE TABLEAU ===
-function updateContractsTable(positions) {
+function updateContractsTable(contracts) {
   const tbody = document.getElementById("autoTradeBody");
+  if (!tbody) return;
+
   tbody.innerHTML = "";
 
-  positions.forEach(pos => {
+  if (!contracts || contracts.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="11" style="color:#94a3b8;">No active contracts</td></tr>`;
+    return;
+  }
+
+  contracts.forEach(pos => {
     const tr = document.createElement("tr");
     const profit = parseFloat(pos.profit || 0).toFixed(2);
     const profitClass = profit >= 0 ? "profit-positive" : "profit-negative";
+    const contractType = pos.contract_type || "N/A";
 
     tr.innerHTML = `
       <td><input type="checkbox" class="rowSelect"></td>
       <td>${new Date(pos.purchase_time * 1000).toLocaleTimeString()}</td>
       <td>${pos.contract_id}</td>
-      <td class="${pos.contract_type.includes("CALL") ? "buy" : "sell"}">${pos.contract_type}</td>
-      <td>${pos.buy_price.toFixed(2)}</td>
+      <td class="${contractType.includes("CALL") ? "buy" : "sell"}">${contractType}</td>
+      <td>${(pos.buy_price || 0).toFixed(2)}</td>
       <td>${pos.multiplier || "-"}</td>
       <td>${pos.entry_tick || "-"}</td>
       <td>${pos.take_profit || "-"}</td>
@@ -879,11 +886,14 @@ function connectWS() {
 
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
+
     if (data.msg_type === "authorize") {
       if (isSubscribed) subscribeActivePositions();
-    } else if (data.msg_type === "active_positions") {
-      const positions = Object.values(data.active_positions || {});
-      updateContractsTable(positions);
+    } 
+    else if (data.msg_type === "active_positions") {
+      const contracts = data.active_positions?.contracts || [];
+      console.log("📦 Contrats reçus :", contracts);
+      updateContractsTable(contracts);
     }
   };
 
@@ -980,4 +990,5 @@ function unsubscribeActivePositions() {
     unsubscribeActivePositions();
   }
 });
+
 });
