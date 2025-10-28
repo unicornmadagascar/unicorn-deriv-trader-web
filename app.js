@@ -504,14 +504,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
-    if (!ws || ws.readyState!==WebSocket.OPEN)
+    if (!ws || ws.readyState !== WebSocket.OPEN)
      {
+      ws = new WebSocket(WS_URL);
       ws.onopen = () => {
         ws.send(JSON.stringify({ authorize: TOKEN }));
       };
      }
-
-    let ws = new WebSocket(WS_URL);
+    
     let authorized = false;
     let portfolioReceived = false;
     let contracts = {};
