@@ -248,7 +248,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    automationRunning = false;
+    //automationRunning = false;
 
     ws2.onopen = () => {
       console.log("✅ Connecté au WebSocket Deriv");
