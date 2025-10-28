@@ -37,6 +37,10 @@ document.addEventListener("DOMContentLoaded", () => {
   let wsContracts = null; // WebSocket dédié aux contrats ouverts (évite d'écraser `ws`)
   let ws1 = null; // WebSocket pour P/L live
   let subscribeOnOpen = false;
+  let wsContractsAuthorized = false;
+  let wsPL = null; // WebSocket pour P/L (éviter d'ouvrir plusieurs connexions)
+  let plCallback = null;
+  const activeContractsMap = {}; // stockage des contrats reçus (id -> contract obj)
   let chart = null;
   let areaSeries = null;
   let chartData = [];
@@ -505,76 +509,72 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // === P/L LIVE FUNCTION ===
+  // contractentry: initialise une seule WebSocket pour suivre le P/L des contrats ouverts
   function contractentry(onUpdate) {
-
-    const ws = new WebSocket(WS_URL);
-    let authorized = false;
-    let portfolioReceived = false;
-    let contracts = {};
-   
-   if (!TOKEN) {
-     console.log("Please, verify your token, and try again.");
-     return;
-   }
-
-   ws.onopen = () => {
-     ws.send(JSON.stringify({ authorize: TOKEN }));
-   };
-
-   ws.onmessage = async (msg) => {
-    const data = await JSON.parse(msg.data);
-
-    // Étape 1️⃣ : autorisation OK → on demande le portefeuille
-    if (data.msg_type === "authorize" && !authorized) {
-      authorized = true;
-      ws.send(JSON.stringify({ portfolio: 1 }));
+    // si déjà initialisé, on attache simplement le callback et on retourne
+    if (wsPL && wsPL.readyState !== WebSocket.CLOSED) {
+      if (typeof onUpdate === "function") plCallback = onUpdate;
+      return wsPL;
     }
 
-    // Étape 2️⃣ : réception du portefeuille (liste des contrats ouverts)
-    if (data.msg_type === "portfolio" && data.portfolio) {
-      portfolioReceived = true;
+    if (!TOKEN) {
+      console.log("Please, verify your token, and try again.");
+      return null;
+    }
 
-      const contractsList = data.portfolio.contracts || [];
-      if (contractsList.length === 0) {
-        if (typeof onUpdate === "function") onUpdate(0);
+    plCallback = typeof onUpdate === "function" ? onUpdate : null;
+    wsPL = new WebSocket(WS_URL);
+
+    const contractsMap = {};
+
+    wsPL.onopen = () => {
+      console.log("✅ wsPL connected — requesting authorize");
+      try { wsPL.send(JSON.stringify({ authorize: TOKEN })); } catch (e) { console.error(e); }
+    };
+
+    wsPL.onmessage = (msg) => {
+      let data;
+      try { data = JSON.parse(msg.data); } catch (err) { console.warn("wsPL parse err", err); return; }
+
+      try { appendContractsDebug(JSON.stringify(data)); } catch (e) {}
+
+      // autorisation → demande portfolio
+      if (data.msg_type === "authorize" && data.authorize) {
+        console.log("wsPL authorized, requesting portfolio");
+        try { wsPL.send(JSON.stringify({ portfolio: 1 })); } catch (e) { console.error(e); }
         return;
       }
 
-      for (const c of contractsList) {
-        contracts[c.contract_id] = 0;
-
-        // On s’abonne en continu à chaque contrat ouvert
-        ws.send(JSON.stringify({
-          proposal_open_contract: 1,
-          contract_id: c.contract_id,
-          subscribe: 1
-        }));
-      }
-    }
-
-    // Étape 3️⃣ : réception des updates tick par tick
-    if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
-      const poc = data.proposal_open_contract;
-
-      // Vérifie que le contrat est encore actif
-      if (poc.is_expired || poc.is_sold) {
-        delete contracts[poc.contract_id];
-      } else {
-        contracts[poc.contract_id] = parseFloat(poc.profit);
+      // portfolio with list of contracts
+      if (data.msg_type === "portfolio" && data.portfolio) {
+        const list = data.portfolio.contracts || [];
+        console.log("wsPL portfolio contracts:", list.length);
+        for (const c of list) {
+          contractsMap[c.contract_id] = 0;
+          try {
+            wsPL.send(JSON.stringify({ proposal_open_contract: 1, contract_id: c.contract_id, subscribe: 1 }));
+          } catch (e) { console.error(e); }
+        }
+        if (plCallback) plCallback(Object.values(contractsMap).reduce((a,b)=>a+b,0));
+        return;
       }
 
-      // Calcule le P/L total
-      const totalPL = Object.values(contracts).reduce((a, b) => a + b, 0);
+      // direct proposal_open_contract updates
+      if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
+        const poc = data.proposal_open_contract;
+        if (poc.is_expired || poc.is_sold) delete contractsMap[poc.contract_id];
+        else contractsMap[poc.contract_id] = Number(poc.profit) || 0;
 
-      // Callback → gauge mis à jour à chaque tick
-      if (typeof onUpdate === "function") onUpdate(totalPL);
-    }
-   };
+        const total = Object.values(contractsMap).reduce((a, b) => a + (Number(b) || 0), 0);
+        if (plCallback) plCallback(total);
+        return;
+      }
+    };
 
-   //ws1.onerror = (err) => console.error("WebSocket error:", err);
-   //ws1.onclose = () => console.log("Disconnected from Deriv WebSocket.");
+    wsPL.onerror = (err) => console.error("wsPL error", err);
+    wsPL.onclose = () => console.log("wsPL closed");
 
-   return totalPL;
+    return wsPL;
   }
 
 
@@ -841,56 +841,158 @@ function initTable() {
   `;
 }
 
+// Affiche un message visible en haut du panneau des contrats
+function setContractsPanelMessage(msg, level = "info") {
+  const panel = document.getElementById("contractsPanel");
+  if (!panel) return;
+
+  let el = document.getElementById("contractsPanelMessage");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "contractsPanelMessage";
+    el.style.width = "100%";
+    el.style.boxSizing = "border-box";
+    el.style.padding = "8px 12px";
+    el.style.borderRadius = "6px";
+    el.style.marginBottom = "8px";
+    el.style.fontWeight = "600";
+    panel.insertBefore(el, panel.firstChild);
+  }
+
+  el.textContent = msg;
+  if (level === "error") {
+    el.style.background = "#fee2e2";
+    el.style.color = "#991b1b";
+    el.style.border = "1px solid #fecaca";
+  } else if (level === "warn") {
+    el.style.background = "#fff7ed";
+    el.style.color = "#92400e";
+    el.style.border = "1px solid #fcd34d";
+  } else {
+    el.style.background = "#ecfeff";
+    el.style.color = "#0f766e";
+    el.style.border = "1px solid #a7f3d0";
+  }
+}
+
+// Append text to visible debug log inside contracts panel (keeps a limited number of lines)
+function appendContractsDebug(text) {
+  try {
+    const el = document.getElementById("contractsDebugLog");
+    if (!el) return;
+    const now = new Date().toLocaleTimeString();
+    // keep last 2000 chars
+    el.textContent = `${now} — ${text}\n` + el.textContent;
+    // trim to reasonable size
+    if (el.textContent.length > 20000) el.textContent = el.textContent.slice(0, 20000);
+  } catch (e) {
+    console.debug("appendContractsDebug failed", e);
+  }
+}
+
 // === METTRE À JOUR LE TABLEAU ===
 function updateContractsTable(contracts) {
   console.log("updateContractsTable called with:", contracts);
+  try { appendContractsDebug("updateContractsTable called with: " + (Array.isArray(contracts) ? contracts.length + ' items' : JSON.stringify(contracts).slice(0,200))); } catch (e) {}
   const tbody = document.getElementById("autoTradeBody");
-  if (!tbody) return;
+  if (!tbody) {
+    // si le tableau n'existe pas (panneau fermé), initialise-le pour afficher les données
+    console.log("autoTradeBody not found, initializing table now");
+    try { initTable(); } catch (e) { console.warn(e); }
+  }
 
-  tbody.innerHTML = "";
+  const tbody2 = document.getElementById("autoTradeBody");
+  if (!tbody2) {
+    console.warn("updateContractsTable: tbody still not found");
+    try { appendContractsDebug('updateContractsTable: tbody not found'); } catch (e) {}
+    return;
+  }
+  const tbodyEl = tbody2;
+
+  // clear
+  tbodyEl.innerHTML = "";
 
   if (!contracts || contracts.length === 0) {
     tbody.innerHTML = `<tr><td colspan="11" style="color:#94a3b8;">No active contracts</td></tr>`;
     return;
   }
 
-  contracts.forEach(pos => {
-    const tr = document.createElement("tr");
-    const profit = parseFloat(pos.profit || 0).toFixed(2);
-    const profitClass = profit >= 0 ? "profit-positive" : "profit-negative";
-    const contractType = pos.contract_type || "N/A";
+  // helper to safely extract/display fields
+  const safeNumber = (v, fixed = 2) => {
+    const n = Number(v);
+    return (isFinite(n) ? n : 0).toFixed(fixed);
+  };
 
-    tr.innerHTML = `
+  const safeText = v => (v === null || v === undefined) ? "-" : String(v);
+
+  contracts.forEach(pos => {
+    try {
+      const tr = document.createElement("tr");
+
+      // normalize common fields coming from different messages
+      const purchaseEpoch = Number(pos.purchase_time || pos.date_start || pos.date || pos.purchase_time_epoch || 0);
+      const timeStr = purchaseEpoch ? new Date(purchaseEpoch * 1000).toLocaleTimeString() : "-";
+
+      const contractId = safeText(pos.contract_id || pos.contract_id_value || pos.contractId || "-");
+      const contractTypeRaw = safeText(pos.contract_type || pos.contract_type_display || pos.contractType || "N/A");
+      const isBuy = /CALL|BUY|UP|MULTUP/i.test(contractTypeRaw);
+      const buyOrSellClass = isBuy ? "buy" : "sell";
+
+      const buyPrice = safeNumber(pos.buy_price ?? pos.buy_price_raw ?? pos.buy_price_value ?? pos.price ?? 0);
+      const multiplier = safeText(pos.multiplier || pos.multiplier_value || "-");
+      const entryTick = safeText(pos.entry_tick || pos.entry_spot || pos.entry_tick_value || "-");
+      const tp = safeText(pos.take_profit ?? pos.take_profit_value ?? pos.take_profit_percent ?? "-");
+      const sl = safeText(pos.stop_loss ?? pos.stop_loss_value ?? pos.stop_loss_percent ?? "-");
+      const profitNum = Number(pos.profit ?? pos.current_spot_profit ?? pos.current_profit ?? 0);
+      const profit = (isFinite(profitNum) ? profitNum : 0).toFixed(2);
+      const profitClass = profitNum >= 0 ? "profit-positive" : "profit-negative";
+
+      tr.innerHTML = `
       <td><input type="checkbox" class="rowSelect"></td>
-      <td>${new Date(pos.purchase_time * 1000).toLocaleTimeString()}</td>
-      <td>${pos.contract_id}</td>
-      <td class="${contractType.includes("CALL") ? "buy" : "sell"}">${contractType}</td>
-      <td>${(pos.buy_price || 0).toFixed(2)}</td>
-      <td>${pos.multiplier || "-"}</td>
-      <td>${pos.entry_tick || "-"}</td>
-      <td>${pos.take_profit || "-"}</td>
-      <td>${pos.stop_loss || "-"}</td>
+      <td>${timeStr}</td>
+      <td>${contractId}</td>
+      <td class="${buyOrSellClass}">${contractTypeRaw}</td>
+      <td>${buyPrice}</td>
+      <td>${multiplier}</td>
+      <td>${entryTick}</td>
+      <td>${tp}</td>
+      <td>${sl}</td>
       <td class="${profitClass}">${profit}</td>
       <td><button class="deleteRowBtn" style="background:#ef4444; border:none; color:white; border-radius:4px; padding:2px 6px; cursor:pointer;">Delete</button></td>
     `;
-    tbody.appendChild(tr);
+
+      tbodyEl.appendChild(tr);
+    } catch (err) {
+      console.error("Failed to render contract row", err, pos);
+      try { appendContractsDebug('Failed to render contract row: ' + err.message); } catch (e) {}
+    }
   });
+}
+
+// Render current activeContractsMap into the table
+function renderActiveContracts() {
+  const arr = Object.keys(activeContractsMap).map(k => activeContractsMap[k]);
+  // sort by purchase_time if present
+  arr.sort((a,b) => (Number(b.purchase_time||b.date_start||0) - Number(a.purchase_time||a.date_start||0)));
+  updateContractsTable(arr);
 }
 
 // === CONNEXION WEBSOCKET ===
 function connectWS() {
   // Utilise une socket dédiée pour les contrats ouverts
-  if (wsContracts && wsContracts.readyState === WebSocket.OPEN) return wsContracts;
+  // Si une socket existe déjà et n'est pas CLOSED, la réutiliser (évite multiplications)
+  if (wsContracts && wsContracts.readyState !== WebSocket.CLOSED) return wsContracts;
 
   wsContracts = new WebSocket(WS_URL);
+  const socket = wsContracts; // capture local reference to avoid races when wsContracts is reassigned
 
-  wsContracts.onopen = () => {
+  socket.onopen = () => {
     console.log("✅ Connecté à Deriv (wsContracts)");
     // demander l'autorisation
-    wsContracts.send(JSON.stringify({ authorize: TOKEN }));
+    try { socket.send(JSON.stringify({ authorize: TOKEN })); } catch (e) { console.error('wsContracts send onopen failed', e); }
   };
 
-  wsContracts.onmessage = (event) => {
+  socket.onmessage = (event) => {
     let data;
     try {
       data = JSON.parse(event.data);
@@ -899,12 +1001,15 @@ function connectWS() {
       return;
     }
 
-    console.debug("wsContracts message:", data);
+  console.debug("wsContracts message:", data);
+  try { appendContractsDebug(JSON.stringify(data)); } catch (e) {}
 
     if (data.msg_type === "authorize") {
       // Si le panneau est ouvert, on s'abonne automatiquement
       if (data.authorize) {
         console.log("wsContracts authorized", data.authorize.loginid);
+        wsContractsAuthorized = true;
+        setContractsPanelMessage(`Authorized: ${data.authorize.loginid}`, "info");
         // soit on a demandé explicitement l'abonnement, soit on a mis en file d'attente
         if (isSubscribed || subscribeOnOpen) {
           subscribeOnOpen = false;
@@ -914,12 +1019,38 @@ function connectWS() {
     } else if (data.msg_type === "active_positions") {
       const contracts = data.active_positions?.contracts || [];
       console.log("📦 Contrats reçus (wsContracts):", contracts);
-      updateContractsTable(contracts);
+      // store into map and render
+      contracts.forEach(c => { if (c && c.contract_id) activeContractsMap[c.contract_id] = c; });
+      renderActiveContracts();
+      if (!contracts || contracts.length === 0) {
+        setContractsPanelMessage("No active contracts", "warn");
+      } else {
+        setContractsPanelMessage(`Found ${contracts.length} active contract(s)`, "info");
+      }
+    } else if (data.msg_type === "portfolio" && data.portfolio) {
+      // some endpoints return 'portfolio' with .contracts
+      const contracts = data.portfolio.contracts || [];
+      console.log("📦 Portfolio received (wsContracts):", contracts);
+      contracts.forEach(c => { if (c && c.contract_id) activeContractsMap[c.contract_id] = c; });
+      renderActiveContracts();
+      if (!contracts || contracts.length === 0) setContractsPanelMessage("No active contracts", "warn");
+      else setContractsPanelMessage(`Found ${contracts.length} active contract(s)`, "info");
+    } else if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
+      // single contract update — update or append
+      const poc = data.proposal_open_contract;
+      console.log("🔁 Proposal open contract update:", poc);
+      // update map and re-render full table
+      if (poc.is_expired || poc.is_sold) {
+        try { delete activeContractsMap[poc.contract_id]; } catch (e) {}
+      } else {
+        activeContractsMap[poc.contract_id] = poc;
+      }
+      renderActiveContracts();
     }
   };
 
-  wsContracts.onclose = () => console.log("🔴 wsContracts fermé");
-  wsContracts.onerror = (err) => console.error("⚠️ Erreur wsContracts:", err);
+  socket.onclose = () => console.log("🔴 wsContracts fermé");
+  socket.onerror = (err) => console.error("⚠️ Erreur wsContracts:", err);
 
   return wsContracts;
 }
@@ -1004,12 +1135,8 @@ function unsubscribeActivePositions() {
     }
   });
   
-  // Simulation : mise à jour toutes les 2 secondes
-  setInterval(() => {
-      contractentry(totalPL => {
-         updatePLGauge(totalPL);
-      });
-  }, 500);
+  // Initialise la socket de P/L une seule fois et lie la callback
+  contractentry(totalPL => updatePLGauge(totalPL));
 
 contractsPanelToggle.addEventListener("click", () => {
   console.log("contractsPanelToggle clicked. current display:", contractsPanel.style.display, "isSubscribed:", isSubscribed, "ws readyState:", ws && ws.readyState);
@@ -1018,6 +1145,8 @@ contractsPanelToggle.addEventListener("click", () => {
     contractsPanelToggle.textContent = "📄 Hide Contracts";
     initTable();
     isSubscribed = true;
+    // show a visible message while we (re)connect
+    setContractsPanelMessage("Connecting to Deriv...", "info");
     connectWS();
     subscribeActivePositions();
   } else {
@@ -1025,6 +1154,32 @@ contractsPanelToggle.addEventListener("click", () => {
     contractsPanelToggle.textContent = "📄 Show Contracts";
     isSubscribed = false;
     unsubscribeActivePositions();
+    // clear cached contracts when hiding panel
+    try { for (const k in activeContractsMap) delete activeContractsMap[k]; } catch (e) {}
+    renderActiveContracts();
+    setContractsPanelMessage("", "info");
   }
 });
+
+// Refresh button handler: force a contracts refresh (active_positions + portfolio)
+const contractsRefreshBtn = document.getElementById("contractsRefreshBtn");
+if (contractsRefreshBtn) {
+  contractsRefreshBtn.addEventListener("click", () => {
+    appendContractsDebug("User clicked Refresh (requesting active_positions and portfolio)");
+    // ask wsContracts for active_positions
+    if (wsContracts && wsContracts.readyState === WebSocket.OPEN) {
+      try { wsContracts.send(JSON.stringify({ active_positions: 1 })); appendContractsDebug('sent: active_positions'); } catch (e) { appendContractsDebug('failed send active_positions: ' + e.message); }
+    } else {
+      // ensure connection and queue a subscribe
+      appendContractsDebug('wsContracts not open — connecting and queueing subscription');
+      connectWS();
+      subscribeOnOpen = true;
+    }
+
+    // ask wsPL for portfolio as well (if available)
+    if (wsPL && wsPL.readyState === WebSocket.OPEN) {
+      try { wsPL.send(JSON.stringify({ portfolio: 1 })); appendContractsDebug('sent: portfolio to wsPL'); } catch (e) { appendContractsDebug('failed send portfolio: ' + e.message); }
+    }
+  });
+}
 });
