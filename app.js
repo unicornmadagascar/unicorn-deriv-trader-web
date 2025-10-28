@@ -862,7 +862,9 @@ closeAll.onclick=()=>{
   
   // Simulation : mise à jour toutes les 2 secondes
   setInterval(() => {
-      const profit__ = contractentry();
-      updatePLGauge(profit__);
-  }, 1000);
+      contractentry(totalPL => {
+         updatePLGauge(totalPL);
+      });
+      
+  }, 500);
 });
