@@ -841,6 +841,7 @@ function initTable() {
 
 // === METTRE À JOUR LE TABLEAU ===
 function updateContractsTable(contracts) {
+  console.log("updateContractsTable called with:", contracts);
   const tbody = document.getElementById("autoTradeBody");
   if (!tbody) return;
 
@@ -885,12 +886,23 @@ function connectWS() {
   };
 
   ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
+    let data;
+    try {
+      data = JSON.parse(event.data);
+    } catch (err) {
+      console.warn("Failed to parse WS message:", event.data);
+      return;
+    }
+
+    console.debug("WS message (connectWS):", data);
 
     if (data.msg_type === "authorize") {
-      if (isSubscribed) subscribeActivePositions();
-    } 
-    else if (data.msg_type === "active_positions") {
+      // only subscribe after successful authorize
+      if (data.authorize && isSubscribed) {
+        console.log("Authorized for contracts panel — subscribing to active_positions");
+        subscribeActivePositions();
+      }
+    } else if (data.msg_type === "active_positions") {
       const contracts = data.active_positions?.contracts || [];
       console.log("📦 Contrats reçus :", contracts);
       updateContractsTable(contracts);
@@ -974,6 +986,7 @@ function unsubscribeActivePositions() {
   }, 500);
 
 contractsPanelToggle.addEventListener("click", () => {
+  console.log("contractsPanelToggle clicked. current display:", contractsPanel.style.display, "isSubscribed:", isSubscribed, "ws readyState:", ws && ws.readyState);
   if (contractsPanel.style.display === "none" || contractsPanel.style.display === "") {
     contractsPanel.style.display = "flex";
     contractsPanelToggle.textContent = "📄 Hide Contracts";
