@@ -240,7 +240,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
-  function startAutomation(ws2) {
+  function startAutomation(ws) {
     console.log("Connecting...");
 
     if (currentSymbol === null) {
@@ -250,18 +250,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
     //automationRunning = false;
 
-    ws2.onopen = () => {
+    ws.onopen = () => {
       console.log("✅ Connecté au WebSocket Deriv");
-      ws2.send(JSON.stringify({ authorize: TOKEN }));
+      ws.send(JSON.stringify({ authorize: TOKEN }));
     };
 
-    ws2.onmessage = (msg) => {
+    ws.onmessage = (msg) => {
       const data = JSON.parse(msg.data);
 
       // Autorisation réussie → abonnement aux ticks
       if (data.authorize) {
          console.log("🔑 Autorisé, abonnement aux ticks...");
-         ws2.send(JSON.stringify({ ticks: currentSymbol, subscribe: 1 }));
+         ws.send(JSON.stringify({ ticks: currentSymbol, subscribe: 1 }));
       }
 
       // Sauvegarder l'ID d'abonnement
@@ -305,11 +305,11 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     };
 
-    ws2.onclose = () => {
+    ws.onclose = () => {
       console.log("Disconnected");
     };
 
-    ws2.onerror = (err) => {
+    ws.onerror = (err) => {
       console.error("WebSocket error:", err);
     };
   }
