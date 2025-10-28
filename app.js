@@ -41,6 +41,10 @@ document.addEventListener("DOMContentLoaded", () => {
   let wsPL = null; // WebSocket pour P/L (éviter d'ouvrir plusieurs connexions)
   let plCallback = null;
   const activeContractsMap = {}; // stockage des contrats reçus (id -> contract obj)
+  // Pagination / tri pour l'affichage des contrats
+  let contractsPageSize = 10;
+  let contractsCurrentPage = 1;
+  let contractsSortMode = 'newest'; // newest, oldest, profit_desc, profit_asc
   let chart = null;
   let areaSeries = null;
   let chartData = [];
@@ -83,13 +87,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- SYMBOLS ---
   function displaySymbols() {
+    if (!symbolList) return;
     symbolList.innerHTML = "";
     SYMBOLS.forEach(s => {
       const el = document.createElement("div");
       el.className = "symbol-item";
       el.textContent = s.name;
       el.dataset.symbol = s.symbol;
-      el.addEventListener("click", () => subscribeSymbol(s.symbol));
+      el.addEventListener("click", () => {
+        // Remove active class from all symbols
+        document.querySelectorAll('.symbol-item').forEach(item => {
+          item.classList.remove('active');
+          item.style.background = '#eee';
+          item.style.color = '#000';
+        });
+        // Add active class to clicked symbol
+        el.classList.add('active');
+        el.style.background = '#007bff';
+        el.style.color = '#fff';
+        subscribeSymbol(s.symbol);
+      });
       symbolList.appendChild(el);
     });
   }
@@ -548,13 +565,18 @@ document.addEventListener("DOMContentLoaded", () => {
       // portfolio with list of contracts
       if (data.msg_type === "portfolio" && data.portfolio) {
         const list = data.portfolio.contracts || [];
-        console.log("wsPL portfolio contracts:", list.length);
+        console.log("wsPL portfolio contracts:", list.length, list);
         for (const c of list) {
+          console.log("contract details:", c);
           contractsMap[c.contract_id] = 0;
+          // stocke aussi dans activeContractsMap pour le tableau
+          try { if (c && c.contract_id) activeContractsMap[c.contract_id] = c; } catch (e) {}
           try {
             wsPL.send(JSON.stringify({ proposal_open_contract: 1, contract_id: c.contract_id, subscribe: 1 }));
           } catch (e) { console.error(e); }
         }
+        // re-render après avoir stocké les contrats
+        renderActiveContracts();
         if (plCallback) plCallback(Object.values(contractsMap).reduce((a,b)=>a+b,0));
         return;
       }
@@ -562,8 +584,23 @@ document.addEventListener("DOMContentLoaded", () => {
       // direct proposal_open_contract updates
       if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
         const poc = data.proposal_open_contract;
-        if (poc.is_expired || poc.is_sold) delete contractsMap[poc.contract_id];
-        else contractsMap[poc.contract_id] = Number(poc.profit) || 0;
+        console.log("Received proposal_open_contract:", poc);
+        
+        if (poc.is_expired || poc.is_sold) {
+          delete contractsMap[poc.contract_id];
+          try { delete activeContractsMap[poc.contract_id]; } catch (e) {}
+        } else {
+          contractsMap[poc.contract_id] = Number(poc.profit) || 0;
+          // Update activeContractsMap with live data
+          if (activeContractsMap[poc.contract_id]) {
+            activeContractsMap[poc.contract_id] = {
+              ...activeContractsMap[poc.contract_id],
+              profit: poc.profit,
+              entry_tick: poc.entry_tick || poc.entry_spot,
+              current_spot: poc.current_spot
+            };
+          }
+        }
 
         const total = Object.values(contractsMap).reduce((a, b) => a + (Number(b) || 0), 0);
         if (plCallback) plCallback(total);
@@ -929,21 +966,21 @@ function updateContractsTable(contracts) {
     try {
       const tr = document.createElement("tr");
 
-      // normalize common fields coming from different messages
-      const purchaseEpoch = Number(pos.purchase_time || pos.date_start || pos.date || pos.purchase_time_epoch || 0);
+      // normalize common fields from active_positions format
+      const purchaseEpoch = Number(pos.purchase_time || 0);
       const timeStr = purchaseEpoch ? new Date(purchaseEpoch * 1000).toLocaleTimeString() : "-";
 
-      const contractId = safeText(pos.contract_id || pos.contract_id_value || pos.contractId || "-");
-      const contractTypeRaw = safeText(pos.contract_type || pos.contract_type_display || pos.contractType || "N/A");
+      const contractId = safeText(pos.contract_id || "-");
+      const contractTypeRaw = safeText(pos.contract_type || "N/A");
       const isBuy = /CALL|BUY|UP|MULTUP/i.test(contractTypeRaw);
       const buyOrSellClass = isBuy ? "buy" : "sell";
 
-      const buyPrice = safeNumber(pos.buy_price ?? pos.buy_price_raw ?? pos.buy_price_value ?? pos.price ?? 0);
-      const multiplier = safeText(pos.multiplier || pos.multiplier_value || "-");
-      const entryTick = safeText(pos.entry_tick || pos.entry_spot || pos.entry_tick_value || "-");
-      const tp = safeText(pos.take_profit ?? pos.take_profit_value ?? pos.take_profit_percent ?? "-");
-      const sl = safeText(pos.stop_loss ?? pos.stop_loss_value ?? pos.stop_loss_percent ?? "-");
-      const profitNum = Number(pos.profit ?? pos.current_spot_profit ?? pos.current_profit ?? 0);
+      const buyPrice = safeNumber(pos.buy_price || 0);
+      const multiplier = safeText(pos.multiplier || "-");
+      const entryTick = safeText(pos.entry_tick || "-");
+      const tp = safeText(pos.take_profit || "-");
+      const sl = safeText(pos.stop_loss || "-");
+      const profitNum = Number(pos.profit || 0);
       const profit = (isFinite(profitNum) ? profitNum : 0).toFixed(2);
       const profitClass = profitNum >= 0 ? "profit-positive" : "profit-negative";
 
@@ -958,7 +995,7 @@ function updateContractsTable(contracts) {
       <td>${tp}</td>
       <td>${sl}</td>
       <td class="${profitClass}">${profit}</td>
-      <td><button class="deleteRowBtn" style="background:#ef4444; border:none; color:white; border-radius:4px; padding:2px 6px; cursor:pointer;">Delete</button></td>
+      <td><button class="closeRowBtn" data-contract-id="${contractId}" style="background:#ef4444; border:none; color:white; border-radius:4px; padding:4px 8px; cursor:pointer;">Close</button></td>
     `;
 
       tbodyEl.appendChild(tr);
@@ -971,10 +1008,43 @@ function updateContractsTable(contracts) {
 
 // Render current activeContractsMap into the table
 function renderActiveContracts() {
+  console.log("renderActiveContracts - activeContractsMap:", activeContractsMap);
   const arr = Object.keys(activeContractsMap).map(k => activeContractsMap[k]);
-  // sort by purchase_time if present
-  arr.sort((a,b) => (Number(b.purchase_time||b.date_start||0) - Number(a.purchase_time||a.date_start||0)));
-  updateContractsTable(arr);
+  console.log("Contracts array for render:", arr);
+  // choose sort mode
+  if (contractsSortMode === 'newest') {
+    arr.sort((a,b) => Number(b.purchase_time||b.date_start||b.date||0) - Number(a.purchase_time||a.date_start||a.date||0));
+  } else if (contractsSortMode === 'oldest') {
+    arr.sort((a,b) => Number(a.purchase_time||a.date_start||a.date||0) - Number(b.purchase_time||b.date_start||b.date||0));
+  } else if (contractsSortMode === 'profit_desc') {
+    arr.sort((a,b) => (Number(b.profit||b.current_profit||b.current_spot_profit||0) - Number(a.profit||a.current_profit||a.current_spot_profit||0)));
+  } else if (contractsSortMode === 'profit_asc') {
+    arr.sort((a,b) => (Number(a.profit||a.current_profit||a.current_spot_profit||0) - Number(b.profit||b.current_profit||b.current_spot_profit||0)));
+  }
+
+  // pagination
+  const totalItems = arr.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / contractsPageSize));
+  if (contractsCurrentPage > totalPages) contractsCurrentPage = totalPages;
+  const start = (contractsCurrentPage - 1) * contractsPageSize;
+  const slice = arr.slice(start, start + contractsPageSize);
+
+  // render
+  updateContractsTable(slice);
+
+  // update pagination UI
+  renderContractsPagination(totalItems, totalPages);
+}
+
+function renderContractsPagination(totalItems, totalPages) {
+  try {
+    const pageInfo = document.getElementById('contractsPageInfo');
+    const prevBtn = document.getElementById('contractsPrevBtn');
+    const nextBtn = document.getElementById('contractsNextBtn');
+    if (pageInfo) pageInfo.textContent = `Page ${contractsCurrentPage} / ${totalPages} (${totalItems} items)`;
+    if (prevBtn) prevBtn.disabled = contractsCurrentPage <= 1;
+    if (nextBtn) nextBtn.disabled = contractsCurrentPage >= totalPages;
+  } catch (e) { console.debug('renderContractsPagination err', e); }
 }
 
 // === CONNEXION WEBSOCKET ===
@@ -1019,14 +1089,34 @@ function connectWS() {
     } else if (data.msg_type === "active_positions") {
       const contracts = data.active_positions?.contracts || [];
       console.log("📦 Contrats reçus (wsContracts):", contracts);
+      console.log("Message complet:", data);
       // store into map and render
-      contracts.forEach(c => { if (c && c.contract_id) activeContractsMap[c.contract_id] = c; });
-      renderActiveContracts();
-      if (!contracts || contracts.length === 0) {
-        setContractsPanelMessage("No active contracts", "warn");
+      if (contracts.length === 0 && data.active_positions?.positions) {
+        // adapté au format alternatif: positions array directement
+        console.log("Format alternatif détecté - positions:", data.active_positions.positions);
+        data.active_positions.positions.forEach(c => {
+          if (c && c.contract_id) {
+            const existing = activeContractsMap[c.contract_id] || {};
+            activeContractsMap[c.contract_id] = { ...existing, ...c };
+          }
+        });
       } else {
-        setContractsPanelMessage(`Found ${contracts.length} active contract(s)`, "info");
-      }
+        // format original: contracts array
+        contracts.forEach(c => {
+          if (c && c.contract_id) {
+            const existing = activeContractsMap[c.contract_id] || {};
+            activeContractsMap[c.contract_id] = { ...existing, ...c };
+          }
+        });
+      console.log("État actuel activeContractsMap:", activeContractsMap);
+      renderActiveContracts();
+    }
+    
+    if (!contracts || contracts.length === 0) {
+      setContractsPanelMessage("No active contracts", "warn");
+    } else {
+      setContractsPanelMessage(`Found ${contracts.length} active contract(s)`, "info");
+    }
     } else if (data.msg_type === "portfolio" && data.portfolio) {
       // some endpoints return 'portfolio' with .contracts
       const contracts = data.portfolio.contracts || [];
@@ -1043,7 +1133,10 @@ function connectWS() {
       if (poc.is_expired || poc.is_sold) {
         try { delete activeContractsMap[poc.contract_id]; } catch (e) {}
       } else {
-        activeContractsMap[poc.contract_id] = poc;
+        // Merge avec les données existantes (garde shortcode etc)
+        const existing = activeContractsMap[poc.contract_id] || {};
+        activeContractsMap[poc.contract_id] = { ...existing, ...poc };
+        console.log(`Contract ${poc.contract_id} updated:`, activeContractsMap[poc.contract_id]);
       }
       renderActiveContracts();
     }
@@ -1107,12 +1200,12 @@ function unsubscribeActivePositions() {
   // --- TOGGLE PANEL ---
   controlPanelToggle.addEventListener("click", () => {
     if (!controlFormPanel) return;
-    if (controlFormPanel.classList.contains("active")) {
-      controlFormPanel.classList.remove("active");
+    if (controlFormPanel.style.display === "flex") {
       controlFormPanel.style.display = "none";
+      controlPanelToggle.textContent = "⚙️ Show Controls";
     } else {
-      controlFormPanel.style.display = "flex";
-      setTimeout(() => controlFormPanel.classList.add("active"), 10);
+      controlFormPanel.style.display = "flex"; 
+      controlPanelToggle.textContent = "⚙️ Hide Controls";
     }
   });
 
@@ -1182,4 +1275,73 @@ if (contractsRefreshBtn) {
     }
   });
 }
+
+// --- Controls: pagination, sorting and close action wiring ---
+(function setupContractsControls(){
+  const prevBtn = document.getElementById('contractsPrevBtn');
+  const nextBtn = document.getElementById('contractsNextBtn');
+  const pageSizeSel = document.getElementById('contractsPageSize');
+  const sortSelect = document.getElementById('contractsSortSelect');
+  const container = document.getElementById('autoHistoryList');
+
+  if (prevBtn) prevBtn.addEventListener('click', () => { if (contractsCurrentPage>1){ contractsCurrentPage--; renderActiveContracts(); } });
+  if (nextBtn) nextBtn.addEventListener('click', () => { contractsCurrentPage++; renderActiveContracts(); });
+  if (pageSizeSel) pageSizeSel.addEventListener('change', (e)=>{ contractsPageSize = parseInt(e.target.value)||10; contractsCurrentPage=1; renderActiveContracts(); });
+  if (sortSelect) sortSelect.addEventListener('change', (e)=>{ contractsSortMode = e.target.value || 'newest'; contractsCurrentPage=1; renderActiveContracts(); });
+
+  // Delegated click handler for Close buttons inside the table
+  if (container) {
+    container.addEventListener('click', (ev) => {
+      const btn = ev.target.closest && ev.target.closest('.closeRowBtn');
+      if (!btn) return;
+      const cid = btn.getAttribute('data-contract-id');
+      if (!cid) return;
+      // confirm
+      const ok = confirm(`Close contract ${cid} ?`);
+      if (!ok) return;
+      closeContract(cid);
+    });
+  }
+
+  // closeContract implementation — try to reuse wsPL then wsContracts, otherwise open one-shot socket
+  function closeContract(contractId) {
+    try {
+      setContractsPanelMessage(`Closing ${contractId}...`, 'warn');
+      // optimistic UI removal
+      try { if (activeContractsMap[contractId]) delete activeContractsMap[contractId]; } catch (e) {}
+      renderActiveContracts();
+
+      const sellPayload = { sell: contractId, price: 0 };
+
+      const sendVia = (s) => {
+        try { s.send(JSON.stringify(sellPayload)); appendContractsDebug('sent sell for ' + contractId); } catch (e) { appendContractsDebug('failed send sell: ' + e.message); }
+      };
+
+      if (wsPL && wsPL.readyState === WebSocket.OPEN) {
+        sendVia(wsPL);
+        return;
+      }
+      if (wsContracts && wsContracts.readyState === WebSocket.OPEN) {
+        sendVia(wsContracts);
+        return;
+      }
+
+      // fallback: open a short-lived socket to send the sell
+      const tmp = new WebSocket(WS_URL);
+      tmp.addEventListener('open', () => { try { tmp.send(JSON.stringify({ authorize: TOKEN })); } catch (e) {} });
+      tmp.addEventListener('message', (m) => {
+        let data; try { data = JSON.parse(m.data); } catch (e) { return; }
+        if (data.msg_type === 'authorize' && data.authorize) {
+          try { tmp.send(JSON.stringify(sellPayload)); appendContractsDebug('tmp sell sent ' + contractId); } catch (e) {}
+          setTimeout(()=>{ try{ tmp.close(); }catch(e){} }, 800);
+        }
+      });
+      tmp.addEventListener('error', (e) => appendContractsDebug('tmp socket error: ' + (e && e.message))); 
+    } catch (e) {
+      console.error('closeContract error', e);
+      appendContractsDebug('closeContract error: ' + e.message);
+    }
+  }
+})();
+
 });
