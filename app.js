@@ -503,7 +503,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // === P/L LIVE FUNCTION ===
-  function contractentry() {
+  function contractentry(onUpdate) {
     let ws = new WebSocket(WS_URL);
     let authorized = false;
     let portfolioReceived = false;
@@ -865,6 +865,5 @@ closeAll.onclick=()=>{
       contractentry(totalPL => {
          updatePLGauge(totalPL);
       });
-      
   }, 500);
 });
