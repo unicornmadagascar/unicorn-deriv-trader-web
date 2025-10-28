@@ -248,7 +248,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    automationRunning = true;
+    //automationRunning = true;
 
     ws.onopen = () => {
       console.log("✅ Connecté au WebSocket Deriv");
@@ -320,7 +320,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // Désabonnement propre
         ws.send(JSON.stringify({ forget: tickSubscriptionId }));
         console.log("🚫 Tick désabonné :", tickSubscriptionId);
-        //tickSubscriptionId = null;
+        tickSubscriptionId = null;
       } else {
         console.log("⚠️ Aucun abonnement trouvé à oublier");
       }
@@ -332,7 +332,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }, 2000);
     }
 
-    automationRunning = true;
+    //automationRunning = true;
   }
 
   // --- SUBSCRIBE SYMBOL ---
