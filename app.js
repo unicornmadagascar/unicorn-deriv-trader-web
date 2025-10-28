@@ -860,9 +860,9 @@ closeAll.onclick=()=>{
   });
   
   // Simulation : mise à jour toutes les 2 secondes
-  ws1 = new WebSocket(WS_URL);
+  ws = new WebSocket(WS_URL);
   setInterval(() => {
-      const profit__ = contractentry(ws1);
+      const profit__ = contractentry(ws);
       updatePLGauge(profit__);
   }, 1000);
 });
