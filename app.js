@@ -489,8 +489,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // === P/L LIVE FUNCTION ===
-  function contractentry(onUpdate) {
-    let ws1 = new WebSocket(WS_URL);
+  function contractentry(ws1) {
+    //let ws1 = new WebSocket(WS_URL);
     let authorized = false;
     let portfolioReceived = false;
     let contracts = {};
@@ -519,7 +519,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const contractsList = data.portfolio.contracts || [];
       if (contractsList.length === 0) {
-        if (typeof onUpdate === "function") onUpdate(0);
+        //if (typeof onUpdate === "function") onUpdate(0);
         return;
       }
 
@@ -550,7 +550,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const totalPL = Object.values(contracts).reduce((a, b) => a + b, 0);
 
       // Callback → gauge mis à jour à chaque tick
-      if (typeof onUpdate === "function") onUpdate(totalPL);
+      //if (typeof onUpdate === "function") onUpdate(totalPL);
     }
    };
 
@@ -847,9 +847,9 @@ closeAll.onclick=()=>{
   });
   
   // Simulation : mise à jour toutes les 2 secondes
+  ws1 = new WebSocket(WS_URL);
   setInterval(() => {
-      contractentry(totalPL => {
-        updatePLGauge(totalPL);
-      });
+      const profit__ = contractentry(ws1);
+      updatePLGauge(profit__);
   }, 1000);
 });
