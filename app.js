@@ -521,9 +521,9 @@ document.addEventListener("DOMContentLoaded", () => {
      return;
    }
 
-   ws.onopen = () => {
-     ws.send(JSON.stringify({ authorize: TOKEN }));
-   };
+   //ws.onopen = () => {
+   //  ws.send(JSON.stringify({ authorize: TOKEN }));
+  // };
 
    ws.onmessage = async (msg) => {
     const data = await JSON.parse(msg.data);
