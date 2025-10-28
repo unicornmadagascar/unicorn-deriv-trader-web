@@ -34,6 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let smoothTrend = 0;
   let isSubscribed = false;
   let ws = null;
+  let wsContracts = null; // WebSocket dédié aux contrats ouverts (évite d'écraser `ws`)
   let ws1 = null; // WebSocket pour P/L live
   let chart = null;
   let areaSeries = null;
@@ -877,56 +878,63 @@ function updateContractsTable(contracts) {
 
 // === CONNEXION WEBSOCKET ===
 function connectWS() {
-  if (ws && ws.readyState === WebSocket.OPEN) return ws;
-  ws = new WebSocket(WS_URL);
+  // Utilise une socket dédiée pour les contrats ouverts
+  if (wsContracts && wsContracts.readyState === WebSocket.OPEN) return wsContracts;
 
-  ws.onopen = () => {
-    console.log("✅ Connecté à Deriv");
-    ws.send(JSON.stringify({ authorize: TOKEN }));
+  wsContracts = new WebSocket(WS_URL);
+
+  wsContracts.onopen = () => {
+    console.log("✅ Connecté à Deriv (wsContracts)");
+    // demander l'autorisation
+    wsContracts.send(JSON.stringify({ authorize: TOKEN }));
   };
 
-  ws.onmessage = (event) => {
+  wsContracts.onmessage = (event) => {
     let data;
     try {
       data = JSON.parse(event.data);
     } catch (err) {
-      console.warn("Failed to parse WS message:", event.data);
+      console.warn("Failed to parse wsContracts message:", event.data);
       return;
     }
 
-    console.debug("WS message (connectWS):", data);
+    console.debug("wsContracts message:", data);
 
     if (data.msg_type === "authorize") {
-      // only subscribe after successful authorize
-      if (data.authorize && isSubscribed) {
-        console.log("Authorized for contracts panel — subscribing to active_positions");
-        subscribeActivePositions();
+      // Si le panneau est ouvert, on s'abonne automatiquement
+      if (data.authorize) {
+        console.log("wsContracts authorized", data.authorize.loginid);
+        if (isSubscribed) subscribeActivePositions();
       }
     } else if (data.msg_type === "active_positions") {
       const contracts = data.active_positions?.contracts || [];
-      console.log("📦 Contrats reçus :", contracts);
+      console.log("📦 Contrats reçus (wsContracts):", contracts);
       updateContractsTable(contracts);
     }
   };
 
-  ws.onclose = () => console.log("🔴 WebSocket fermé");
-  ws.onerror = (err) => console.error("⚠️ Erreur WS:", err);
+  wsContracts.onclose = () => console.log("🔴 wsContracts fermé");
+  wsContracts.onerror = (err) => console.error("⚠️ Erreur wsContracts:", err);
 
-  return ws;
+  return wsContracts;
 }
 
 // === ABONNEMENT / DÉSABONNEMENT ===
 function subscribeActivePositions() {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ active_positions: 1, subscribe: 1 }));
-    console.log("📡 Abonné aux contrats ouverts");
+  // s'assurer que la socket dédiée est ouverte
+  const socket = connectWS();
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ active_positions: 1, subscribe: 1 }));
+    console.log("📡 Abonné aux contrats ouverts (via wsContracts)");
+  } else {
+    console.log("Impossible de s'abonner aux contrats: socket non ouverte");
   }
 }
 
 function unsubscribeActivePositions() {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ forget_all: "active_positions" }));
-    console.log("🛑 Désabonné des contrats ouverts");
+  if (wsContracts && wsContracts.readyState === WebSocket.OPEN) {
+    wsContracts.send(JSON.stringify({ forget_all: "active_positions" }));
+    console.log("🛑 Désabonné des contrats ouverts (via wsContracts)");
   }
 }
 
