@@ -508,7 +508,7 @@ document.addEventListener("DOMContentLoaded", () => {
    let portfolioReceived = false;
    let contracts = {};
   
-   if (ws1 && ws1.readyState !== WebSocket.OPEN || ws1.readyState !== WebSocket.CONNECTING) {
+   if (ws1 && ws1.readyState !== WebSocket.OPEN) {
       ws1 = new WebSocket(WS_URL);
       ws1.onopen = () => {
         ws1.send(JSON.stringify({ authorize: TOKEN }));
