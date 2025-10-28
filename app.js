@@ -314,9 +314,9 @@ document.addEventListener("DOMContentLoaded", () => {
   function stopAutomation(ws) {
     if (ws && ws.readyState === WebSocket.OPEN) {
        // Envoyer unsubscribe avant de fermer
-       automationRunning = true;
        ws.send(JSON.stringify({ forget_all: "ticks" }));
        ws.close();
+       ws = null;
     }
   }
 
