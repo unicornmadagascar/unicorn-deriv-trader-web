@@ -36,6 +36,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let ws = null;
   let wsContracts = null; // WebSocket dédié aux contrats ouverts (évite d'écraser `ws`)
   let ws1 = null; // WebSocket pour P/L live
+  let subscribeOnOpen = false;
   let chart = null;
   let areaSeries = null;
   let chartData = [];
@@ -904,7 +905,11 @@ function connectWS() {
       // Si le panneau est ouvert, on s'abonne automatiquement
       if (data.authorize) {
         console.log("wsContracts authorized", data.authorize.loginid);
-        if (isSubscribed) subscribeActivePositions();
+        // soit on a demandé explicitement l'abonnement, soit on a mis en file d'attente
+        if (isSubscribed || subscribeOnOpen) {
+          subscribeOnOpen = false;
+          subscribeActivePositions();
+        }
       }
     } else if (data.msg_type === "active_positions") {
       const contracts = data.active_positions?.contracts || [];
@@ -923,11 +928,24 @@ function connectWS() {
 function subscribeActivePositions() {
   // s'assurer que la socket dédiée est ouverte
   const socket = connectWS();
-  if (socket && socket.readyState === WebSocket.OPEN) {
+  if (!socket) {
+    console.log("subscribeActivePositions: no socket returned from connectWS()");
+    return;
+  }
+
+  if (socket.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify({ active_positions: 1, subscribe: 1 }));
     console.log("📡 Abonné aux contrats ouverts (via wsContracts)");
+    subscribeOnOpen = false;
+  } else if (socket.readyState === WebSocket.CONNECTING) {
+    // la socket est en cours d'ouverture — on met en file d'attente
+    subscribeOnOpen = true;
+    console.log("📡 Subscription queued until socket opens and authorizes");
   } else {
-    console.log("Impossible de s'abonner aux contrats: socket non ouverte");
+    // socket fermée ou autre — tente de la recréer et mettre en file d'attente
+    console.log("subscribeActivePositions: socket not open, reconnecting and queuing subscription");
+    subscribeOnOpen = true;
+    connectWS();
   }
 }
 
