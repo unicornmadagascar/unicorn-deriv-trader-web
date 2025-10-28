@@ -490,11 +490,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
-   
+   ws1 = new WebSocket(WS_URL);
    if (!ws1 || ws1.readyState !== WebSocket.OPEN || ws1.readyState !== WebSocket.CONNECTING)
    {
-      console.log("WebSocket not connected for P/L live.");
-      ws1 = new WebSocket(WS_URL);
       console.log("Reconnecting...");
       ws1.onopen = () => {
         ws1.send(JSON.stringify({ authorize: TOKEN }));
