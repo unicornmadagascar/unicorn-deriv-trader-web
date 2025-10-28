@@ -489,21 +489,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
-   if (!ws1 || ws1.readyState !== WebSocket.OPEN && ws1.readyState !== WebSocket.CONNECTING)
+   
+   if (!ws || ws.readyState !== WebSocket.OPEN || ws.readyState !== WebSocket.CONNECTING)
    {
       console.log("WebSocket not connected for P/L live.");
-      let ws1 = new WebSocket(WS_URL);
+      let ws = new WebSocket(WS_URL);
    }
 
-   if(ws1 && ws1.readyState === WebSocket.OPEN)
+   if(ws && ws.readyState === WebSocket.OPEN)
    {
-     ws1.close();
+     ws.close();
      console.log("Reconnecting WebSocket for P/L live...");
-     ws1 = null;
+     ws = null;
      return;
    }
 
-   
    let authorized = false;
    let portfolioReceived = false;
    let contracts = {};
@@ -513,17 +513,17 @@ document.addEventListener("DOMContentLoaded", () => {
      return;
    }
 
-   ws1.onopen = () => {
-    ws1.send(JSON.stringify({ authorize: TOKEN }));
+   ws.onopen = () => {
+    ws.send(JSON.stringify({ authorize: TOKEN }));
    };
 
-   ws1.onmessage = (msg) => {
+   ws.onmessage = (msg) => {
     const data = JSON.parse(msg.data);
 
     // Étape 1️⃣ : autorisation OK → on demande le portefeuille
     if (data.msg_type === "authorize" && !authorized) {
       authorized = true;
-      ws1.send(JSON.stringify({ portfolio: 1 }));
+      ws.send(JSON.stringify({ portfolio: 1 }));
     }
 
     // Étape 2️⃣ : réception du portefeuille (liste des contrats ouverts)
@@ -540,7 +540,7 @@ document.addEventListener("DOMContentLoaded", () => {
         contracts[c.contract_id] = 0;
 
         // On s’abonne en continu à chaque contrat ouvert
-        ws1.send(JSON.stringify({
+        ws.send(JSON.stringify({
           proposal_open_contract: 1,
           contract_id: c.contract_id,
           subscribe: 1
@@ -567,8 +567,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
    };
 
-   ws1.onerror = (err) => console.error("WebSocket error:", err);
-   ws1.onclose = () => console.log("Disconnected from Deriv WebSocket.");
+   ws.onerror = (err) => console.error("WebSocket error:", err);
+   ws.onclose = () => console.log("Disconnected from Deriv WebSocket.");
 
    return totalPL;
   }
