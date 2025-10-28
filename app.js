@@ -504,14 +504,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
-    if (!ws || ws.readyState !== WebSocket.OPEN)
-     {
-      ws = new WebSocket(WS_URL);
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ authorize: TOKEN }));
-      };
+     // Si le socket est déjà ouvert, on le réutilise
+     if (ws && ws.readyState === WebSocket.OPEN) {
+       console.log("♻️ WebSocket déjà connecté, réutilisation...");
+       return ws;
      }
-    
+
+     // Si le socket est en cours d’ouverture, attendre
+     if (ws && ws.readyState === WebSocket.CONNECTING) {
+       console.log("⏳ WebSocket en cours d’ouverture...");
+       return ws;
+     }
+
+    ws = new WebSocket(WS_URL);
     let authorized = false;
     let portfolioReceived = false;
     let contracts = {};
@@ -521,9 +526,9 @@ document.addEventListener("DOMContentLoaded", () => {
      return;
    }
 
-   //ws.onopen = () => {
-   //  ws.send(JSON.stringify({ authorize: TOKEN }));
-  // };
+   ws.onopen = () => {
+     ws.send(JSON.stringify({ authorize: TOKEN }));
+   };
 
    ws.onmessage = async (msg) => {
     const data = await JSON.parse(msg.data);
@@ -578,7 +583,7 @@ document.addEventListener("DOMContentLoaded", () => {
    //ws1.onerror = (err) => console.error("WebSocket error:", err);
    //ws1.onclose = () => console.log("Disconnected from Deriv WebSocket.");
 
-   return totalPL;
+   return [ws,totalPL];
   }
 
 
@@ -859,7 +864,7 @@ closeAll.onclick=()=>{
   initChart();
   initPLGauge();
 
-  // resize handling
+  // resize handling 
   window.addEventListener("resize", () => {
     try { positionGauges(); } catch (e) {}
     if (chart) {
@@ -869,8 +874,7 @@ closeAll.onclick=()=>{
   
   // Simulation : mise à jour toutes les 2 secondes
   setInterval(() => {
-      contractentry(totalPL => {
-         updatePLGauge(totalPL);
-      });
+      let [a,b] = contractentry();
+      updatePLGauge(b);
   }, 500);
 });
