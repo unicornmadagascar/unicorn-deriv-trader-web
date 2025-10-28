@@ -1,7 +1,478 @@
+(() => {
+'use strict';
+
+// Application Constants
+const APP_ID = 105747;
+const TOKEN = "wgf8TFDsJ8Ecvze"; 
+const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
+
+// Utility Functions
+const utils = {
+  safeNumber: (v, fixed = 2) => (isFinite(Number(v)) ? Number(v) : 0).toFixed(fixed),
+  safeText: (v) => (v === null || v === undefined) ? "-" : String(v),
+  formatTime: (epoch) => {
+    const d = new Date(epoch * 1000);
+    return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}:${d.getSeconds().toString().padStart(2, "0")}`;
+  },
+  formatPrice: (v) => Number(v).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }),
+  ecartType: (values) => {
+    if (values.length === 0) return 0;
+    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+    const variance = values.map(x => (x - mean) ** 2).reduce((a, b) => a + b, 0) / values.length;
+    return Math.sqrt(variance);
+  },
+  sigmoid: (x) => 1 / (1 + Math.exp(-x))
+};
+
+// Event Emitter Class
+class EventEmitter {
+  constructor() {
+    this.listeners = new Map();
+  }
+  
+  on(event, callback) {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, new Set());
+    }
+    this.listeners.get(event).add(callback);
+    return this;
+  }
+  
+  off(event, callback) {
+    this.listeners.get(event)?.delete(callback);
+    return this;
+  }
+  
+  emit(event, ...args) {
+    this.listeners.get(event)?.forEach(cb => {
+      try { 
+        cb(...args);
+      } catch (e) {
+        console.error(`Event listener error for ${event}:`, e);
+      }
+    });
+    return this;
+  }
+}
+
+// WebSocket Manager
+class WSManager extends EventEmitter {
+  constructor() {
+    super();
+    this.mainWS = null;
+    this.contractsWS = null;
+    this.plWS = null;
+    this.authorized = false;
+    this.connecting = false;
+    this.pendingSubscribes = new Set();
+  }
+
+  async connect() {
+    if (this.mainWS?.readyState === WebSocket.OPEN) return this.mainWS;
+    if (this.connecting) return new Promise((r) => this.once('connected', r));
+    
+    this.connecting = true;
+    
+    try {
+      if (this.mainWS) await this.disconnect();
+      
+      this.mainWS = new WebSocket(WS_URL);
+      
+      await new Promise((resolve, reject) => {
+        this.mainWS.onopen = () => {
+          this.mainWS.send(JSON.stringify({ authorize: TOKEN }));
+        };
+        
+        this.mainWS.onmessage = (msg) => {
+          const data = JSON.parse(msg.data);
+          
+          if (data.authorize) {
+            this.authorized = true;
+            this.emit('authorized', data.authorize);
+            resolve(this.mainWS);
+            this.pendingSubscribes.forEach(s => this.subscribe(s));
+            this.pendingSubscribes.clear();
+          } else if (data.tick) {
+            this.emit('tick', data.tick);
+          }
+        };
+        
+        this.mainWS.onclose = () => {
+          this.authorized = false;
+          this.emit('disconnected');
+          reject(new Error('Connection closed'));
+        };
+        
+        this.mainWS.onerror = (err) => {
+          this.authorized = false;
+          reject(err);
+        };
+      });
+      
+      this.emit('connected', this.mainWS);
+      return this.mainWS;
+      
+    } catch (err) {
+      this.emit('error', err);
+      throw err;
+    } finally {
+      this.connecting = false;
+    }
+  }
+  
+  async disconnect() {
+    if (!this.mainWS) return;
+    
+    return new Promise(resolve => {
+      this.mainWS.onclose = () => {
+        this.mainWS = null;
+        this.authorized = false;
+        this.emit('disconnected');
+        resolve();
+      };
+      this.mainWS.close();
+    });
+  }
+
+  subscribe(symbol) {
+    if (!this.mainWS || !this.authorized) {
+      this.pendingSubscribes.add(symbol);
+      this.connect();
+      return;
+    }
+    
+    try {
+      // Unsubscribe from previous ticks first
+      this.mainWS.send(JSON.stringify({ forget_all: "ticks" }));
+      
+      // Subscribe to new symbol
+      this.mainWS.send(JSON.stringify({ 
+        ticks: symbol,
+        subscribe: 1
+      }));
+      
+      this.emit('subscribed', symbol);
+      
+    } catch (e) {
+      console.error('Subscribe failed:', e);
+      this.pendingSubscribes.add(symbol);
+      this.emit('error', e);
+    }
+  }
+  
+  send(data) {
+    if (!this.mainWS || this.mainWS.readyState !== WebSocket.OPEN) {
+      throw new Error('WebSocket not connected');
+    }
+    this.mainWS.send(JSON.stringify(data));
+  }
+}
+
+// Create singleton instance
+const deriv = new WSManager();
+
+// Expose Deriv instance and useful constants globally
+window.deriv = deriv;
+window.DerivConstants = {
+  APP_ID,
+  TOKEN,
+  WS_URL,
+  SYMBOLS: [
+    { symbol: "BOOM1000", name: "Boom 1000" },
+    { symbol: "CRASH1000", name: "Crash 1000" },
+    { symbol: "BOOM500", name: "Boom 500" },
+    { symbol: "CRASH500", name: "Crash 500" },
+    { symbol: "BOOM900", name: "Boom 900" },
+    { symbol: "CRASH900", name: "Crash 900" },
+    { symbol: "BOOM600", name: "Boom 600" },
+    { symbol: "CRASH600", name: "Crash 600" },
+    { symbol: "R_100", name: "VIX 100" },
+    { symbol: "R_75", name: "VIX 75" },
+    { symbol: "R_50", name: "VIX 50" },
+    { symbol: "R_25", name: "VIX 25" },
+    { symbol: "R_10", name: "VIX 10" }
+  ]
+};
+
+// UI Initialization and Event Handlers
+async function initializeUI() {
+  const ui = {
+    connectBtn: document.getElementById("connectBtn"),
+    symbolList: document.getElementById("symbolList"),
+    chartInner: document.getElementById("chartInner"),
+    // Add other UI elements here
+  };
+
+  if (!ui.connectBtn || !ui.symbolList || !ui.chartInner) {
+    throw new Error("Required UI elements not found");
+  }
+
+  // Initialize WebSocket connection
+  deriv.on('authorized', () => {
+    ui.connectBtn.textContent = "Connected";
+    ui.connectBtn.style.background = "#4caf50";
+  });
+
+  deriv.on('disconnected', () => {
+    ui.connectBtn.textContent = "Disconnected";
+    ui.connectBtn.style.background = "#f44336";
+  });
+
+  deriv.on('error', (err) => {
+    console.error("Connection error:", err);
+    ui.connectBtn.textContent = "Connection Failed";
+    ui.connectBtn.style.background = "#f44336";
+  });
+
+  // Display available symbols
+  window.DerivConstants.SYMBOLS.forEach(s => {
+    const el = document.createElement("div");
+    el.className = "symbol-item";
+    el.textContent = s.name;
+    el.dataset.symbol = s.symbol;
+    el.addEventListener("click", () => selectSymbol(s.symbol, el));
+    ui.symbolList.appendChild(el);
+  });
+
+  // Initialize chart and other components
+  initChart(ui.chartInner);
+  setupGauges();
+  initializeTrading();
+}
+
+// Initialize when DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
-  const APP_ID = 105747;
-  const TOKEN = "wgf8TFDsJ8Ecvze";
-  const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
+  console.log("Starting Unicorn Deriv Trader...");
+  
+  initializeUI()
+    .then(() => console.log("Application ready"))
+    .catch(err => console.error("Startup error:", err));
+
+});
+
+// WebSocket Manager Class
+class WSManager {
+  constructor() {
+    this.mainWS = null;
+    this.contractsWS = null;
+    this.plWS = null;
+    this.tickHistory = [];
+    this.callbacks = new Map();
+  }
+
+  connect() {
+    if (this.mainWS?.readyState === WebSocket.OPEN) return this.mainWS;
+    
+    return new Promise((resolve, reject) => {
+      try {
+        if (this.mainWS) this.mainWS.close();
+        
+        this.mainWS = new WebSocket(WS_URL);
+        
+        this.mainWS.onopen = () => {
+          console.log("WS opened, authorizing...");
+          this.mainWS.send(JSON.stringify({ authorize: TOKEN }));
+        };
+        
+        this.mainWS.onmessage = (msg) => {
+          try {
+            const data = JSON.parse(msg.data);
+            
+            if (data.authorize) {
+              console.log("Authorization successful");
+              resolve(this.mainWS);
+            } else if (data.tick) {
+              this.callbacks.get('tick')?.forEach(cb => cb(data.tick));
+            }
+          } catch (e) {
+            console.error("Message handling error:", e);
+            reject(e);
+          }
+        };
+        
+        this.mainWS.onclose = () => {
+          console.log("WS closed");
+          reject(new Error("WebSocket closed"));
+        };
+        
+        this.mainWS.onerror = (err) => {
+          console.error("WS error:", err);
+          reject(err);
+        };
+        
+      } catch (err) {
+        console.error("Connection setup failed:", err);
+        reject(err);
+      }
+    });
+  }
+
+  subscribe(type, callback) {
+    if (!this.callbacks.has(type)) {
+      this.callbacks.set(type, new Set());
+    }
+    this.callbacks.get(type).add(callback);
+  }
+
+  unsubscribe(type, callback) {
+    this.callbacks.get(type)?.delete(callback);
+  }
+
+  send(data) {
+    if (this.mainWS?.readyState === WebSocket.OPEN) {
+      this.mainWS.send(JSON.stringify(data));
+    }
+  }
+}
+
+// Global instances
+const wsManager = new WSManager();
+
+// Global state
+let authorized = false;
+let currentSymbol = null;
+let automationRunning = false;
+let isSubscribed = false;
+let subscribeOnOpen = false;
+let tickSubscriptionId = null;
+let chartData = [];
+let recentChanges = [];
+let activeContractsMap = {};
+let lastPrices = {};
+let chart = null;
+let areaSeries = null;
+let smoothVol = 0;
+let smoothTrend = 0;
+let totalPL = 0;
+let signal = null;
+let Dispersion = 0;
+let wsContractsAuthorized = false;
+let plCallback = null;
+let contractsPageSize = 10;
+let contractsCurrentPage = 1;
+let contractsSortMode = 'newest';
+
+// Available trading symbols
+const SYMBOLS = [
+  { symbol: "BOOM1000", name: "Boom 1000" },
+  { symbol: "CRASH1000", name: "Crash 1000" },
+  { symbol: "BOOM500", name: "Boom 500" },
+  { symbol: "CRASH500", name: "Crash 500" },
+  { symbol: "BOOM900", name: "Boom 900" },
+  { symbol: "CRASH900", name: "Crash 900" },
+  { symbol: "BOOM600", name: "Boom 600" },
+  { symbol: "CRASH600", name: "Crash 600" },
+  { symbol: "R_100", name: "VIX 100" },
+  { symbol: "R_75", name: "VIX 75" },
+  { symbol: "R_50", name: "VIX 50" },
+  { symbol: "R_25", name: "VIX 25" },
+  { symbol: "R_10", name: "VIX 10" }
+];
+
+// Use utility functions from utils object
+const fmt = utils.formatPrice;
+const safe = v => (typeof v === "number" && !isNaN(v)) ? v : 0;
+
+// Initialize UI and start application
+document.addEventListener("DOMContentLoaded", async () => {
+  console.log("Starting Unicorn Deriv Trader...");
+  
+  try {
+    // Initialize UI components
+    await initUI();
+    
+    // Set up resize handling
+    window.addEventListener("resize", () => {
+      try { 
+        positionGauges();
+        if (chart) chart.resize(chartInner.clientWidth, chartInner.clientHeight);
+      } catch (e) {
+        console.error("Resize error:", e); 
+      }
+    });
+
+    // Initialize P/L tracking
+    contractentry(totalPL => updatePLGauge(totalPL));
+    
+    console.log("Application initialized successfully");
+  } catch (err) {
+    console.error("Fatal error:", err);
+    alert("Failed to start the application. Please refresh and try again.");
+  }
+    
+
+  // Main WebSocket connection manager
+  async function connectDeriv() {
+    if (ws?.readyState === WebSocket.OPEN) {
+      console.log("WebSocket already connected");
+      return ws;
+    }
+
+    try {
+      console.log("Establishing new WebSocket connection...");
+      
+      // Close existing if any
+      if (ws) {
+        try {
+          ws.close();
+        } catch (e) {
+          console.warn("Error closing existing WebSocket:", e);
+        }
+      }
+
+      // Create new connection
+      ws = new WebSocket(WS_URL);
+
+      ws.onopen = () => {
+        console.log("WebSocket opened - sending authorize");
+        try {
+          ws.send(JSON.stringify({ authorize: TOKEN }));
+        } catch (e) {
+          console.error("Send authorize failed:", e);
+        }
+      };
+
+      ws.onmessage = (msg) => {
+        try {
+          const data = JSON.parse(msg.data);
+          
+          if (data.authorize) {
+            console.log("Authorization successful");
+            authorized = true;
+            
+            // If we have a pending symbol subscription, send it now
+            if (pendingSubscribe) {
+              console.log("Sending pending subscription for:", pendingSubscribe);
+              ws.send(JSON.stringify({ ticks: pendingSubscribe }));
+              pendingSubscribe = null;
+            }
+          } else if (data.tick) {
+            handleTick(data.tick);
+          }
+        } catch (e) {
+          console.error("Message handling error:", e);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log("WebSocket closed");
+        authorized = false;
+      };
+
+      ws.onerror = (error) => {
+        console.error("WebSocket error:", error);
+        authorized = false;
+      };
+
+      return ws;
+    } catch (err) {
+      console.error("Connection setup failed:", err);
+      throw err;
+    }
+  }
 
   // UI
   const connectBtn = document.getElementById("connectBtn");
@@ -66,23 +537,10 @@ document.addEventListener("DOMContentLoaded", () => {
   let pendingSubscribe = null;
   let authorized = false;
 
-  const SYMBOLS = [
-    { symbol: "BOOM1000", name: "Boom 1000" },
-    { symbol: "CRASH1000", name: "Crash 1000" },
-    { symbol: "BOOM500", name: "Boom 500" },
-    { symbol: "CRASH500", name: "Crash 500" },
-    { symbol: "BOOM900", name: "Boom 900" },
-    { symbol: "CRASH900", name: "Crash 900" },
-    { symbol: "BOOM600", name: "Boom 600" },
-    { symbol: "CRASH600", name: "Crash 600" },
-    { symbol: "R_100", name: "VIX 100" },
-    { symbol: "R_75", name: "VIX 75" },
-    { symbol: "R_50", name: "VIX 50" },
-    { symbol: "R_25", name: "VIX 25" },
-    { symbol: "R_10", name: "VIX 10" }
-  ];
-
-  const fmt = n => Number(n).toFixed(2);
+  // Use SYMBOLS from DerivConstants
+  const { SYMBOLS } = window.DerivConstants;
+  
+  const fmt = utils.formatPrice;
   const safe = v => (typeof v === "number" && !isNaN(v)) ? v : 0;
 
   // --- SYMBOLS ---
@@ -326,12 +784,12 @@ document.addEventListener("DOMContentLoaded", () => {
            
            // On peut aussi normaliser avec la moyenne
            const mean = (p1 + p2 + p3) / 3;
-           Dispersion = ecartType(tickHistory);
+           Dispersion = utils.ecartType(tickHistory);
            if (Dispersion !==0)
            {
             const delta = (p3 - mean) / Dispersion; // variation relative
             // Application de la sigmoïde
-            signal = sigmoid(delta); // delta*10 ou 10 = facteur de sensibilité
+            signal = utils.sigmoid(delta); // delta*10 ou 10 = facteur de sensibilité
 
             //console.log(`📊 Derniers ticks : ${tickHistory.map(x => x.toFixed(3)).join(", ")}`);
             //console.log(`⚙️ Variation moyenne : ${variation.toFixed(6)}`);
@@ -626,9 +1084,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
 
-  function sigmoid(x) {
-     return (1 - 1 / (1 + Math.exp(-x)));
-  }
+  // Use sigmoid from utils
+  const sigmoid = utils.sigmoid;
 
   /*function ActivePositions(ws, symbol){
 
@@ -690,12 +1147,7 @@ document.addEventListener("DOMContentLoaded", () => {
   } */
 
   // Fonction pour calculer l’écart-type (population)
-  function ecartType(values) {
-    if (values.length === 0) return 0;
-    const mean = values.reduce((a, b) => a + b, 0) / values.length;
-    const variance = values.map(x => (x - mean) ** 2).reduce((a, b) => a + b, 0) / values.length;
-    return Math.sqrt(variance);
-  }
+  // Use ecartType from utils
 
   // Initialisation
   function initPLGauge() {
@@ -965,13 +1417,8 @@ function updateContractsTable(contracts) {
     return;
   }
 
-  // helper to safely extract/display fields
-  const safeNumber = (v, fixed = 2) => {
-    const n = Number(v);
-    return (isFinite(n) ? n : 0).toFixed(fixed);
-  };
-
-  const safeText = v => (v === null || v === undefined) ? "-" : String(v);
+  // Use utility functions from utils
+  const { safeNumber, safeText } = utils;
 
   contracts.forEach(pos => {
     try {
@@ -1324,18 +1771,92 @@ function unsubscribeActivePositions() {
     }
   }
 
-  // startup
-  displaySymbols();
-  initChart();
-  initPLGauge();
-  
-  // resize handling 
-  window.addEventListener("resize", () => {
-    try { positionGauges(); } catch (e) {}
-    if (chart) {
-      try { chart.resize(chartInner.clientWidth, chartInner.clientHeight); } catch (e) {}
+  // Initialize all UI components
+  function initializeUI() {
+    try {
+      console.log("Initializing UI components...");
+      
+      // Initialize core displays
+      displaySymbols();
+      initChart();
+      initPLGauge();
+      
+      // Initialize contract panel
+      setupContractsPanel();
+      
+      // Set up control panel toggle
+      if (controlPanelToggle && controlFormPanel) {
+        controlPanelToggle.addEventListener("click", () => {
+          if (!controlFormPanel) return;
+          const isVisible = controlFormPanel.classList.contains("active") || controlFormPanel.style.display === "flex";
+          
+          if (isVisible) {
+            controlFormPanel.classList.remove("active");
+            setTimeout(() => { controlFormPanel.style.display = "none"; }, 320);
+            controlPanelToggle.textContent = "⚙️ Show Controls";
+          } else {
+            controlFormPanel.style.display = "flex";
+            setTimeout(() => controlFormPanel.classList.add("active"), 10);
+            controlPanelToggle.textContent = "⚙️ Hide Controls";
+          }
+        });
+      }
+      
+      // Wire up trade buttons
+      if (buyBtn && sellBtn) {
+        buyBtn.onclick = () => executeTrade("BUY");
+        sellBtn.onclick = () => executeTrade("SELL");
+      }
+      
+      // Set up automation toggle
+      if (toggleAutomationBtn) {
+        toggleAutomationBtn.addEventListener("click", () => {
+          const newWs = new WebSocket(WS_URL);
+          if (!automationRunning) {
+            toggleAutomationBtn.textContent = "Stop Automation";
+            toggleAutomationBtn.style.background = "linear-gradient(90deg,#f44336,#e57373)";
+            startAutomation(newWs);
+            automationRunning = true;
+          } else {
+            toggleAutomationBtn.textContent = "Launch Automation";
+            toggleAutomationBtn.style.background = "linear-gradient(90deg,#4caf50,#81c784)";
+            stopAutomation(newWs);
+            automationRunning = false;
+          }
+        });
+      }
+      
+      console.log("UI components initialized successfully");
+    } catch (err) {
+      console.error("UI initialization failed:", err);
+      alert("Failed to initialize the interface. Please refresh the page.");
     }
-  });
+  }
+
+  // Initialize the application
+  try {
+    initializeUI();
+    
+    // Set up resize handling
+    window.addEventListener("resize", () => {
+      try { 
+        positionGauges(); 
+        if (chart) {
+          chart.resize(chartInner.clientWidth, chartInner.clientHeight);
+        }
+      } catch (e) {
+        console.error("Resize handling error:", e);
+      }
+    });
+    
+    // Initialize P/L tracking
+    contractentry(totalPL => updatePLGauge(totalPL));
+    
+    console.log("Application initialized successfully");
+  } catch (err) {
+    console.error("Application initialization failed:", err);
+    alert("Failed to start the application. Please refresh the page.");
+  }
   
   // Initialise la socket de P/L une seule fois et lie la callback
   contractentry(totalPL => updatePLGauge(totalPL));
