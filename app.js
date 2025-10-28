@@ -244,7 +244,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (currentSymbol === null) {
       console.log("Please select a symbol first.");
-      automationRunning = false;
+      automationRunning = true;
       return;
     }
 
