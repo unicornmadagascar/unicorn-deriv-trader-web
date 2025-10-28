@@ -499,15 +499,13 @@ document.addEventListener("DOMContentLoaded", () => {
      console.log("Please, verify your token, and try again.");
      return;
    }
-   
-   console.log("Reconnecting to Deriv WebSocket for P/L live...");
 
    ws1.onopen = () => {
       ws1.send(JSON.stringify({ authorize: TOKEN }));
    };
 
-   ws1.onmessage = (msg) => {
-    const data = JSON.parse(msg.data);
+   ws1.onmessage = async (msg) => {
+    const data = await JSON.parse(msg.data);
 
     // Étape 1️⃣ : autorisation OK → on demande le portefeuille
     if (data.msg_type === "authorize" && !authorized) {
