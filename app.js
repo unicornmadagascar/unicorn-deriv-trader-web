@@ -492,7 +492,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function contractentry(onUpdate) {
    if (ws1 && (ws1.readyState === WebSocket.OPEN || ws1.readyState === WebSocket.CONNECTING))
    {
-      //ws1.close();
+      ws1.close();
       ws1 = null;
    }
    
@@ -506,10 +506,12 @@ document.addEventListener("DOMContentLoaded", () => {
    let authorized = false;
    let portfolioReceived = false;
    let contracts = {};
-
-   ws1.onopen = () => {
-      ws1.send(JSON.stringify({ authorize: TOKEN }));
-   };
+  
+   if (!ws1 || ws1.readyState !== WebSocket.CONNECTING || ws1.readyState !== WebSocket.OPEN) {
+      ws1.onopen = () => {
+        ws1.send(JSON.stringify({ authorize: TOKEN }));
+      };
+    }
 
    ws1.onmessage = (msg) => {
     const data = JSON.parse(msg.data);
