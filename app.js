@@ -490,6 +490,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
+
+   if (ws1 && (ws1.readyState === WebSocket.OPEN || ws1.readyState === WebSocket.CONNECTING))
+   {
+      ws1.onclose();
+      return;
+   }
    
    if (!ws1 || ws1.readyState !== WebSocket.OPEN || ws1.readyState !== WebSocket.CONNECTING)
    {
