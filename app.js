@@ -491,16 +491,17 @@ document.addEventListener("DOMContentLoaded", () => {
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
    
-   
    if (!ws1 || ws1.readyState !== WebSocket.OPEN || ws1.readyState !== WebSocket.CONNECTING)
    {
       console.log("Reconnecting...");
-      ws1 = new WebSocket(WS_URL);
+      ws1 = null;
    }
 
    if (ws1 && (ws1.readyState === WebSocket.OPEN || ws1.readyState === WebSocket.CONNECTING))
    {
-      return;
+      
+      ws1.close();
+      ws1 = null;
    }
    
    if (!TOKEN) {
@@ -508,6 +509,7 @@ document.addEventListener("DOMContentLoaded", () => {
      return;
    }
    
+   let ws1 = new WebSocket(WS_URL);
    let authorized = false;
    let portfolioReceived = false;
    let contracts = {};
