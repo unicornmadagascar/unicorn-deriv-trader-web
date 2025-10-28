@@ -30,6 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let smoothVol = 0;
   let smoothTrend = 0;
   let ws = null;
+  let ws1 = null; // WebSocket pour P/L live
   let chart = null;
   let areaSeries = null;
   let chartData = [];
@@ -490,10 +491,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
    
-   if (!ws || ws.readyState !== WebSocket.OPEN || ws.readyState !== WebSocket.CONNECTING)
+   if (!ws1 || ws1.readyState !== WebSocket.OPEN || ws1.readyState !== WebSocket.CONNECTING)
    {
       console.log("WebSocket not connected for P/L live.");
-      let ws = new WebSocket(WS_URL);
+      let ws1 = new WebSocket(WS_URL);
    }
 
    if (!TOKEN) {
@@ -501,31 +502,26 @@ document.addEventListener("DOMContentLoaded", () => {
      return;
    }
 
-   if(ws && ws.readyState === WebSocket.OPEN)
+   if(ws1 && ws1.readyState === WebSocket.OPEN)
    {
-     ws.close();
-     console.log("Reconnecting WebSocket for P/L live...");
-     ws = null;
-     return;
+     ws1.close();
+     console.log("Reconnecting...");
+     ws1.onopen = () => {
+        ws1.send(JSON.stringify({ authorize: TOKEN }));
+     };
    }
 
    let authorized = false;
    let portfolioReceived = false;
    let contracts = {};
 
-   
-
-   ws.onopen = () => {
-    ws.send(JSON.stringify({ authorize: TOKEN }));
-   };
-
-   ws.onmessage = (msg) => {
+   ws1.onmessage = (msg) => {
     const data = JSON.parse(msg.data);
 
     // Étape 1️⃣ : autorisation OK → on demande le portefeuille
     if (data.msg_type === "authorize" && !authorized) {
       authorized = true;
-      ws.send(JSON.stringify({ portfolio: 1 }));
+      ws1.send(JSON.stringify({ portfolio: 1 }));
     }
 
     // Étape 2️⃣ : réception du portefeuille (liste des contrats ouverts)
@@ -542,7 +538,7 @@ document.addEventListener("DOMContentLoaded", () => {
         contracts[c.contract_id] = 0;
 
         // On s’abonne en continu à chaque contrat ouvert
-        ws.send(JSON.stringify({
+        ws1.send(JSON.stringify({
           proposal_open_contract: 1,
           contract_id: c.contract_id,
           subscribe: 1
@@ -569,8 +565,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
    };
 
-   ws.onerror = (err) => console.error("WebSocket error:", err);
-   ws.onclose = () => console.log("Disconnected from Deriv WebSocket.");
+   ws1.onerror = (err) => console.error("WebSocket error:", err);
+   ws1.onclose = () => console.log("Disconnected from Deriv WebSocket.");
 
    return totalPL;
   }
