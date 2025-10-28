@@ -24,12 +24,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const closeAll = document.getElementById("closeAll");
   const buyNum = document.getElementById("buyNumberInput");
   const sellNum = document.getElementById("sellNumberInput");
+  const contractsPanelToggle = document.getElementById("contractsPanelToggle");
+  const contractsPanel = document.getElementById("contractsPanel");
   const autoHistoryList = document.getElementById("autoHistoryList");
  
   let totalPL = 0; // cumul des profits et pertes
   let automationRunning = false;
   let smoothVol = 0;
   let smoothTrend = 0;
+  let isSubscribed = false;
   let ws = null;
   let ws1 = null; // WebSocket pour P/L live
   let chart = null;
@@ -811,10 +814,9 @@ closeAll.onclick=()=>{
     };
   }; 
 
-  // ================================
-// 📊 Création du tableau
-// ================================
-function initContractsTable() {
+  // === TABLEAU HTML ===
+function initTable() {
+  const autoHistoryList = document.getElementById("autoHistoryList");
   autoHistoryList.innerHTML = `
     <table class="trade-table" id="autoTradeTable">
       <thead>
@@ -836,48 +838,76 @@ function initContractsTable() {
     </table>
     <button id="deleteSelected" style="margin-top:8px; background:#dc2626; color:white; border:none; padding:6px 10px; border-radius:6px; cursor:pointer;">🗑 Delete Selected</button>
   `;
-
-   const selectAll = document.getElementById("selectAll");
-   const deleteSelectedBtn = document.getElementById("deleteSelected");
-
-   selectAll.addEventListener("change", () => {
-     const checkboxes = document.querySelectorAll(".rowSelect");
-     checkboxes.forEach(cb => cb.checked = selectAll.checked);
-   });
-
-   deleteSelectedBtn.addEventListener("click", () => {
-     const selectedRows = document.querySelectorAll(".rowSelect:checked");
-     selectedRows.forEach(row => row.closest("tr").remove());
-   });
 }
 
-// ================================
-// ➕ Ajout de ligne
-// ================================
-  function addContractRow(trade) {
-    const autoTradeBody = document.getElementById("autoTradeBody");
-    if (!autoTradeBody) return;
+// === METTRE À JOUR LE TABLEAU ===
+function updateContractsTable(positions) {
+  const tbody = document.getElementById("autoTradeBody");
+  tbody.innerHTML = "";
 
+  positions.forEach(pos => {
     const tr = document.createElement("tr");
-    tr.innerHTML = `
-     <td><input type="checkbox" class="rowSelect"></td>
-     <td>${trade.time}</td>
-     <td>${trade.contract_id}</td>
-     <td class="${trade.type === "BUY" ? "buy" : "sell"}">${trade.type}</td>
-     <td>${trade.stake.toFixed(2)}</td>
-     <td>${trade.multiplier}</td>
-     <td>${trade.entry_spot}</td>
-     <td>${trade.tp}%</td>
-     <td>${trade.sl}%</td>
-     <td>${trade.profit}</td>
-     <td>
-       <button class="deleteRowBtn" style="background:#ef4444; border:none; color:white; border-radius:4px; padding:2px 6px; cursor:pointer;">Delete</button>
-     </td>
-    `;
+    const profit = parseFloat(pos.profit || 0).toFixed(2);
+    const profitClass = profit >= 0 ? "profit-positive" : "profit-negative";
 
-    tr.querySelector(".deleteRowBtn").addEventListener("click", () => tr.remove());
-    autoTradeBody.appendChild(tr);
+    tr.innerHTML = `
+      <td><input type="checkbox" class="rowSelect"></td>
+      <td>${new Date(pos.purchase_time * 1000).toLocaleTimeString()}</td>
+      <td>${pos.contract_id}</td>
+      <td class="${pos.contract_type.includes("CALL") ? "buy" : "sell"}">${pos.contract_type}</td>
+      <td>${pos.buy_price.toFixed(2)}</td>
+      <td>${pos.multiplier || "-"}</td>
+      <td>${pos.entry_tick || "-"}</td>
+      <td>${pos.take_profit || "-"}</td>
+      <td>${pos.stop_loss || "-"}</td>
+      <td class="${profitClass}">${profit}</td>
+      <td><button class="deleteRowBtn" style="background:#ef4444; border:none; color:white; border-radius:4px; padding:2px 6px; cursor:pointer;">Delete</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// === CONNEXION WEBSOCKET ===
+function connectWS() {
+  if (ws && ws.readyState === WebSocket.OPEN) return ws;
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    console.log("✅ Connecté à Deriv");
+    ws.send(JSON.stringify({ authorize: TOKEN }));
+  };
+
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    if (data.msg_type === "authorize") {
+      if (isSubscribed) subscribeActivePositions();
+    } else if (data.msg_type === "active_positions") {
+      const positions = Object.values(data.active_positions || {});
+      updateContractsTable(positions);
+    }
+  };
+
+  ws.onclose = () => console.log("🔴 WebSocket fermé");
+  ws.onerror = (err) => console.error("⚠️ Erreur WS:", err);
+
+  return ws;
+}
+
+// === ABONNEMENT / DÉSABONNEMENT ===
+function subscribeActivePositions() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ active_positions: 1, subscribe: 1 }));
+    console.log("📡 Abonné aux contrats ouverts");
   }
+}
+
+function unsubscribeActivePositions() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ forget_all: "active_positions" }));
+    console.log("🛑 Désabonné des contrats ouverts");
+  }
+}
+
 
   // === Automation Toggle ===
   const toggleAutomationBtn = document.getElementById("toggleAutomation");
@@ -918,7 +948,7 @@ function initContractsTable() {
   displaySymbols();
   initChart();
   initPLGauge();
-  initContractsTable();
+  
 
   // resize handling 
   window.addEventListener("resize", () => {
@@ -935,11 +965,19 @@ function initContractsTable() {
       });
   }, 500);
 
-   // Exemple : ajouter des lignes fictives pour test
-  const exampleTrades = [
-    { time: "2025-10-27 11:50:05", contract_id: "C001", type: "BUY", stake: 10, multiplier: 50, entry_spot: 1000.2, tp: 15, sl: 5, profit: "+2.5" },
-    { time: "2025-10-27 11:52:18", contract_id: "C002", type: "SELL", stake: 8, multiplier: 30, entry_spot: 998.6, tp: 10, sl: 6, profit: "-1.8" },
-  ];
-
-  exampleTrades.forEach(addContractRow);
+  contractsPanelToggle.addEventListener("click", () => {
+  if (contractsPanel.style.display === "none" || contractsPanel.style.display === "") {
+    contractsPanel.style.display = "flex";
+    contractsPanelToggle.textContent = "📄 Hide Contracts";
+    initTable();
+    isSubscribed = true;
+    connectWS();
+    subscribeActivePositions();
+  } else {
+    contractsPanel.style.display = "none";
+    contractsPanelToggle.textContent = "📄 Show Contracts";
+    isSubscribed = false;
+    unsubscribeActivePositions();
+  }
+});
 });
