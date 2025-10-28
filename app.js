@@ -920,14 +920,6 @@ function initContractsTable() {
   initPLGauge();
   initContractsTable();
 
-   // Exemple : ajouter des lignes fictives pour test
-  const exampleTrades = [
-    { time: "2025-10-27 11:50:05", contract_id: "C001", type: "BUY", stake: 10, multiplier: 50, entry_spot: 1000.2, tp: 15, sl: 5, profit: "+2.5" },
-    { time: "2025-10-27 11:52:18", contract_id: "C002", type: "SELL", stake: 8, multiplier: 30, entry_spot: 998.6, tp: 10, sl: 6, profit: "-1.8" },
-  ];
-
-  exampleTrades.forEach(addContractRow);
-
   // resize handling 
   window.addEventListener("resize", () => {
     try { positionGauges(); } catch (e) {}
@@ -942,4 +934,12 @@ function initContractsTable() {
          updatePLGauge(totalPL);
       });
   }, 500);
+
+   // Exemple : ajouter des lignes fictives pour test
+  const exampleTrades = [
+    { time: "2025-10-27 11:50:05", contract_id: "C001", type: "BUY", stake: 10, multiplier: 50, entry_spot: 1000.2, tp: 15, sl: 5, profit: "+2.5" },
+    { time: "2025-10-27 11:52:18", contract_id: "C002", type: "SELL", stake: 8, multiplier: 30, entry_spot: 998.6, tp: 10, sl: 6, profit: "-1.8" },
+  ];
+
+  exampleTrades.forEach(addContractRow);
 });
