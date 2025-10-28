@@ -507,13 +507,13 @@ document.addEventListener("DOMContentLoaded", () => {
      // Si le socket est déjà ouvert, on le réutilise
      if (ws && ws.readyState === WebSocket.OPEN) {
        console.log("♻️ WebSocket déjà connecté, réutilisation...");
-       return ws;
+       return;
      }
 
      // Si le socket est en cours d’ouverture, attendre
      if (ws && ws.readyState === WebSocket.CONNECTING) {
        console.log("⏳ WebSocket en cours d’ouverture...");
-       return ws;
+       return;
      }
 
     ws = new WebSocket(WS_URL);
