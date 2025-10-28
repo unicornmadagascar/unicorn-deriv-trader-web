@@ -314,7 +314,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
-  function stopAutomation(ws2) {
+  function stopAutomation(ws) {
     if (ws && ws.readyState === WebSocket.OPEN) {
       if (tickSubscriptionId) {
         // Désabonnement propre
