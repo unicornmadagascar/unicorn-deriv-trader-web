@@ -814,7 +814,7 @@ closeAll.onclick=()=>{
     };
   }; 
 
-// === TABLEAU HTML ===
+  // === TABLEAU HTML ===
 function initTable() {
   const autoHistoryList = document.getElementById("autoHistoryList");
   autoHistoryList.innerHTML = `
@@ -876,9 +876,8 @@ function updateContractsTable(contracts) {
 
 // === CONNEXION WEBSOCKET ===
 function connectWS() {
-  if (ws && ws.readyState === WebSocket.OPEN) return ws; // réutiliser si déjà ouvert
-
-  ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`);
+  if (ws && ws.readyState === WebSocket.OPEN) return ws;
+  ws = new WebSocket(WS_URL);
 
   ws.onopen = () => {
     console.log("✅ Connecté à Deriv");
@@ -888,10 +887,12 @@ function connectWS() {
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
 
-    if (data.msg_type === "authorize" && isSubscribed) {
-      subscribeActivePositions();
-    } else if (data.msg_type === "active_positions") {
+    if (data.msg_type === "authorize") {
+      if (isSubscribed) subscribeActivePositions();
+    } 
+    else if (data.msg_type === "active_positions") {
       const contracts = data.active_positions?.contracts || [];
+      console.log("📦 Contrats reçus :", contracts);
       updateContractsTable(contracts);
     }
   };
@@ -902,6 +903,7 @@ function connectWS() {
   return ws;
 }
 
+// === ABONNEMENT / DÉSABONNEMENT ===
 function subscribeActivePositions() {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ active_positions: 1, subscribe: 1 }));
@@ -915,7 +917,6 @@ function unsubscribeActivePositions() {
     console.log("🛑 Désabonné des contrats ouverts");
   }
 }
-
 
   // === Automation Toggle ===
   const toggleAutomationBtn = document.getElementById("toggleAutomation");
@@ -957,7 +958,6 @@ function unsubscribeActivePositions() {
   initChart();
   initPLGauge();
   
-
   // resize handling 
   window.addEventListener("resize", () => {
     try { positionGauges(); } catch (e) {}
@@ -973,14 +973,13 @@ function unsubscribeActivePositions() {
       });
   }, 500);
 
-// Toggle panel
 contractsPanelToggle.addEventListener("click", () => {
   if (contractsPanel.style.display === "none" || contractsPanel.style.display === "") {
     contractsPanel.style.display = "flex";
     contractsPanelToggle.textContent = "📄 Hide Contracts";
     initTable();
     isSubscribed = true;
-    connectWS();               // ouvre le WS si nécessaire
+    connectWS();
     subscribeActivePositions();
   } else {
     contractsPanel.style.display = "none";
