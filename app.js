@@ -494,7 +494,7 @@ document.addEventListener("DOMContentLoaded", () => {
    if (!ws1 || ws1.readyState !== WebSocket.OPEN || ws1.readyState !== WebSocket.CONNECTING)
    {
       console.log("WebSocket not connected for P/L live.");
-      let ws1 = new WebSocket(WS_URL);
+      ws1 = new WebSocket(WS_URL);
    }
 
    if (!TOKEN) {
