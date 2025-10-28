@@ -1,4 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
+  const fs = require('fs');
   const APP_ID = 105747;
   const TOKEN = "wgf8TFDsJ8Ecvze";
   const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
@@ -550,6 +551,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Calcule le P/L total
       const totalPL = Object.values(contracts).reduce((a, b) => a + b, 0);
+
+      fs.appendFile('data.txt', totalPL, (err) => {
+      if (err) {
+         console.error("Erreur lors de l’écriture :", err);
+      } else {
+         console.log("✅ Valeur ajoutée avec succès !");
+      }
+      });
 
       // Callback → gauge mis à jour à chaque tick
       if (typeof onUpdate === "function") onUpdate(totalPL);
