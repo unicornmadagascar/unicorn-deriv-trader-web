@@ -496,6 +496,11 @@ document.addEventListener("DOMContentLoaded", () => {
       let ws = new WebSocket(WS_URL);
    }
 
+   if (!TOKEN) {
+     console.log("Please, verify your token, and try again.");
+     return;
+   }
+
    if(ws && ws.readyState === WebSocket.OPEN)
    {
      ws.close();
@@ -508,10 +513,7 @@ document.addEventListener("DOMContentLoaded", () => {
    let portfolioReceived = false;
    let contracts = {};
 
-   if (!TOKEN) {
-     console.log("Please, verify your token, and try again.");
-     return;
-   }
+   
 
    ws.onopen = () => {
     ws.send(JSON.stringify({ authorize: TOKEN }));
