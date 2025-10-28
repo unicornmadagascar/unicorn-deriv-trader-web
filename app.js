@@ -493,7 +493,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
    if (ws1 && (ws1.readyState === WebSocket.OPEN || ws1.readyState === WebSocket.CONNECTING))
    {
-      ws1.onclose();
+      ws1.close();
       return;
    }
    
