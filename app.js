@@ -245,7 +245,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (currentSymbol === null) {
       console.log("Please select a symbol first.");
-      automationRunning = false;
       return;
     }
 
@@ -310,6 +309,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function stopAutomation(ws2) {
     if (ws2 && (ws2.readyState === WebSocket.CONNECTING || ws2.readyState === WebSocket.OPEN)) {
        // Envoyer unsubscribe avant de fermer
+       automationRunning = true;
        ws2.send(JSON.stringify({ forget_all: "ticks" }));
        ws2.close();
     }
@@ -796,15 +796,15 @@ closeAll.onclick=()=>{
   const toggleAutomationBtn = document.getElementById("toggleAutomation");
   toggleAutomationBtn.addEventListener("click", () => {
     automationRunning = !automationRunning;
-    let ws = new WebSocket(WS_URL);
+    let ws2 = new WebSocket(WS_URL);
     if (automationRunning) {
       toggleAutomationBtn.textContent = "Stop Automation";
       toggleAutomationBtn.style.background = "linear-gradient(90deg,#f44336,#e57373)";
-      startAutomation(ws);
+      startAutomation(ws2);
     } else {
       toggleAutomationBtn.textContent = "Launch Automation";
       toggleAutomationBtn.style.background = "linear-gradient(90deg,#4caf50,#81c784)";
-      stopAutomation(ws);
+      stopAutomation(ws2);
     }
   });
 
