@@ -500,11 +500,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
-    if (ws && ws.readyState === WebSocket.OPEN)
-    {
-     ws.close();
-     //return;
-    }
 
     const ws = new WebSocket(WS_URL);
     let authorized = false;
