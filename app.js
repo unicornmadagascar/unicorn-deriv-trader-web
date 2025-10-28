@@ -307,7 +307,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function stopAutomation(ws2) {
-    if (ws2 && (ws2.readyState === WebSocket.CONNECTING || ws2.readyState === WebSocket.OPEN)) {
+    if (ws2 &&  ws2.readyState === WebSocket.OPEN) {
        // Envoyer unsubscribe avant de fermer
        automationRunning = true;
        ws2.send(JSON.stringify({ forget_all: "ticks" }));
