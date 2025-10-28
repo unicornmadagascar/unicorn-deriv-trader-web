@@ -244,7 +244,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (currentSymbol === null) {
       console.log("Please select a symbol first.");
-      automationRunning = true;
+      automationRunning = false;
       return;
     }
 
@@ -312,7 +312,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function stopAutomation(ws) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
+    if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
        // Envoyer unsubscribe avant de fermer
        ws.send(JSON.stringify({ forget_all: "ticks" }));
        ws.close();
