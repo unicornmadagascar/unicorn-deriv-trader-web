@@ -311,11 +311,12 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
-  function stopAutomation() {
+  function stopAutomation(ws) {
     if (ws && ws.readyState === WebSocket.OPEN) {
        // Envoyer unsubscribe avant de fermer
-       ws.send(JSON.stringify({ forget_all: "ticks" }));
-       ws.close();
+       automationRunning = true;
+       //ws.send(JSON.stringify({ forget_all: "ticks" }));
+       //ws.close();
     }
   }
 
@@ -488,12 +489,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
+   let ws = new WebSocket(WS_URL);
    let authorized = false;
    let portfolioReceived = false;
    let contracts = {};
 
-   let ws = new WebSocket(WS_URL);
-  
    if (!TOKEN) {
      console.log("Please, verify your token, and try again.");
      return;
