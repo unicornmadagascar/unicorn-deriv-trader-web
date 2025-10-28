@@ -357,18 +357,8 @@
   </div>
 
   <script>
-    // Toggle panel
-    const controlPanelToggle = document.getElementById("controlPanelToggle");
-    const controlFormPanel = document.getElementById("controlFormPanel");
-    controlPanelToggle.addEventListener("click", () => {
-      if(controlFormPanel.style.display === "none" || controlFormPanel.style.display === "") {
-        controlFormPanel.style.display = "flex";
-        controlPanelToggle.textContent = "⚙️ Hide Controls";
-      } else {
-        controlFormPanel.style.display = "none";
-        controlPanelToggle.textContent = "⚙️ Show Controls";
-      }
-   });
+    // NOTE: Toggle logic handled in app.js to avoid duplicate/conflicting listeners.
+    // Keep this script area intentionally empty.
   </script>
 </body>
 </html>

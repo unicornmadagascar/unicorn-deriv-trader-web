@@ -144,7 +144,7 @@ document.addEventListener("DOMContentLoaded", () => {
       gaugesContainer.id = "gaugesContainer";
       gaugesContainer.style.position = "absolute";
       gaugesContainer.style.top = "10px";
-      gaugesContainer.style.left = "10px";
+      gaugesContainer.style.right = "10px";  // Changed from left to right
       gaugesContainer.style.display = "flex";
       gaugesContainer.style.gap = "20px";
       gaugesContainer.style.zIndex = "12";
@@ -170,97 +170,108 @@ document.addEventListener("DOMContentLoaded", () => {
     content.style.width = "100%";
     content.appendChild(gaugeDiv);
     wrapper.appendChild(content);
+      console.log("updateContractsTable called with:", contracts);
+      try { appendContractsDebug("updateContractsTable called with: " + (Array.isArray(contracts) ? contracts.length + ' items' : JSON.stringify(contracts).slice(0,200))); } catch (e) {}
 
-    const label = document.createElement("div");
-    label.textContent = labelText;
-    label.style.fontSize = "13px";
-    label.style.fontWeight = "600";
-    label.style.textAlign = "center";
-    label.style.marginTop = "6px";
-    label.style.pointerEvents = "none";
-    wrapper.appendChild(label);
+      // Ensure table exists
+      if (!document.getElementById('autoTradeTable')) initTable();
+      const tbodyEl = document.getElementById("autoTradeBody");
+      if (!tbodyEl) return;
 
-    container.appendChild(wrapper);
-  }
+      // If no contracts, clear table
+      if (!contracts || contracts.length === 0) {
+        tbodyEl.innerHTML = `<tr><td colspan="11" style="color:#94a3b8;">No active contracts</td></tr>`;
+        return;
+      }
 
-  // --- CONNECT DERIV ---
-  function connectDeriv() {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.close();
-      ws = null;
-      authorized = false;
-      connectBtn.textContent = "Se connecter";
-      accountInfo.textContent = "";
-      return;
-    }
+      // helper functions
+      const safeNumber = (v, fixed = 2) => {
+        const n = Number(v);
+        return (isFinite(n) ? n : 0).toFixed(fixed);
+      };
+      const safeText = v => (v === null || v === undefined) ? "-" : String(v);
 
-    ws = new WebSocket(WS_URL);
-    connectBtn.textContent = "Connecting...";
-    accountInfo.textContent = "Connecting...";
+      // Track incoming contract ids to remove stale rows later
+      const incomingIds = new Set();
 
-    ws.onopen = () => {
-      // send authorize
-      ws.send(JSON.stringify({ authorize: TOKEN }));
-    };
+      contracts.forEach(pos => {
+        try {
+          // derive id and fields (robust to multiple server formats)
+          const purchaseEpoch = Number(pos.purchase_time || pos.purchase_epoch || pos.date_start || pos.date || 0);
+          const timeStr = purchaseEpoch ? new Date(purchaseEpoch * 1000).toLocaleTimeString() : "-";
 
-    ws.onmessage = (evt) => {
-      try {
-        const data = JSON.parse(evt.data);
+          const contractIdRaw = pos.contract_id ?? pos.id ?? pos.contractId ?? "";
+          const cid = String(contractIdRaw);
+          incomingIds.add(cid);
 
-        // authorize response
-        if (data.msg_type === "authorize" && data.authorize) {
-          authorized = true;
-          const acc = data.authorize.loginid;
-          const bal = data.authorize.balance;
-          const currency = data.authorize.currency || "";
-          connectBtn.textContent = "Disconnect";
-          accountInfo.textContent = `Account: ${acc} | Balance: ${Number(bal).toFixed(2)} ${currency}`;
+          const contractTypeRaw = safeText(pos.contract_type || pos.contract_type_display || pos.display_name || "N/A");
+          const isBuy = /CALL|BUY|UP|MULTUP/i.test(contractTypeRaw);
+          const buyOrSellClass = isBuy ? "buy" : "sell";
 
-          // subscribe balance updates
-          ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+          const buyPriceRaw = pos.buy_price ?? pos.purchase_price ?? pos.stake ?? pos.price ?? pos.buyPrice ?? 0;
+          const buyPrice = safeNumber(buyPriceRaw || 0);
 
-          // if there was a pending subscribe requested earlier, do it now
-          if (pendingSubscribe) {
-            // small delay to ensure WS state consistent
-            setTimeout(() => {
-              if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ forget_all: "ticks" }));
-                ws.send(JSON.stringify({ ticks: pendingSubscribe }));
-                currentSymbol = pendingSubscribe;
-                pendingSubscribe = null;
-              }
-            }, 300);
+          const multiplier = safeText(pos.multiplier ?? pos.contract_multiplier ?? pos.multiplier_value ?? "-");
+
+          const entryRaw = pos.entry_tick_display_value ?? pos.entry_spot_display_value ?? pos.entry_tick ?? pos.entry_spot ?? pos.entry_price ?? null;
+          const entryTick = (entryRaw !== null && entryRaw !== undefined && entryRaw !== "") ? (typeof entryRaw === 'number' ? Number(entryRaw).toFixed(3) : safeText(entryRaw)) : "-";
+
+          const tp = safeText(pos.take_profit ?? pos.tp ?? pos.takeProfit ?? "-");
+          const sl = safeText(pos.stop_loss ?? pos.sl ?? pos.stopLoss ?? "-");
+
+          let profitNum = parseFloat(pos.profit ?? pos.profit_value ?? pos.current_spot_profit ?? pos.current_profit);
+          if (!isFinite(profitNum) && pos.profit_percentage) {
+            const pct = parseFloat(pos.profit_percentage);
+            const stake = parseFloat(pos.stake ?? buyPriceRaw ?? NaN);
+            if (isFinite(pct) && isFinite(stake)) profitNum = (pct / 100) * stake;
+          }
+          if (!isFinite(profitNum)) {
+            const payout = parseFloat(pos.payout ?? pos.profit_payout ?? NaN);
+            const buy = parseFloat(buyPriceRaw || NaN);
+            if (isFinite(payout) && isFinite(buy)) profitNum = payout - buy;
+          }
+          if (!isFinite(profitNum)) profitNum = 0;
+          const profit = profitNum.toFixed(2);
+          const profitClass = profitNum >= 0 ? "profit-positive" : "profit-negative";
+
+          // Try to find existing row
+          let tr = tbodyEl.querySelector(`tr[data-contract-id="${cid}"]`);
+          const prevChecked = tr ? (tr.querySelector('.rowSelect')?.checked || false) : false;
+          if (!tr) {
+            tr = document.createElement('tr');
+            tr.setAttribute('data-contract-id', cid);
+            tbodyEl.appendChild(tr);
           }
 
-          displaySymbols();
-          return;
+          tr.innerHTML = `
+            <td><input type="checkbox" class="rowSelect"></td>
+            <td>${timeStr}</td>
+            <td>${safeText(cid)}</td>
+            <td class="${buyOrSellClass}">${contractTypeRaw}</td>
+            <td>${buyPrice}</td>
+            <td>${multiplier}</td>
+            <td>${entryTick}</td>
+            <td>${tp}</td>
+            <td>${sl}</td>
+            <td class="${profitClass}">${profit}</td>
+            <td><button class="closeRowBtn" data-contract-id="${safeText(cid)}" style="background:#ef4444; border:none; color:white; border-radius:4px; padding:4px 8px; cursor:pointer;">Close</button></td>
+          `;
+
+          // restore checkbox state
+          const cb = tr.querySelector('.rowSelect');
+          if (cb) cb.checked = !!prevChecked;
+
+        } catch (err) {
+          console.error("Failed to render contract row", err, pos);
+          try { appendContractsDebug('Failed to render contract row: ' + err.message); } catch (e) {}
         }
+      });
 
-        // balance update
-        if (data.msg_type === "balance" && data.balance) {
-          const b = data.balance;
-          accountInfo.textContent = `Account: ${b.loginid} | Balance: ${Number(b.balance).toFixed(2)} ${b.currency}`;
-          return;
-        }
-
-        // tick handling
-        if (data.msg_type === "tick" && data.tick) {
-          handleTick(data.tick);
-          return;
-        }
-
-        // other messages are ignored here
-      } catch (err) {
-        console.error("WS parse err", err);
-      }
-    };
-
-    ws.onclose = () => {
-      connectBtn.textContent = "Se connecter";
-      accountInfo.textContent = "";
-      ws = null;
-      authorized = false;
-    };
+      // Remove any rows that are no longer present
+      tbodyEl.querySelectorAll('tr[data-contract-id]').forEach(r => {
+        const id = r.getAttribute('data-contract-id');
+        if (!incomingIds.has(id)) r.remove();
+      });
 
     ws.onerror = (e) => {
       console.error("WS error", e);
@@ -967,21 +978,46 @@ function updateContractsTable(contracts) {
       const tr = document.createElement("tr");
 
       // normalize common fields from active_positions format
-      const purchaseEpoch = Number(pos.purchase_time || 0);
+      // purchase time (several possible field names)
+      const purchaseEpoch = Number(pos.purchase_time || pos.purchase_epoch || pos.date_start || pos.date || 0);
       const timeStr = purchaseEpoch ? new Date(purchaseEpoch * 1000).toLocaleTimeString() : "-";
 
-      const contractId = safeText(pos.contract_id || "-");
-      const contractTypeRaw = safeText(pos.contract_type || "N/A");
+      // contract id may be under contract_id or id
+      const contractIdRaw = pos.contract_id ?? pos.id ?? pos.contractId ?? "-";
+      const contractId = safeText(contractIdRaw);
+
+      const contractTypeRaw = safeText(pos.contract_type || pos.contract_type_display || pos.display_name || "N/A");
       const isBuy = /CALL|BUY|UP|MULTUP/i.test(contractTypeRaw);
       const buyOrSellClass = isBuy ? "buy" : "sell";
 
-      const buyPrice = safeNumber(pos.buy_price || 0);
-      const multiplier = safeText(pos.multiplier || "-");
-      const entryTick = safeText(pos.entry_tick || "-");
-      const tp = safeText(pos.take_profit || "-");
-      const sl = safeText(pos.stop_loss || "-");
-      const profitNum = Number(pos.profit || 0);
-      const profit = (isFinite(profitNum) ? profitNum : 0).toFixed(2);
+      // buy price: try several possible field names (stake/buy_price)
+      const buyPriceRaw = pos.buy_price ?? pos.purchase_price ?? pos.stake ?? pos.price ?? pos.buyPrice ?? 0;
+      const buyPrice = safeNumber(buyPriceRaw || 0);
+
+      const multiplier = safeText(pos.multiplier ?? pos.contract_multiplier ?? pos.multiplier_value ?? "-");
+
+      // entry spot: prefer display fields when present
+      const entryRaw = pos.entry_tick_display_value ?? pos.entry_spot_display_value ?? pos.entry_tick ?? pos.entry_spot ?? pos.entry_price ?? null;
+      const entryTick = (entryRaw !== null && entryRaw !== undefined && entryRaw !== "") ? (typeof entryRaw === 'number' ? Number(entryRaw).toFixed(3) : safeText(entryRaw)) : "-";
+
+      const tp = safeText(pos.take_profit ?? pos.tp ?? pos.takeProfit ?? "-");
+      const sl = safeText(pos.stop_loss ?? pos.sl ?? pos.stopLoss ?? "-");
+
+      // profit: direct field preferred, then profit_percentage, then compute from payout-buy_price
+      let profitNum = parseFloat(pos.profit ?? pos.profit_value ?? pos.current_spot_profit ?? pos.current_profit);
+      if (!isFinite(profitNum) && pos.profit_percentage) {
+        // if profit_percentage given and buy_price exists, compute accordingly (assuming percentage of stake)
+        const pct = parseFloat(pos.profit_percentage);
+        const stake = parseFloat(pos.stake ?? buyPriceRaw ?? NaN);
+        if (isFinite(pct) && isFinite(stake)) profitNum = (pct / 100) * stake;
+      }
+      if (!isFinite(profitNum)) {
+        const payout = parseFloat(pos.payout ?? pos.profit_payout ?? NaN);
+        const buy = parseFloat(buyPriceRaw || NaN);
+        if (isFinite(payout) && isFinite(buy)) profitNum = payout - buy;
+      }
+      if (!isFinite(profitNum)) profitNum = 0;
+      const profit = profitNum.toFixed(2);
       const profitClass = profitNum >= 0 ? "profit-positive" : "profit-negative";
 
       tr.innerHTML = `
@@ -1200,20 +1236,93 @@ function unsubscribeActivePositions() {
   // --- TOGGLE PANEL ---
   controlPanelToggle.addEventListener("click", () => {
     if (!controlFormPanel) return;
-    if (controlFormPanel.style.display === "flex") {
-      controlFormPanel.style.display = "none";
+    // If panel is visible (either class active or inline flex), hide it with transition
+    if (controlFormPanel.classList.contains("active") || controlFormPanel.style.display === "flex") {
+      controlFormPanel.classList.remove("active");
+      // wait for CSS transition to finish before removing from layout
+      setTimeout(() => { try { controlFormPanel.style.display = "none"; } catch (e) {} }, 320);
       controlPanelToggle.textContent = "⚙️ Show Controls";
     } else {
-      controlFormPanel.style.display = "flex"; 
+      // show and add active class to allow opacity/transform animation
+      controlFormPanel.style.display = "flex";
+      // small timeout so the browser registers the display change before adding active
+      setTimeout(() => controlFormPanel.classList.add("active"), 10);
       controlPanelToggle.textContent = "⚙️ Hide Controls";
     }
   });
 
-  // wire connect button
-  connectBtn.addEventListener("click", () => {
-    connectDeriv();
-    displaySymbols();
-  });
+  // Initialize connection management
+  if (connectBtn) {
+    let isConnecting = false;
+
+    // Connect button handler with proper state management
+    connectBtn.addEventListener("click", async () => {
+      if (isConnecting) return; // Prevent multiple clicks while connecting
+      
+      try {
+        isConnecting = true;
+        console.log("Connect button clicked - initializing connection...");
+        
+        // Update UI to connecting state
+        connectBtn.disabled = true;
+        connectBtn.textContent = "Connecting...";
+        
+        // Try connection
+        await new Promise((resolve, reject) => {
+          try {
+            connectDeriv();
+            displaySymbols();
+            resolve();
+          } catch (e) {
+            reject(e);
+          }
+        });
+
+        // Success state
+        setTimeout(() => {
+          connectBtn.disabled = false;
+          connectBtn.textContent = "Connected";
+          connectBtn.style.background = "#4caf50";
+        }, 1000);
+
+      } catch (err) {
+        console.error("Connection error:", err);
+        
+        // Error state
+        connectBtn.disabled = false;
+        connectBtn.textContent = "Connection Failed";
+        connectBtn.style.background = "#f44336";
+        
+        // Show error to user
+        alert("Connection failed: " + (err.message || "Please try again."));
+        
+        // Reset button after delay
+        setTimeout(() => {
+          if (!authorized) { // Only reset if still not authorized
+            connectBtn.textContent = "Se connecter";
+            connectBtn.style.background = "#007bff";
+          }
+        }, 3000);
+      } finally {
+        isConnecting = false;
+      }
+    });
+  } else {
+    console.error("Connect button not found in DOM");
+    // Try to show visible error
+    try {
+      const header = document.querySelector("header");
+      if (header) {
+        const errorMsg = document.createElement("div");
+        errorMsg.style.color = "#dc2626";
+        errorMsg.style.padding = "8px";
+        errorMsg.textContent = "Connect button not found - please refresh the page";
+        header.appendChild(errorMsg);
+      }
+    } catch (e) {
+      console.error("Failed to show UI error:", e);
+    }
+  }
 
   // startup
   displaySymbols();
@@ -1231,27 +1340,113 @@ function unsubscribeActivePositions() {
   // Initialise la socket de P/L une seule fois et lie la callback
   contractentry(totalPL => updatePLGauge(totalPL));
 
-contractsPanelToggle.addEventListener("click", () => {
-  console.log("contractsPanelToggle clicked. current display:", contractsPanel.style.display, "isSubscribed:", isSubscribed, "ws readyState:", ws && ws.readyState);
-  if (contractsPanel.style.display === "none" || contractsPanel.style.display === "") {
-    contractsPanel.style.display = "flex";
-    contractsPanelToggle.textContent = "📄 Hide Contracts";
-    initTable();
-    isSubscribed = true;
-    // show a visible message while we (re)connect
-    setContractsPanelMessage("Connecting to Deriv...", "info");
-    connectWS();
-    subscribeActivePositions();
-  } else {
-    contractsPanel.style.display = "none";
-    contractsPanelToggle.textContent = "📄 Show Contracts";
-    isSubscribed = false;
-    unsubscribeActivePositions();
-    // clear cached contracts when hiding panel
-    try { for (const k in activeContractsMap) delete activeContractsMap[k]; } catch (e) {}
-    renderActiveContracts();
-    setContractsPanelMessage("", "info");
+// Contract panel setup and toggle handling
+function setupContractsPanel() {
+  let panelInitialized = false;
+  let isToggling = false;
+
+  if (!contractsPanelToggle || !contractsPanel) {
+    console.error("Contract panel elements not found:", {
+      toggle: !!contractsPanelToggle,
+      panel: !!contractsPanel
+    });
+    // Try to show error message in UI
+    try {
+      const container = document.getElementById("contractsPanelContainer");
+      if (container) {
+        container.innerHTML = '<div style="color: #dc2626; padding: 8px; text-align: center;">Contract panel elements not found</div>';
+      }
+    } catch (e) {
+      console.error("Failed to show UI error:", e);
+    }
+    return;
   }
+
+  // Panel toggle handler with debounce and state management
+  contractsPanelToggle.addEventListener("click", async () => {
+    if (isToggling) return; // Prevent multiple clicks while toggling
+    isToggling = true;
+
+    try {
+      console.log("contractsPanelToggle clicked. current display:", contractsPanel.style.display, "isSubscribed:", isSubscribed);
+      
+      if (contractsPanel.style.display === "none" || contractsPanel.style.display === "") {
+        // Show panel
+        contractsPanel.style.display = "flex";
+        contractsPanelToggle.textContent = "📄 Hide Contracts";
+        
+        // Initialize table if not done yet
+        if (!panelInitialized) {
+          try {
+            await new Promise((resolve, reject) => {
+              try {
+                initTable();
+                panelInitialized = true;
+                resolve();
+              } catch (err) {
+                reject(err);
+              }
+            });
+          } catch (err) {
+            console.error("Failed to initialize contracts table:", err);
+            setContractsPanelMessage("Failed to initialize table", "error");
+            isToggling = false;
+            return;
+          }
+        }
+
+        // Subscribe to contract updates
+        isSubscribed = true;
+        setContractsPanelMessage("Connecting to Deriv...", "info");
+        
+        try {
+          const ws = await new Promise((resolve, reject) => {
+            const socket = connectWS();
+            if (socket) {
+              resolve(socket);
+            } else {
+              reject(new Error("Failed to establish WebSocket connection"));
+            }
+          });
+          
+          if (ws) {
+            subscribeActivePositions();
+          }
+        } catch (err) {
+          console.error("WebSocket connection error:", err);
+          setContractsPanelMessage("Connection failed. Please try again.", "error");
+          isToggling = false;
+          return;
+        }
+
+      } else {
+        // Hide panel and cleanup
+        contractsPanel.style.display = "none";
+        contractsPanelToggle.textContent = "📄 Show Contracts";
+        isSubscribed = false;
+        
+        // Unsubscribe and clear data
+        try {
+          unsubscribeActivePositions();
+          Object.keys(activeContractsMap).forEach(k => delete activeContractsMap[k]);
+          renderActiveContracts();
+          setContractsPanelMessage("", "info");
+        } catch (err) {
+          console.error("Error during panel cleanup:", err);
+          setContractsPanelMessage("Error during cleanup. Some data may persist.", "warn");
+        }
+      }
+    } catch (err) {
+      console.error("Contracts panel toggle error:", err);
+      setContractsPanelMessage("An error occurred. Please try again.", "error");
+    } finally {
+      isToggling = false;
+    }
+  });
+}
+
+// Initialize contracts panel
+setupContractsPanel();
 });
 
 // Refresh button handler: force a contracts refresh (active_positions + portfolio)
