@@ -248,6 +248,8 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    automationRunning = false;
+
     ws2.onopen = () => {
       console.log("✅ Connecté au WebSocket Deriv");
       ws2.send(JSON.stringify({ authorize: TOKEN }));
@@ -329,6 +331,8 @@ document.addEventListener("DOMContentLoaded", () => {
         console.log("🔒 Connexion fermée proprement");
       }, 500);
     }
+
+    automationRunning = true;
   }
 
   // --- SUBSCRIBE SYMBOL ---
