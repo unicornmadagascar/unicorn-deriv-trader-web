@@ -248,8 +248,6 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    //automationRunning = true;
-
     ws.onopen = () => {
       console.log("✅ Connecté au WebSocket Deriv");
       ws.send(JSON.stringify({ authorize: TOKEN }));
@@ -331,8 +329,6 @@ document.addEventListener("DOMContentLoaded", () => {
         console.log("🔒 Connexion fermée proprement");
       }, 2000);
     }
-
-    //automationRunning = true;
   }
 
   // --- SUBSCRIBE SYMBOL ---
@@ -504,7 +500,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
-    if (ws && ws.readyState === WebSocket.CONNECTING)
+    if (ws && ws.readyState === WebSocket.OPEN)
     {
      ws.close();
      //return;
@@ -822,16 +818,17 @@ closeAll.onclick=()=>{
   // === Automation Toggle ===
   const toggleAutomationBtn = document.getElementById("toggleAutomation");
   toggleAutomationBtn.addEventListener("click", () => {
-    automationRunning = !automationRunning;
     let ws = new WebSocket(WS_URL);
-    if (automationRunning) {
+    if (!automationRunning) {
       toggleAutomationBtn.textContent = "Stop Automation";
       toggleAutomationBtn.style.background = "linear-gradient(90deg,#f44336,#e57373)";
       startAutomation(ws);
+      automationRunning = true;
     } else {
       toggleAutomationBtn.textContent = "Launch Automation";
       toggleAutomationBtn.style.background = "linear-gradient(90deg,#4caf50,#81c784)";
       stopAutomation(ws);
+      automationRunning = false;
     }
   });
 
