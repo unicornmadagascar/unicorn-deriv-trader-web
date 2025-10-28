@@ -24,6 +24,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const closeAll = document.getElementById("closeAll");
   const buyNum = document.getElementById("buyNumberInput");
   const sellNum = document.getElementById("sellNumberInput");
+  const contractsPanelToggle = document.getElementById("contractsPanelToggle");
+  const contractsPanel = document.getElementById("contractsPanel");
+  const autoHistoryList = document.getElementById("autoHistoryList");
  
   let totalPL = 0; // cumul des profits et pertes
   let automationRunning = false;

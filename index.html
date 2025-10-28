@@ -183,6 +183,73 @@
      transform: translateY(0);
    }
 
+ /* 📊 Panneau des contrats ouverts */
+ #contractsPanelContainer {
+   display: flex;
+   flex-direction: column;
+   align-items: center;
+   margin-top: 12px;
+   width: 100%;
+ }
+
+ #contractsPanelToggle {
+   background: #059669; /* vert moderne */
+   color: white;
+   border: none;
+   border-radius: 8px;
+   padding: 8px 14px;
+   cursor: pointer;
+   font-weight: bold;
+   transition: all 0.2s ease-in-out;
+  }
+
+  #contractsPanelToggle:hover {
+    background: #047857;
+  }
+
+  #contractsPanel {
+    display: none;
+    flex-direction: column;
+    background: #111827;
+    color: #f3f4f6;
+    border-radius: 10px;
+    padding: 15px;
+    width: 95%;
+    margin-top: 10px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+    transition: all 0.3s ease;
+  }
+
+  .trade-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 13px;
+  }
+
+  .trade-table th, .trade-table td {
+    border: 1px solid #374151;
+    padding: 6px 8px;
+    text-align: center;
+  }
+
+  .trade-table thead {
+    background: #1f2937;
+  }
+
+  .trade-table tr:nth-child(even) {
+    background: #222;
+  }
+
+  .trade-table .buy {
+    color: #10b981;
+    font-weight: bold;
+  }
+
+   .trade-table .sell {
+     color: #ef4444;
+     font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -288,6 +355,19 @@
       } else {
         controlFormPanel.style.display = "none";
         controlPanelToggle.textContent = "⚙️ Show Controls";
+      }
+   });
+
+    // 🎚 Toggle show/hide
+    const contractsPanelToggle = document.getElementById("contractsPanelToggle");
+    const contractsPanel = document.getElementById("contractsPanel");
+    contractsPanelToggle.addEventListener("click", () => {
+      if (contractsPanel.style.display === "none" || contractsPanel.style.display === "") {
+         contractsPanel.style.display = "flex";
+         contractsPanelToggle.textContent = "📄 Hide Contracts";
+      } else {
+         contractsPanel.style.display = "none";
+         contractsPanelToggle.textContent = "📄 Show Contracts";
       }
     });
   </script>
