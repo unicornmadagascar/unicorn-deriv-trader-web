@@ -251,7 +251,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     ws2.onopen = () => {
       console.log("✅ Connecté au WebSocket Deriv");
-      ws.send(JSON.stringify({ authorize: TOKEN }));
+      ws2.send(JSON.stringify({ authorize: TOKEN }));
     };
 
     ws2.onmessage = (msg) => {
