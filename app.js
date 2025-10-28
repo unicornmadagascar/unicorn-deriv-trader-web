@@ -503,7 +503,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // === P/L LIVE FUNCTION ===
-  function contractentry() {
+  function contractentry(onUpdate) {
      // Si le socket est déjà ouvert, on le réutilise
      if (ws && ws.readyState === WebSocket.OPEN) {
        console.log("♻️ WebSocket déjà connecté, réutilisation...");
@@ -545,7 +545,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const contractsList = data.portfolio.contracts || [];
       if (contractsList.length === 0) {
-        //if (typeof onUpdate === "function") onUpdate(0);
+        if (typeof onUpdate === "function") onUpdate(0);
         return;
       }
 
@@ -576,7 +576,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const totalPL = Object.values(contracts).reduce((a, b) => a + b, 0);
 
       // Callback → gauge mis à jour à chaque tick
-      //if (typeof onUpdate === "function") onUpdate(totalPL);
+      if (typeof onUpdate === "function") onUpdate(totalPL);
     }
    };
 
