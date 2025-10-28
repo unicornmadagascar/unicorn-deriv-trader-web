@@ -490,30 +490,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
-   if (ws1 && ws1.readyState === WebSocket.CONNECTING)
-   {
-      //ws1.close();
-      ws1 = null;
-      return;
-   }
+    let ws1 = new WebSocket(WS_URL);
+    let authorized = false;
+    let portfolioReceived = false;
+    let contracts = {};
    
    if (!TOKEN) {
      console.log("Please, verify your token, and try again.");
      return;
    }
    
-   
    console.log("Reconnecting to Deriv WebSocket for P/L live...");
-   let authorized = false;
-   let portfolioReceived = false;
-   let contracts = {};
-  
-   if (ws1 && ws1.readyState !== WebSocket.OPEN) {
-      ws1 = new WebSocket(WS_URL);
-      ws1.onopen = () => {
-        ws1.send(JSON.stringify({ authorize: TOKEN }));
-      };
-    }
+
+   ws1.onopen = () => {
+      ws1.send(JSON.stringify({ authorize: TOKEN }));
+   };
 
    ws1.onmessage = (msg) => {
     const data = JSON.parse(msg.data);
