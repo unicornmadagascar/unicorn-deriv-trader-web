@@ -507,9 +507,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (ws && ws.readyState === WebSocket.CONNECTING)
     {
      ws.close();
-     return;
+     //return;
     }
-    
+
     const ws = new WebSocket(WS_URL);
     let authorized = false;
     let portfolioReceived = false;
