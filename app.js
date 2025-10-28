@@ -316,15 +316,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function stopAutomation(ws2) {
     if (ws2 && ws2.readyState === WebSocket.OPEN) {
-      if (tickSubscriptionId) {
-        // Désabonnement propre
-        ws2.send(JSON.stringify({ forget: tickSubscriptionId }));
-        console.log("🚫 Tick désabonné :", tickSubscriptionId);
-        tickSubscriptionId = null;
-      } else {
-        console.log("⚠️ Aucun abonnement trouvé à oublier");
-      }
+       ws2.send(JSON.stringify({ forget_all: "ticks" }));
 
+       ws2.onmessage = (e) => {
+          const data = JSON.parse(e.data);
+          if (data.msg_type === "forget_all") {
+             console.log("✅ Tous les ticks désabonnés");
+             ws2.close();
+         }
+      };
       // Attendre un court délai avant fermeture
       setTimeout(() => {
         ws2.close();
@@ -332,7 +332,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }, 500);
     }
 
-    automationRunning = true;
+    //automationRunning = true;
   }
 
   // --- SUBSCRIBE SYMBOL ---
