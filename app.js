@@ -284,7 +284,6 @@ document.addEventListener("DOMContentLoaded", () => {
            // On peut aussi normaliser avec la moyenne
            const mean = (p1 + p2 + p3) / 3;
            Dispersion = ecartType(tickHistory);
-           console.log("Dispersion : " + Dispersion);
            if (Dispersion !==0)
            {
             const delta = (p3 - mean) / Dispersion; // variation relative
