@@ -139,83 +139,65 @@
 
  /* 📊 Panneau des contrats ouverts */
  #contractsPanelContainer {
-   display: flex;
-   flex-direction: column;
-   align-items: center;
-   margin-top: 12px;
-   width: 100%;
- }
+    width: 100%;
+    margin-top: 15px;
+    text-align: center;
+  }
 
- #contractsPanelToggle {
-   background: #007bff; /* vert moderne */
-   color: white;
-   border: none;
-   border-radius: 8px;
-   padding: 8px 14px;
-   cursor: pointer;
-   font-weight: bold;
-   transition: all 0.2s ease-in-out;
+  #contractsPanelToggle {
+    background: #1e293b;
+    color: #facc15;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s ease;
   }
 
   #contractsPanelToggle:hover {
-    background: #007bff;
+    background: #334155;
   }
 
   #contractsPanel {
     display: none;
-    flex-direction: column;
-    background: #f3f4f6;
-    color: lab(9.88% 0.48 0.17);
-    border-radius: 10px;
-    padding: 15px;
-    width: 95%;
-    height: 300px;
+    justify-content: center;
     margin-top: 10px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.3);
-    transition: all 0.3s ease;
+    padding: 10px;
+    background: #0f172a;
+    border-radius: 10px;
+    box-shadow: 0 0 8px rgba(0,0,0,0.4);
   }
 
   .trade-table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 10px;
-    font-size: 13px;
+    font-family: 'Segoe UI', sans-serif;
+    background-color: #0f172a;
   }
 
-  .trade-table th { color: #e2e8f0;
-    border: 1px solid #ffffff;
-    color: white;
-    padding: 6px 8px;
+  .trade-table th {
+    background-color: #1e293b;
+    color: #facc15;
+    padding: 8px;
+    border-bottom: 2px solid #334155;
+  }
+
+  .trade-table td {
+    color: #e2e8f0;
+    padding: 8px;
     text-align: center;
+    border-bottom: 1px solid #334155;
   }
 
-  .trade-table td { 
-    border: 1px solid #ffffff;
-    color: #323334;
-    padding: 6px 8px;
-    text-align: center;
+  .trade-table tr:hover {
+    background-color: #1e293b;
   }
 
-  .trade-table thead {
-    background: #007bff;
-  }
-
-  .trade-table tr:nth-child(even) {
-    background: #fcfbfb;
-  }
-
-  .trade-table .buy {
-    color: #10b981;
-    font-weight: bold;
-  }
-
-  .trade-table .sell {
-     color: #ef4444;
-     font-weight: bold;
-  }
-
-  /*.trade-table td.profit-positive { color: #16a34a; font-weight: bold; }
-  .trade-table td.profit-negative { color: #dc2626; font-weight: bold; }*/
+  .trade-table td.buy { color: #22c55e; font-weight: bold; }
+  .trade-table td.sell { color: #ef4444; font-weight: bold; }
+  .trade-table td.profit-positive { color: #16a34a; font-weight: bold; }
+  .trade-table td.profit-negative { color: #dc2626; font-weight: bold; }
   </style>
 </head>
 <body>
