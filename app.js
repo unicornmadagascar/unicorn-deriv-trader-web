@@ -316,7 +316,7 @@ document.addEventListener("DOMContentLoaded", () => {
        // Envoyer unsubscribe avant de fermer
        automationRunning = true;
        ws.send(JSON.stringify({ forget_all: "ticks" }));
-       //ws.close();
+       ws.close();
     }
   }
 
