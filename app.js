@@ -24,8 +24,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const closeAll = document.getElementById("closeAll");
   const buyNum = document.getElementById("buyNumberInput");
   const sellNum = document.getElementById("sellNumberInput");
-  const contractsPanelToggle = document.getElementById("contractsPanelToggle");
-  const contractsPanel = document.getElementById("contractsPanel");
   const autoHistoryList = document.getElementById("autoHistoryList");
  
   let totalPL = 0; // cumul des profits et pertes
@@ -813,6 +811,74 @@ closeAll.onclick=()=>{
     };
   }; 
 
+  // ================================
+// 📊 Création du tableau
+// ================================
+function initContractsTable() {
+  autoHistoryList.innerHTML = `
+    <table class="trade-table" id="autoTradeTable">
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="selectAll"></th>
+          <th>Time of Trade</th>
+          <th>Contract ID</th>
+          <th>Contract Type</th>
+          <th>Stake</th>
+          <th>Multiplier</th>
+          <th>Entry Spot</th>
+          <th>TP (%)</th>
+          <th>SL (%)</th>
+          <th>Profit</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="autoTradeBody"></tbody>
+    </table>
+    <button id="deleteSelected" style="margin-top:8px; background:#dc2626; color:white; border:none; padding:6px 10px; border-radius:6px; cursor:pointer;">🗑 Delete Selected</button>
+  `;
+
+   const selectAll = document.getElementById("selectAll");
+   const deleteSelectedBtn = document.getElementById("deleteSelected");
+
+   selectAll.addEventListener("change", () => {
+     const checkboxes = document.querySelectorAll(".rowSelect");
+     checkboxes.forEach(cb => cb.checked = selectAll.checked);
+   });
+
+   deleteSelectedBtn.addEventListener("click", () => {
+     const selectedRows = document.querySelectorAll(".rowSelect:checked");
+     selectedRows.forEach(row => row.closest("tr").remove());
+   });
+}
+
+// ================================
+// ➕ Ajout de ligne
+// ================================
+  function addContractRow(trade) {
+    const autoTradeBody = document.getElementById("autoTradeBody");
+    if (!autoTradeBody) return;
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+     <td><input type="checkbox" class="rowSelect"></td>
+     <td>${trade.time}</td>
+     <td>${trade.contract_id}</td>
+     <td class="${trade.type === "BUY" ? "buy" : "sell"}">${trade.type}</td>
+     <td>${trade.stake.toFixed(2)}</td>
+     <td>${trade.multiplier}</td>
+     <td>${trade.entry_spot}</td>
+     <td>${trade.tp}%</td>
+     <td>${trade.sl}%</td>
+     <td>${trade.profit}</td>
+     <td>
+       <button class="deleteRowBtn" style="background:#ef4444; border:none; color:white; border-radius:4px; padding:2px 6px; cursor:pointer;">Delete</button>
+     </td>
+    `;
+
+    tr.querySelector(".deleteRowBtn").addEventListener("click", () => tr.remove());
+    autoTradeBody.appendChild(tr);
+  }
+
   // === Automation Toggle ===
   const toggleAutomationBtn = document.getElementById("toggleAutomation");
   toggleAutomationBtn.addEventListener("click", () => {
@@ -852,6 +918,15 @@ closeAll.onclick=()=>{
   displaySymbols();
   initChart();
   initPLGauge();
+  initContractsTable();
+
+   // Exemple : ajouter des lignes fictives pour test
+  const exampleTrades = [
+    { time: "2025-10-27 11:50:05", contract_id: "C001", type: "BUY", stake: 10, multiplier: 50, entry_spot: 1000.2, tp: 15, sl: 5, profit: "+2.5" },
+    { time: "2025-10-27 11:52:18", contract_id: "C002", type: "SELL", stake: 8, multiplier: 30, entry_spot: 998.6, tp: 10, sl: 6, profit: "-1.8" },
+  ];
+
+  exampleTrades.forEach(addContractRow);
 
   // resize handling 
   window.addEventListener("resize", () => {
