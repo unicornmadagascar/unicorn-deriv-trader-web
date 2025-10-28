@@ -248,7 +248,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    //automationRunning = false;
+    automationRunning = false;
 
     ws.onopen = () => {
       console.log("✅ Connecté au WebSocket Deriv");
@@ -329,7 +329,7 @@ document.addEventListener("DOMContentLoaded", () => {
       setTimeout(() => {
         ws.close();
         console.log("🔒 Connexion fermée proprement");
-      }, 500);
+      }, 2000);
     }
 
     automationRunning = true;
