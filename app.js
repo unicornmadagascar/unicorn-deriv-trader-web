@@ -504,7 +504,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
-    const ws = WebSocket(WS_URL);
+    if (ws && ws.readyState === WebSocket.CONNECTING)
+    {
+     ws.close();
+     return;
+    }
+    
+    const ws = new WebSocket(WS_URL);
     let authorized = false;
     let portfolioReceived = false;
     let contracts = {};
