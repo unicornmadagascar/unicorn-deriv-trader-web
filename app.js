@@ -262,6 +262,12 @@ document.addEventListener("DOMContentLoaded", () => {
          ws2.send(JSON.stringify({ ticks: currentSymbol, subscribe: 1 }));
       }
 
+      // Sauvegarder l'ID d'abonnement
+      if (data.subscription && data.subscription.id) {
+         tickSubscriptionId = data.subscription.id;
+         console.log("🆔 ID abonnement:", tickSubscriptionId);
+      }
+
       // Quand un tick arrive
       if (data.tick) {
          const price = parseFloat(data.tick.quote);
@@ -307,11 +313,21 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function stopAutomation(ws2) {
-    if (ws2 &&  ws2.readyState === WebSocket.OPEN) {
-       // Envoyer unsubscribe avant de fermer
-       automationRunning = true;
-       ws2.send(JSON.stringify({ forget_all: "ticks" }));
-       ws2.close();
+    if (ws2 && ws2.readyState === WebSocket.OPEN) {
+      if (tickSubscriptionId) {
+        // Désabonnement propre
+        ws2.send(JSON.stringify({ forget: tickSubscriptionId }));
+        console.log("🚫 Tick désabonné :", tickSubscriptionId);
+        tickSubscriptionId = null;
+      } else {
+        console.log("⚠️ Aucun abonnement trouvé à oublier");
+      }
+
+      // Attendre un court délai avant fermeture
+      setTimeout(() => {
+        ws2.close();
+        console.log("🔒 Connexion fermée proprement");
+      }, 500);
     }
   }
 
