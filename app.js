@@ -490,7 +490,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
-   if (ws1.readyState === WebSocket.CONNECTING)
+   if (ws1 && ws1.readyState === WebSocket.CONNECTING)
    {
       ws1.close();
       ws1 = null;
@@ -508,7 +508,7 @@ document.addEventListener("DOMContentLoaded", () => {
    let portfolioReceived = false;
    let contracts = {};
   
-   if (ws1.readyState !== WebSocket.OPEN || ws1.readyState !== WebSocket.CONNECTING) {
+   if (!ws1 || ws1.readyState !== WebSocket.OPEN || ws1.readyState !== WebSocket.CONNECTING) {
       ws1.onopen = () => {
         ws1.send(JSON.stringify({ authorize: TOKEN }));
       };
