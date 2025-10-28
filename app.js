@@ -240,29 +240,60 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function startAutomation() {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.close();
-      ws = null;
-      authorized = false;
-      return;
-    }
-
-    ws = new WebSocket(WS_URL);
+    let ws = new WebSocket(WS_URL);
     console.log("Connecting...");
 
     ws.onopen = () => {
-      console.log("Connected");
-      // Exemple : abonnement aux ticks
-      ws.send(JSON.stringify({
-        ticks: "R_100",
-        subscribe: 1
-      }));
+      console.log("✅ Connecté au WebSocket Deriv");
+      ws.send(JSON.stringify({ authorize: TOKEN }));
     };
 
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
+    ws.onmessage = (msg) => {
+      const data = JSON.parse(msg.data);
+
+      // Autorisation réussie → abonnement aux ticks
+      if (data.authorize) {
+         console.log("🔑 Autorisé, abonnement aux ticks...");
+         ws.send(JSON.stringify({ ticks: currentSymbol, subscribe: 1 }));
+      }
+
+      // Quand un tick arrive
       if (data.tick) {
-        console.log("Tick:", data.tick.quote);
+         const price = parseFloat(data.tick.quote);
+         const time = new Date(data.tick.epoch * 1000).toLocaleTimeString();
+
+         tickHistory.push(price);
+         if (tickHistory.length > 3) tickHistory.shift(); // garder seulement les 3 derniers ticks
+
+         console.clear();
+         console.log(`🕒 Tick reçu à ${time} | Prix : ${price}`);
+
+         if (tickHistory.length === 3) {
+            // Calcul sur le vecteur des 3 derniers ticks
+            const [p1, p2, p3] = tickHistory;
+
+           // Exemple de "variation moyenne" locale
+           const variation = (p3 - p1) / 3; 
+           
+           // On peut aussi normaliser avec la moyenne
+           const mean = (p1 + p2 + p3) / 3;
+           Dispersion = ecartType(tickHistory);
+           console.log("Dispersion : " + Dispersion);
+           if (Dispersion !==0)
+           {
+            const delta = (p3 - mean) / Dispersion; // variation relative
+            // Application de la sigmoïde
+            signal = sigmoid(delta); // delta*10 ou 10 = facteur de sensibilité
+
+            console.log(`📊 Derniers ticks : ${tickHistory.map(x => x.toFixed(3)).join(", ")}`);
+            console.log(`⚙️ Variation moyenne : ${variation.toFixed(6)}`);
+            console.log(`📈 Sigmoid : ${signal.toFixed(6)}`);
+           }
+          else
+           {
+             signal = 0;
+           }
+         }
       }
     };
 
