@@ -503,7 +503,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // === P/L LIVE FUNCTION ===
-  function contractentry(ws) {
+  function contractentry() {
+    let ws = new WebSocket(WS_URL);
     let authorized = false;
     let portfolioReceived = false;
     let contracts = {};
@@ -860,9 +861,8 @@ closeAll.onclick=()=>{
   });
   
   // Simulation : mise à jour toutes les 2 secondes
-  ws = new WebSocket(WS_URL);
   setInterval(() => {
-      const profit__ = contractentry(ws);
+      const profit__ = contractentry();
       updatePLGauge(profit__);
   }, 1000);
 });
