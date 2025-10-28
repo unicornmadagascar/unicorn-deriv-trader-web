@@ -874,7 +874,7 @@ closeAll.onclick=()=>{
   
   // Simulation : mise à jour toutes les 2 secondes
   setInterval(() => {
-      let [a,b] = contractentry();
-      updatePLGauge(b);
+      let profit__ = contractentry(onUpdate);
+      updatePLGauge(profit__);
   }, 500);
 });
