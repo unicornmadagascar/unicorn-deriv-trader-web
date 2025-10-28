@@ -508,7 +508,7 @@ document.addEventListener("DOMContentLoaded", () => {
      return;
    }
    
-   let ws1 = new WebSocket(WS_URL);
+   ws1 = new WebSocket(WS_URL);
    let authorized = false;
    let portfolioReceived = false;
    let contracts = {};
