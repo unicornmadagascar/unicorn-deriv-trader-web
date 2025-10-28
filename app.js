@@ -240,7 +240,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
-  function startAutomation(ws) {
+  function startAutomation(ws2) {
     console.log("Connecting...");
 
     if (currentSymbol === null) {
@@ -249,18 +249,18 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    ws.onopen = () => {
+    ws2.onopen = () => {
       console.log("✅ Connecté au WebSocket Deriv");
-      ws.send(JSON.stringify({ authorize: TOKEN }));
+      ws2.send(JSON.stringify({ authorize: TOKEN }));
     };
 
-    ws.onmessage = (msg) => {
+    ws2.onmessage = (msg) => {
       const data = JSON.parse(msg.data);
 
       // Autorisation réussie → abonnement aux ticks
       if (data.authorize) {
          console.log("🔑 Autorisé, abonnement aux ticks...");
-         ws.send(JSON.stringify({ ticks: currentSymbol, subscribe: 1 }));
+         ws2.send(JSON.stringify({ ticks: currentSymbol, subscribe: 1 }));
       }
 
       // Quand un tick arrive
@@ -295,10 +295,6 @@ document.addEventListener("DOMContentLoaded", () => {
             console.log(`⚙️ Variation moyenne : ${variation.toFixed(6)}`);
             console.log(`📈 Sigmoid : ${signal.toFixed(6)}`);
            }
-          else
-           {
-             signal = 0;
-           }
          }
       }
     };
@@ -312,12 +308,11 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
-  function stopAutomation(ws) {
-    if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+  function stopAutomation(ws2) {
+    if (ws2 && (ws2.readyState === WebSocket.CONNECTING || ws2.readyState === WebSocket.OPEN)) {
        // Envoyer unsubscribe avant de fermer
-       ws.send(JSON.stringify({ forget_all: "ticks" }));
-       ws.close();
-       ws = null;
+       ws2.send(JSON.stringify({ forget_all: "ticks" }));
+       ws2.close();
     }
   }
 
@@ -802,15 +797,15 @@ closeAll.onclick=()=>{
   const toggleAutomationBtn = document.getElementById("toggleAutomation");
   toggleAutomationBtn.addEventListener("click", () => {
     automationRunning = !automationRunning;
-    let ws = new WebSocket(WS_URL);
+    let ws2 = new WebSocket(WS_URL);
     if (automationRunning) {
       toggleAutomationBtn.textContent = "Stop Automation";
       toggleAutomationBtn.style.background = "linear-gradient(90deg,#f44336,#e57373)";
-      startAutomation(ws);
+      startAutomation(ws2);
     } else {
       toggleAutomationBtn.textContent = "Launch Automation";
       toggleAutomationBtn.style.background = "linear-gradient(90deg,#4caf50,#81c784)";
-      stopAutomation(ws);
+      stopAutomation(ws2);
     }
   });
 
