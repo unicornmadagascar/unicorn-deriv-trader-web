@@ -276,8 +276,8 @@ document.addEventListener("DOMContentLoaded", () => {
          tickHistory.push(price);
          if (tickHistory.length > 3) tickHistory.shift(); // garder seulement les 3 derniers ticks
 
-         console.clear();
-         console.log(`🕒 Tick reçu à ${time} | Prix : ${price}`);
+         //console.clear();
+         //console.log(`🕒 Tick reçu à ${time} | Prix : ${price}`);
 
          if (tickHistory.length === 3) {
             // Calcul sur le vecteur des 3 derniers ticks
@@ -295,8 +295,8 @@ document.addEventListener("DOMContentLoaded", () => {
             // Application de la sigmoïde
             signal = sigmoid(delta); // delta*10 ou 10 = facteur de sensibilité
 
-            console.log(`📊 Derniers ticks : ${tickHistory.map(x => x.toFixed(3)).join(", ")}`);
-            console.log(`⚙️ Variation moyenne : ${variation.toFixed(6)}`);
+            //console.log(`📊 Derniers ticks : ${tickHistory.map(x => x.toFixed(3)).join(", ")}`);
+            //console.log(`⚙️ Variation moyenne : ${variation.toFixed(6)}`);
             console.log(`📈 Sigmoid : ${signal.toFixed(6)}`);
            }
          }
