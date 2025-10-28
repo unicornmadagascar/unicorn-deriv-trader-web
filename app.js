@@ -490,10 +490,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
-
+   ws1 = new WebSocket(WS_URL);
    if (ws1 && (ws1.readyState === WebSocket.OPEN || ws1.readyState === WebSocket.CONNECTING))
    {
-      ws1 = null;
       return;
    }
    
@@ -508,7 +507,6 @@ document.addEventListener("DOMContentLoaded", () => {
      return;
    }
    
-   ws1 = new WebSocket(WS_URL);
    let authorized = false;
    let portfolioReceived = false;
    let contracts = {};
