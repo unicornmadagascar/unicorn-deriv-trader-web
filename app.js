@@ -489,7 +489,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // === P/L LIVE FUNCTION ===
   function contractentry(onUpdate) {
-   let ws = new WebSocket(WS_URL);
+   let ws1 = new WebSocket(WS_URL);
    let authorized = false;
    let portfolioReceived = false;
    let contracts = {};
@@ -499,17 +499,17 @@ document.addEventListener("DOMContentLoaded", () => {
      return;
    }
 
-   ws.onopen = () => {
-    ws.send(JSON.stringify({ authorize: TOKEN }));
+   ws1.onopen = () => {
+    ws1.send(JSON.stringify({ authorize: TOKEN }));
    };
 
-   ws.onmessage = (msg) => {
+   ws1.onmessage = (msg) => {
     const data = JSON.parse(msg.data);
 
     // Étape 1️⃣ : autorisation OK → on demande le portefeuille
     if (data.msg_type === "authorize" && !authorized) {
       authorized = true;
-      ws.send(JSON.stringify({ portfolio: 1 }));
+      ws1.send(JSON.stringify({ portfolio: 1 }));
     }
 
     // Étape 2️⃣ : réception du portefeuille (liste des contrats ouverts)
@@ -526,7 +526,7 @@ document.addEventListener("DOMContentLoaded", () => {
         contracts[c.contract_id] = 0;
 
         // On s’abonne en continu à chaque contrat ouvert
-        ws.send(JSON.stringify({
+        ws1.send(JSON.stringify({
           proposal_open_contract: 1,
           contract_id: c.contract_id,
           subscribe: 1
@@ -553,8 +553,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
    };
 
-   ws.onerror = (err) => console.error("WebSocket error:", err);
-   ws.onclose = () => console.log("Disconnected from Deriv WebSocket.");
+   ws1.onerror = (err) => console.error("WebSocket error:", err);
+   ws1.onclose = () => console.log("Disconnected from Deriv WebSocket.");
 
    return totalPL;
   }
