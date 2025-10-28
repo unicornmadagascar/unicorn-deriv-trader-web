@@ -567,7 +567,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
    };
 
-   ws1.onerror = (err) => console.error("WebSocket error:", err);
+   //ws1.onerror = (err) => console.error("WebSocket error:", err);
    //ws1.onclose = () => console.log("Disconnected from Deriv WebSocket.");
 
    return totalPL;
