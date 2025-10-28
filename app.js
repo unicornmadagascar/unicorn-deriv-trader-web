@@ -503,7 +503,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // === P/L LIVE FUNCTION ===
-  function contractentry(ws1) {
+  function contractentry(ws) {
     let authorized = false;
     let portfolioReceived = false;
     let contracts = {};
@@ -513,17 +513,17 @@ document.addEventListener("DOMContentLoaded", () => {
      return;
    }
 
-   ws1.onopen = () => {
-      ws1.send(JSON.stringify({ authorize: TOKEN }));
+   ws.onopen = () => {
+      ws.send(JSON.stringify({ authorize: TOKEN }));
    };
 
-   ws1.onmessage = async (msg) => {
+   ws.onmessage = async (msg) => {
     const data = await JSON.parse(msg.data);
 
     // Étape 1️⃣ : autorisation OK → on demande le portefeuille
     if (data.msg_type === "authorize" && !authorized) {
       authorized = true;
-      ws1.send(JSON.stringify({ portfolio: 1 }));
+      ws.send(JSON.stringify({ portfolio: 1 }));
     }
 
     // Étape 2️⃣ : réception du portefeuille (liste des contrats ouverts)
@@ -540,7 +540,7 @@ document.addEventListener("DOMContentLoaded", () => {
         contracts[c.contract_id] = 0;
 
         // On s’abonne en continu à chaque contrat ouvert
-        ws1.send(JSON.stringify({
+        ws.send(JSON.stringify({
           proposal_open_contract: 1,
           contract_id: c.contract_id,
           subscribe: 1
