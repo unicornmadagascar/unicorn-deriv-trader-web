@@ -137,8 +137,8 @@
             textColor: '#333333'
           },
           grid: {
-            vertLines: { visible: false },
-            horzLines: { visible: false }
+            vertLines: { visible: true },
+            horzLines: { visible: true }
           },
           crosshair: {
             vertLine: { visible: false },
