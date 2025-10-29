@@ -118,7 +118,7 @@
         topColor: 'rgba(41,98,255,0.28)',
         bottomColor: 'rgba(41,98,255,0.05)',
         lineWidth: 2,
-        priceLineVisible: false,
+        priceLineVisible: true,
         lastValueVisible: false
       });
 
