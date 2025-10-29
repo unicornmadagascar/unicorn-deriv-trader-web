@@ -119,7 +119,7 @@
         bottomColor: 'rgba(41,98,255,0.05)',
         lineWidth: 2,
         priceLineVisible: true,
-        lastValueVisible: false
+        lastValueVisible: true
       });
 
       try {
