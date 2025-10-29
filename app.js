@@ -1,727 +1,1008 @@
-document.addEventListener("DOMContentLoaded", () => {
+(function(){
+  'use strict';
+
+  // Cleaned single-file app.js
+  // - One DOMContentLoaded
+  // - One WebSocketManager (robust)
+  // - Subscriptions: ticks (mainWS), portfolio/active_positions/proposal_open_contract (contractsWS)
+  // - UI wiring: symbol list, chart placeholder, buy/sell, contracts panel
+
   const APP_ID = 105747;
-  const TOKEN = "wgf8TFDsJ8Ecvze";
+  const TOKEN = 'wgf8TFDsJ8Ecvze';
   const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
 
-  // Generic WebSocket manager that supports subscribing to message types and automatic reconnect
+  function safeCall(cb, ...args){ try{ cb(...args); } catch(e){ console.error('handler error', e); } }
+
   class WebSocketManager {
-    constructor(url, name = 'ws') {
-      this.url = url;
-      this.name = name;
-      this.ws = null;
-      this.authorized = false;
-      this.handlers = new Map(); // msg_type -> Set(callback)
-      this.reconnectAttempts = 0;
-      this.maxReconnectAttempts = 6;
-      this.reconnectDelay = 2000;
+    constructor(url, name='ws'){
+      this.url = url; this.name = name; this.ws = null; this.handlers = new Map();
+      this.reconnectAttempts = 0; this.maxReconnectAttempts = 10; this.reconnectBaseDelay = 1000;
+      this.authorized = false; this._outgoingQueue = []; this._connecting = false;
     }
-
-    connect() {
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) return Promise.resolve(this.ws);
-      if (this.ws && this.ws.readyState === WebSocket.CONNECTING) return new Promise((r) => setTimeout(() => r(this.ws), 500));
-
-      return new Promise((resolve, reject) => {
-        try {
+    connect(){
+      if(this.ws && this.ws.readyState===WebSocket.OPEN) return Promise.resolve(this.ws);
+      if(this._connecting) return Promise.resolve(this.ws);
+      this._connecting = true;
+      return new Promise((resolve,reject)=>{
+        try{
           this.ws = new WebSocket(this.url);
-
-          this.ws.onopen = () => {
-            this.reconnectAttempts = 0;
-            this._log('connected');
-            // send authorize right away
-            try { this.send({ authorize: TOKEN }); } catch (e) {}
-            resolve(this.ws);
-          };
-
-          this.ws.onmessage = (evt) => {
-            let data;
-            try { data = JSON.parse(evt.data); } catch (e) { this._log('parse error', e); return; }
-            this._handleMessage(data);
-          };
-
-          this.ws.onclose = () => {
-            this._log('closed');
-            this.authorized = false;
-            this._scheduleReconnect();
-          };
-
-          this.ws.onerror = (err) => {
-            this._log('error', err);
-          };
-        } catch (err) {
-          reject(err);
-        }
+          this.ws.onopen = ()=>{ this._log('open'); this.reconnectAttempts=0; this._connecting=false; this.send({ authorize: TOKEN }, true); while(this._outgoingQueue.length) this._rawSend(this._outgoingQueue.shift()); resolve(this.ws); };
+          this.ws.onmessage = (evt)=>{ let d; try{ d = JSON.parse(evt.data); }catch(e){ this._log('parse',e); return; } this._handleMessage(d); };
+          this.ws.onclose = ()=>{ this._log('closed'); this.authorized=false; this._scheduleReconnect(); };
+          this.ws.onerror = (err)=>{ this._log('error',err); };
+        }catch(err){ this._connecting=false; reject(err); }
       });
     }
-
-    _scheduleReconnect() {
-      if (this.reconnectAttempts >= this.maxReconnectAttempts) return;
-      this.reconnectAttempts++;
-      const delay = this.reconnectDelay * this.reconnectAttempts;
-      setTimeout(() => { try { this.connect(); } catch (e) {} }, delay);
-    }
-
-    on(msg_type, cb) {
-      if (!this.handlers.has(msg_type)) this.handlers.set(msg_type, new Set());
-      this.handlers.get(msg_type).add(cb);
-    }
-
-    off(msg_type, cb) {
-      this.handlers.get(msg_type)?.delete(cb);
-    }
-
-    _handleMessage(data) {
-      // handle authorize specially
-      if (data.msg_type === 'authorize' || data.authorize) {
-        this.authorized = Boolean(data.authorize);
-        this._emit('authorize', data.authorize || data);
-        // also call any msg_type='authorize' handlers
-        this.handlers.get('authorize')?.forEach(cb => safeCall(cb, data.authorize || data));
-        return;
-      }
-
-      // For common msg_type field
-      const type = data.msg_type || Object.keys(data)[0];
-      if (type && this.handlers.has(type)) {
-        this.handlers.get(type).forEach(cb => safeCall(cb, data[type] ?? data));
-      }
-      // fallback: emit 'message' for any raw data
-      if (this.handlers.has('message')) this.handlers.get('message').forEach(cb => safeCall(cb, data));
-    }
-
-    subscribeTick(symbol, subscribe = true) {
-      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) { this.connect().then(() => this.subscribeTick(symbol, subscribe)); return; }
-      if (subscribe) {
-        try { this.send({ forget_all: 'ticks' }); } catch (e) {}
-        this.send({ ticks: symbol, subscribe: 1 });
-      } else {
-        this.send({ forget_all: 'ticks' });
-      }
-    }
-
-    subscribePortfolio() { if (this.ws && this.ws.readyState === WebSocket.OPEN) this.send({ portfolio: 1, subscribe: 1 }); else this.connect().then(()=>this.send({ portfolio: 1, subscribe: 1 })); }
-    subscribeActivePositions() { if (this.ws && this.ws.readyState === WebSocket.OPEN) this.send({ active_positions: 1, subscribe: 1 }); else this.connect().then(()=>this.send({ active_positions: 1, subscribe: 1 })); }
-    subscribeProposalOpenContract(contract_id) { if (this.ws && this.ws.readyState === WebSocket.OPEN) this.send({ proposal_open_contract: 1, contract_id, subscribe: 1 }); else this.connect().then(()=>this.send({ proposal_open_contract: 1, contract_id, subscribe: 1 })); }
-
-    send(obj) {
-      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-        // try to connect and resend
-        this.connect().then(() => { try { this.ws.send(JSON.stringify(obj)); } catch (e) { this._log('send failed after connect', e); } });
-        return;
-      }
-      this.ws.send(JSON.stringify(obj));
-    }
-
-    _emit(name, payload) {
-      this.handlers.get(name)?.forEach(cb => safeCall(cb, payload));
-    }
-
-    _log(...args) { console.debug(`[${this.name}]`, ...args); }
-    close() { try { this.ws?.close(); } catch (e) {}; this.ws = null; this.authorized = false; }
+    close(){ try{ this.ws?.close(); }catch(e){} this.ws=null; this.authorized=false; }
+    _scheduleReconnect(){ if(this.reconnectAttempts>=this.maxReconnectAttempts) return; this.reconnectAttempts++; const delay=this.reconnectBaseDelay*this.reconnectAttempts; this._log('reconnect in',delay); setTimeout(()=>{ try{ this.connect(); }catch(e){} }, delay); }
+    on(type,cb){ if(!this.handlers.has(type)) this.handlers.set(type,new Set()); this.handlers.get(type).add(cb); }
+    off(type,cb){ this.handlers.get(type)?.delete(cb); }
+    _emit(type,payload){ const s=this.handlers.get(type); if(s) s.forEach(cb=>safeCall(cb,payload)); const any=this.handlers.get('message'); if(any) any.forEach(cb=>safeCall(cb,payload)); }
+    _handleMessage(data){ if(data.msg_type==='authorize' || data.authorize){ this.authorized = Boolean(data.authorize); this._emit('authorize', data); return; } const type = data.msg_type || Object.keys(data)[0]; if(type && this.handlers.has(type)) this.handlers.get(type).forEach(cb=>safeCall(cb,data)); else this._emit('message', data); }
+    _rawSend(o){ try{ this.ws.send(JSON.stringify(o)); }catch(e){ this._log('rawSend',e);} }
+    send(o, immediate=false){ if(!this.ws || this.ws.readyState!==WebSocket.OPEN){ if(immediate) this.connect().then(()=>this._rawSend(o)).catch(e=>this._log('sendfail',e)); else { this._outgoingQueue.push(o); this.connect().catch(e=>this._log('connectfailed',e)); } return; } this._rawSend(o); }
+    _log(...a){ console.debug(`[${this.name}]`,...a); }
   }
 
-  function safeCall(cb, ...args){ try { cb(...args); } catch (e) { console.error('handler error', e); } }
+  // Global state
+  window.pendingSubscribe = null;
 
-  // UI
-  const connectBtn = document.getElementById("connectBtn");
-  const symbolList = document.getElementById("symbolList");
-  const chartInner = document.getElementById("chartInner");
-  const volGauge = document.getElementById("volGauge");
-  const trendGauge = document.getElementById("trendGauge");
-  const probGauge = document.getElementById("probGauge");
-  const controlFormPanel = document.getElementById("controlFormPanel");
-  const controlPanelToggle = document.getElementById("controlPanelToggle");
-  const accountInfo = document.getElementById("accountInfo");
-  const plGauge = document.getElementById("plGauge");
-  const multiplierInput = document.getElementById("multiplierSelect");
-  const buyBtn = document.getElementById("buyBtn");
-  const sellBtn = document.getElementById("sellBtn");
-  const stakeInput = document.getElementById("stakeInput");
-  const takeProfitInput = document.getElementById("tpInput");
-  const stopLossInput = document.getElementById("slInput");
-  const closewinning = document.getElementById("closeWinning");
-  const closeAll = document.getElementById("closeAll");
-  const buyNum = document.getElementById("buyNumberInput");
-  const sellNum = document.getElementById("sellNumberInput");
-  const contractsPanelToggle = document.getElementById("contractsPanelToggle");
-  const contractsPanel = document.getElementById("contractsPanel");
-  const autoHistoryList = document.getElementById("autoHistoryList");
+  // Managers
+  const mainWS = new WebSocketManager(WS_URL,'main');
+  const contractsWS = new WebSocketManager(WS_URL,'contracts');
 
-  // state
-  let totalPL = 0;
-  let automationRunning = false;
-  let smoothVol = 0;
-  let smoothTrend = 0;
-  let isSubscribed = false;
-  let currentSymbol = null;
-
-  let chart = null;
-  let areaSeries = null;
-  let chartData = [];
-  let lastPrices = {};
-  let recentChanges = [];
-  let tickHistory = [];
-  let Dispersion;
-
-  const SYMBOLS = [
-    { symbol: "BOOM1000", name: "Boom 1000" },
-    { symbol: "CRASH1000", name: "Crash 1000" },
-    { symbol: "BOOM500", name: "Boom 500" },
-    { symbol: "CRASH500", name: "Crash 500" },
-    { symbol: "BOOM900", name: "Boom 900" },
-    { symbol: "CRASH900", name: "Crash 900" },
-    { symbol: "BOOM600", name: "Boom 600" },
-    { symbol: "CRASH600", name: "Crash 600" },
-    { symbol: "R_100", name: "VIX 100" },
-    { symbol: "R_75", name: "VIX 75" },
-    { symbol: "R_50", name: "VIX 50" },
-    { symbol: "R_25", name: "VIX 25" },
-    { symbol: "R_10", name: "VIX 10" }
-  ];
-
-  const fmt = n => Number(n).toFixed(2);
-  const safeNum = v => (typeof v === "number" && !isNaN(v)) ? v : 0;
-
-  // create two managers: main for ticks/trading, contracts for portfolio/active_positions
-  const mainWS = new WebSocketManager(WS_URL, 'main');
-  const contractsWS = new WebSocketManager(WS_URL, 'contracts');
-
-  // UI helpers
-  function displaySymbols() {
-    if (!symbolList) return;
-    symbolList.innerHTML = "";
-    SYMBOLS.forEach(s => {
-      const el = document.createElement("div");
-      el.className = "symbol-item";
-      el.textContent = s.name;
-      el.dataset.symbol = s.symbol;
-      el.addEventListener("click", () => {
-        document.querySelectorAll('.symbol-item').forEach(item => { item.classList.remove('active'); item.style.background = '#eee'; item.style.color = '#000'; });
-        el.classList.add('active'); el.style.background = '#007bff'; el.style.color = '#fff';
-        subscribeSymbol(s.symbol);
-      });
-      symbolList.appendChild(el);
-    });
-  }
-
-  function initChart() {
-    try { if (chart) chart.remove(); } catch (e) {}
-    chartInner.innerHTML = '';
-    chart = LightweightCharts.createChart(chartInner, { layout: { textColor: "#333", background: { type: "solid", color: "#fff" } }, timeScale: { timeVisible: true, secondsVisible: true } });
-    areaSeries = chart.addAreaSeries({ lineColor: "#2962FF", topColor: "rgba(41,98,255,0.28)", bottomColor: "rgba(41,98,255,0.05)", lineWidth: 2 });
-    chartData = []; recentChanges = []; lastPrices = {};
-    positionGauges();
-  }
-
-  function positionGauges() {
-    // same as original: append gauge elements if not present
-    let gaugesContainer = document.getElementById("gaugesContainer");
-    if (!gaugesContainer) {
-      gaugesContainer = document.createElement("div");
-      gaugesContainer.id = "gaugesContainer";
-      gaugesContainer.style.position = "absolute";
-      gaugesContainer.style.top = "10px";
-      gaugesContainer.style.left = "10px";
-      gaugesContainer.style.display = "flex";
-      gaugesContainer.style.gap = "20px";
-      gaugesContainer.style.zIndex = "12";
-      chartInner.style.position = "relative";
-      chartInner.appendChild(gaugesContainer);
-      appendGauge(gaugesContainer, volGauge, "Volatility");
-      appendGauge(gaugesContainer, trendGauge, "Tendance");
-      appendGauge(gaugesContainer, probGauge, "Probabilité");
-      appendGauge(gaugesContainer, plGauge, "P/L Live");
-    }
-  }
-
-  function appendGauge(container, gaugeDiv, labelText) {
-    const wrapper = document.createElement("div"); wrapper.style.display = "flex"; wrapper.style.flexDirection = "column"; wrapper.style.alignItems = "center"; wrapper.style.width = "140px"; wrapper.style.pointerEvents = "none";
-    const content = document.createElement("div"); content.style.width = "100%"; content.appendChild(gaugeDiv); wrapper.appendChild(content);
-    const label = document.createElement("div"); label.textContent = labelText; label.style.fontSize = "13px"; label.style.fontWeight = "600"; label.style.textAlign = "center"; label.style.marginTop = "6px"; label.style.pointerEvents = "none"; wrapper.appendChild(label);
-    container.appendChild(wrapper);
-  }
-
-  function drawCircularGauge(container, value, color) {
-    if (!container) return;
-    const size = 110; container.style.width = size + "px"; container.style.height = (size + 28) + "px";
-    let canvas = container.querySelector("canvas"); let pct = container.querySelector(".gauge-percent");
-    if (!canvas) { canvas = document.createElement("canvas"); canvas.width = canvas.height = size; canvas.style.display = "block"; canvas.style.margin = "0 auto"; canvas.style.pointerEvents = "none"; container.innerHTML = ""; container.appendChild(canvas);
-      pct = document.createElement("div"); pct.className = "gauge-percent"; pct.style.textAlign = "center"; pct.style.marginTop = "-92px"; pct.style.fontSize = "16px"; pct.style.fontWeight = "700"; pct.style.color = "#222"; pct.style.pointerEvents = "none"; container.appendChild(pct); }
-    const ctx = canvas.getContext("2d"); ctx.clearRect(0,0,size,size); const center = size/2; const radius = size/2 - 8; const start = -Math.PI/2; const end = start + (Math.min(value,100)/100)*2*Math.PI;
-    ctx.beginPath(); ctx.arc(center, center, radius, 0, 2*Math.PI); ctx.strokeStyle = "#eee"; ctx.lineWidth = 8; ctx.stroke();
-    ctx.beginPath(); ctx.arc(center, center, radius, start, end); ctx.strokeStyle = color; ctx.lineWidth = 8; ctx.lineCap = "round"; ctx.stroke();
-    pct.textContent = `${Math.round(value)}%`;
-  }
-
-  function updateCircularGauges() {
-    if (!recentChanges.length) return; const mean = recentChanges.reduce((a,b)=>a+b,0)/recentChanges.length; const variance = recentChanges.reduce((a,b)=>a+Math.pow(b-mean,2),0)/recentChanges.length; const stdDev = Math.sqrt(variance); const volProb = Math.min(100,(stdDev/0.07)*100);
-    const sum = recentChanges.reduce((a,b)=>a+b,0); const trendRaw = Math.min(100, Math.abs(sum)*1000);
-    const pos = recentChanges.filter(v=>v>0).length; const neg = recentChanges.filter(v=>v<0).length; const dominant = Math.max(pos,neg); const prob = recentChanges.length ? Math.round((dominant/recentChanges.length)*100) : 50;
-    const alpha = 0.25; smoothVol = smoothVol === 0 ? volProb : smoothVol + alpha*(volProb - smoothVol); smoothTrend = smoothTrend === 0 ? trendRaw : smoothTrend + alpha*(trendRaw - smoothTrend);
-    drawCircularGauge(volGauge, smoothVol, "#ff9800"); drawCircularGauge(trendGauge, smoothTrend, "#2962FF"); drawCircularGauge(probGauge, prob, "#4caf50");
-  }
-
-  function updatePLGauge(plValue) { totalPL = plValue; const color = totalPL >= 0 ? "#4caf50" : "#f44336"; const deg = Math.min(360, Math.abs(totalPL)*3.6); if (plGauge) { plGauge.style.background = `conic-gradient(${color} ${deg}deg, #ddd ${deg}deg)`; const span = plGauge.querySelector("span"); if (span) span.textContent = `${totalPL>=0?'+':''}${totalPL.toFixed(2)}$`; } }
-
-  function sigmoid(x) { return (1 - 1 / (1 + Math.exp(-x))); }
-  function ecartType(values) { if (!values || values.length === 0) return 0; const mean = values.reduce((a,b)=>a+b,0)/values.length; const variance = values.map(x => (x-mean)**2).reduce((a,b)=>a+b,0)/values.length; return Math.sqrt(variance); }
-
-  // --- Subscriptions and handlers using the managers ---
-  function subscribeSymbol(symbol) {
-    currentSymbol = symbol;
-    initChart();
-    // use mainWS for ticks
-    mainWS.connect().then(()=> mainWS.subscribeTick(symbol, true));
-  }
-
-  function handleTick(tick) {
-    if (!tick || !tick.symbol) return; if (currentSymbol && tick.symbol !== currentSymbol) return;
-    const quote = Number(tick.quote); const epoch = Number(tick.epoch) || Math.floor(Date.now()/1000);
-    const prev = lastPrices[tick.symbol] ?? quote; lastPrices[tick.symbol] = quote; const change = quote - prev; recentChanges.push(change); if (recentChanges.length > 60) recentChanges.shift(); updateCircularGauges();
-    if (!areaSeries || !chart) return; const point = { time: epoch, value: quote };
-    if (!chartData.length) { chartData.push(point); try { areaSeries.setData(chartData); } catch (e) { try { areaSeries.update(point); } catch(e){} } } else { chartData.push(point); if (chartData.length>600) chartData.shift(); try { areaSeries.update(point); } catch(e){ try{ areaSeries.setData(chartData); } catch(e){} } }
-    try { chart.timeScale().fitContent(); } catch (e) {}
-    if (automationRunning) { tickHistory.push(quote); if (tickHistory.length > 3) tickHistory.shift(); if (tickHistory.length === 3) { const [p1,p2,p3] = tickHistory; const mean = (p1+p2+p3)/3; Dispersion = ecartType(tickHistory); if (Dispersion !== 0) { const delta = (p3-mean)/Dispersion; const signal = sigmoid(delta); console.log('Signal', signal); } } }
-  }
-
-  mainWS.on('tick', (tick) => handleTick(tick));
-
-  // P/L / portfolio via contractsWS
-  const activeContractsMap = {};
-  contractsWS.on('portfolio', (portfolio) => { const list = (portfolio && portfolio.contracts) || []; list.forEach(c => { if (c && c.contract_id) activeContractsMap[c.contract_id] = c; }); renderActiveContracts(); });
-  contractsWS.on('active_positions', (ap) => { const contracts = ap?.contracts || ap?.positions || []; contracts.forEach(c => { if (c && c.contract_id) { const existing = activeContractsMap[c.contract_id] || {}; activeContractsMap[c.contract_id] = { ...existing, ...c }; } }); renderActiveContracts(); });
-  contractsWS.on('proposal_open_contract', (poc) => { if (!poc || !poc.contract_id) return; if (poc.is_expired || poc.is_sold) { try { delete activeContractsMap[poc.contract_id]; } catch(e){} } else { const existing = activeContractsMap[poc.contract_id] || {}; activeContractsMap[poc.contract_id] = { ...existing, ...poc }; } renderActiveContracts(); });
-
-  function initTable() { const list = document.getElementById('autoHistoryList'); if (!list) return; list.innerHTML = `\n    <table class="trade-table" id="autoTradeTable">\n      <thead>\n        <tr>\n          <th><input type="checkbox" id="selectAll"></th>\n          <th>Time of Trade</th>\n          <th>Contract ID</th>\n          <th>Contract Type</th>\n          <th>Stake</th>\n          <th>Multiplier</th>\n          <th>Entry Spot</th>\n          <th>TP (%)</th>\n          <th>SL (%)</th>\n          <th>Profit</th>\n          <th>Action</th>\n        </tr>\n      </thead>\n      <tbody id="autoTradeBody"></tbody>\n    </table>\n  `; }
-
-  function updateContractsTable(contracts) { const tbody = document.getElementById('autoTradeBody'); if (!tbody) { initTable(); } const tbodyEl = document.getElementById('autoTradeBody'); if (!tbodyEl) return; tbodyEl.innerHTML = ''; if (!contracts || contracts.length === 0) { tbodyEl.innerHTML = '<tr><td colspan="11" style="color:#94a3b8;">No active contracts</td></tr>'; return; } const safeNumber = (v,f=2) => { const n=Number(v); return (isFinite(n)?n:0).toFixed(f); }; const safeText = v => (v===null||v===undefined)?'-':String(v); contracts.forEach(pos=>{ try{ const tr=document.createElement('tr'); const purchaseEpoch = Number(pos.purchase_time||pos.purchase_epoch||pos.date_start||pos.date||0); const timeStr = purchaseEpoch? new Date(purchaseEpoch*1000).toLocaleTimeString() : '-'; const contractId = safeText(pos.contract_id||pos.contract_id_display||'-'); const contractTypeRaw = safeText(pos.contract_type||pos.contract_type_display||'N/A'); const isBuy = /CALL|BUY|UP|MULTUP/i.test(contractTypeRaw); const buyOrSellClass = isBuy ? 'buy' : 'sell'; const buyPriceRaw = pos.buy_price ?? pos.purchase_price ?? pos.buy_price_raw ?? pos.price ?? pos.buyPrice ?? 0; const buyPrice = safeNumber(buyPriceRaw||0); const multiplier = safeText(pos.multiplier ?? pos.contract_multiplier ?? pos.multiplier_value ?? '-'); const entryRaw = pos.entry_tick ?? pos.entry_spot ?? pos.entry_price ?? pos.entry_tick_price ?? pos.entry ?? pos.entry_spot_price ?? null; const entryTick = (entryRaw!==null && entryRaw!==undefined && entryRaw!=='') ? (typeof entryRaw==='number'?Number(entryRaw).toFixed(2):safeText(entryRaw)) : '-'; const tp = safeText(pos.take_profit ?? pos.tp ?? pos.takeProfit ?? '-'); const sl = safeText(pos.stop_loss ?? pos.sl ?? pos.stopLoss ?? '-'); let profitNum = parseFloat(pos.profit ?? pos.current_spot_profit ?? pos.current_profit ?? pos.profit_local ?? pos.profit_value); if (!isFinite(profitNum)) { const payout = parseFloat(pos.payout ?? pos.profit_payout ?? pos.sell_price ?? NaN); const buy = parseFloat(buyPriceRaw||NaN); if (isFinite(payout) && isFinite(buy)) profitNum = payout - buy; } if (!isFinite(profitNum)) profitNum = 0; const profit = profitNum.toFixed(2); const profitClass = profitNum >= 0 ? 'profit-positive' : 'profit-negative'; tr.innerHTML = `\n      <td><input type="checkbox" class="rowSelect"></td>\n      <td>${timeStr}</td>\n      <td>${contractId}</td>\n      <td class="${buyOrSellClass}">${contractTypeRaw}</td>\n      <td>${buyPrice}</td>\n      <td>${multiplier}</td>\n      <td>${entryTick}</td>\n      <td>${tp}</td>\n      <td>${sl}</td>\n      <td class="${profitClass}">${profit}</td>\n      <td><button class="closeRowBtn" data-contract-id="${contractId}" style="background:#ef4444; border:none; color:white; border-radius:4px; padding:4px 8px; cursor:pointer;">Close</button></td>\n    `; tbodyEl.appendChild(tr); } catch(err){ console.error('Failed to render contract row', err, pos); } }); }
-
-  function renderActiveContracts() { const arr = Object.keys(activeContractsMap).map(k=>activeContractsMap[k]); if (contractsSortMode === 'newest') arr.sort((a,b)=>Number(b.purchase_time||b.date_start||b.date||0)-Number(a.purchase_time||a.date_start||a.date||0)); else if (contractsSortMode==='oldest') arr.sort((a,b)=>Number(a.purchase_time||a.date_start||a.date||0)-Number(b.purchase_time||b.date_start||b.date||0)); else if (contractsSortMode==='profit_desc') arr.sort((a,b)=>Number(b.profit||b.current_profit||b.current_spot_profit||0)-Number(a.profit||a.current_profit||a.current_spot_profit||0)); else if (contractsSortMode==='profit_asc') arr.sort((a,b)=>Number(a.profit||a.current_profit||a.current_spot_profit||0)-Number(b.profit||b.current_profit||b.current_spot_profit||0)); const totalItems = arr.length; const totalPages = Math.max(1, Math.ceil(totalItems / contractsPageSize)); if (contractsCurrentPage > totalPages) contractsCurrentPage = totalPages; const start = (contractsCurrentPage-1)*contractsPageSize; const slice = arr.slice(start, start+contractsPageSize); updateContractsTable(slice); renderContractsPagination(totalItems, totalPages); }
-
-  function renderContractsPagination(totalItems, totalPages) { try { const pageInfo = document.getElementById('contractsPageInfo'); const prevBtn = document.getElementById('contractsPrevBtn'); const nextBtn = document.getElementById('contractsNextBtn'); if (pageInfo) pageInfo.textContent = `Page ${contractsCurrentPage} / ${totalPages} (${totalItems} items)`; if (prevBtn) prevBtn.disabled = contractsCurrentPage <= 1; if (nextBtn) nextBtn.disabled = contractsCurrentPage >= totalPages; } catch(e){} }
-
-  let contractsPageSize = 10; let contractsCurrentPage = 1; let contractsSortMode = 'newest';
-
-  (function setupContractsControls(){ const prevBtn = document.getElementById('contractsPrevBtn'); const nextBtn = document.getElementById('contractsNextBtn'); const pageSizeSel = document.getElementById('contractsPageSize'); const sortSelect = document.getElementById('contractsSortSelect'); const container = document.getElementById('autoHistoryList'); if (prevBtn) prevBtn.addEventListener('click', ()=>{ if (contractsCurrentPage>1){ contractsCurrentPage--; renderActiveContracts(); } }); if (nextBtn) nextBtn.addEventListener('click', ()=>{ contractsCurrentPage++; renderActiveContracts(); }); if (pageSizeSel) pageSizeSel.addEventListener('change',(e)=>{ contractsPageSize = parseInt(e.target.value)||10; contractsCurrentPage=1; renderActiveContracts(); }); if (sortSelect) sortSelect.addEventListener('change',(e)=>{ contractsSortMode = e.target.value || 'newest'; contractsCurrentPage=1; renderActiveContracts(); }); if (container) { container.addEventListener('click', (ev)=>{ const btn = ev.target.closest && ev.target.closest('.closeRowBtn'); if (!btn) return; const cid = btn.getAttribute('data-contract-id'); if (!cid) return; const ok = confirm(`Close contract ${cid} ?`); if (!ok) return; closeContract(cid); }); } function closeContract(contractId) { try { setContractsPanelMessage(`Closing ${contractId}...`, 'warn'); try { if (activeContractsMap[contractId]) delete activeContractsMap[contractId]; } catch(e){} renderActiveContracts(); const sellPayload = { sell: contractId, price: 0 }; if (contractsWS.ws && contractsWS.ws.readyState === WebSocket.OPEN) { try { contractsWS.send(sellPayload); } catch (e) {} return; } if (mainWS.ws && mainWS.ws.readyState === WebSocket.OPEN) { try { mainWS.send(sellPayload); } catch (e) {} return; } const tmp = new WebSocket(WS_URL); tmp.addEventListener('open', ()=>{ try { tmp.send(JSON.stringify({ authorize: TOKEN })); } catch(e){} }); tmp.addEventListener('message', (m)=>{ let data; try{ data = JSON.parse(m.data); } catch(e){ return; } if (data.msg_type === 'authorize' && data.authorize) { try { tmp.send(JSON.stringify(sellPayload)); } catch(e){} setTimeout(()=>{ try{ tmp.close(); } catch(e){} }, 800); } }); } catch(e) { console.error('closeContract error', e); } } })();
-
-  function setContractsPanelMessage(msg, level = 'info') { const panel = document.getElementById('contractsPanel'); if (!panel) return; let el = document.getElementById('contractsPanelMessage'); if (!el) { el = document.createElement('div'); el.id = 'contractsPanelMessage'; el.style.width = '100%'; el.style.boxSizing = 'border-box'; el.style.padding = '8px 12px'; el.style.borderRadius = '6px'; el.style.marginBottom = '8px'; el.style.fontWeight = '600'; panel.insertBefore(el, panel.firstChild); } el.textContent = msg; if (level === 'error') { el.style.background = '#fee2e2'; el.style.color = '#991b1b'; el.style.border = '1px solid #fecaca'; } else if (level === 'warn') { el.style.background = '#fff7ed'; el.style.color = '#92400e'; el.style.border = '1px solid #fcd34d'; } else { el.style.background = '#ecfeff'; el.style.color = '#0f766e'; el.style.border = '1px solid #a7f3d0'; } }
-
-  if (contractsPanelToggle) contractsPanelToggle.addEventListener('click', ()=>{ if (!contractsPanel) return; if (contractsPanel.style.display === 'none' || contractsPanel.style.display === '') { contractsPanel.style.display = 'flex'; contractsPanelToggle.textContent = '📄 Hide Contracts'; initTable(); isSubscribed = true; setContractsPanelMessage('Connecting to Deriv...', 'info'); contractsWS.connect().then(()=>{ contractsWS.subscribePortfolio(); contractsWS.subscribeActivePositions(); }); } else { contractsPanel.style.display = 'none'; contractsPanelToggle.textContent = '📄 Show Contracts'; isSubscribed = false; try { contractsWS.send({ forget_all: 'active_positions' }); } catch(e){} try { for (const k in activeContractsMap) delete activeContractsMap[k]; } catch(e){} renderActiveContracts(); setContractsPanelMessage('', 'info'); } });
-
-  if (connectBtn) connectBtn.addEventListener('click', ()=>{ if (mainWS.ws && mainWS.ws.readyState === WebSocket.OPEN) { mainWS.close(); contractsWS.close(); connectBtn.textContent = 'Se connecter'; accountInfo.textContent = ''; } else { mainWS.connect(); } displaySymbols(); });
-
-  if (buyBtn) buyBtn.onclick = ()=> executeTrade('BUY'); if (sellBtn) sellBtn.onclick = ()=> executeTrade('SELL');
-
-  function executeTrade(type) { const stake = parseFloat(stakeInput?.value) || 1; const multiplier = parseInt(multiplierInput?.value) || 300; const num = type === 'BUY' ? (parseInt(buyNum?.value) || 1) : (parseInt(sellNum?.value) || 1); if (!mainWS.authorized || !currentSymbol) { console.warn('not authorized or no symbol'); return; } const payload = { buy: 1, price: stake.toFixed(2), parameters: { contract_type: type==='BUY' ? 'MULTUP' : 'MULTDOWN', symbol: currentSymbol, currency: 'USD', basis: 'stake', amount: stake.toFixed(2), multiplier } }; for (let i=0;i<num;i++) mainWS.send(payload); }
-
-  function contractentry(onUpdate) { contractsWS.connect(); if (typeof onUpdate === 'function') { contractsWS.on('proposal_open_contract', (poc) => { let total = 0; try { total = Object.values(activeContractsMap).reduce((a,b)=>a+(Number(b.profit)||0),0); } catch(e){} onUpdate(total); }); contractsWS.on('portfolio', (pf) => { try { onUpdate(Object.values(activeContractsMap).reduce((a,b)=>a+(Number(b.profit)||0),0)); } catch(e){} }); } return contractsWS; }
-
-  displaySymbols(); initChart(); initPLGauge();
-
-  function initPLGauge() { const gauge__ = document.getElementById('plGauge'); if (!gauge__) return; updatePLGauge(0); }
-
-  const toggleAutomationBtn = document.getElementById('toggleAutomation'); if (toggleAutomationBtn) toggleAutomationBtn.addEventListener('click', ()=>{ if (!automationRunning) { toggleAutomationBtn.textContent = 'Stop Automation'; toggleAutomationBtn.style.background = 'linear-gradient(90deg,#f44336,#e57373)'; automationRunning = true; mainWS.connect().then(()=> mainWS.subscribeTick(currentSymbol, true)); } else { toggleAutomationBtn.textContent = 'Launch Automation'; toggleAutomationBtn.style.background = 'linear-gradient(90deg,#4caf50,#81c784)'; automationRunning = false; try{ mainWS.subscribeTick(null,false) }catch(e){} } });
-
-  mainWS.on('authorize', (auth) => { if (!auth) return; connectBtn.textContent = 'Disconnect'; accountInfo.textContent = `Account: ${auth.loginid} | Balance: ${Number(auth.balance).toFixed(2)} ${auth.currency||''}`; mainWS.authorized = true; });
-  contractsWS.on('authorize', (auth) => { if (!auth) return; contractsWS.authorized = true; setContractsPanelMessage(`Authorized: ${auth.loginid}`, 'info'); });
-
-  mainWS.on('tick', (t)=> handleTick(t));
-
-  window.addEventListener('resize', ()=>{ try{ positionGauges(); if (chart) chart.resize(chartInner.clientWidth, chartInner.clientHeight); } catch(e){} });
-
-  function setContractsPanelMessage(msg, level = 'info') { const panel = document.getElementById('contractsPanel'); if (!panel) return; let el = document.getElementById('contractsPanelMessage'); if (!el) { el = document.createElement('div'); el.id = 'contractsPanelMessage'; el.style.width = '100%'; el.style.boxSizing = 'border-box'; el.style.padding = '8px 12px'; el.style.borderRadius = '6px'; el.style.marginBottom = '8px'; el.style.fontWeight = '600'; panel.insertBefore(el, panel.firstChild); } el.textContent = msg; if (level === 'error') { el.style.background = '#fee2e2'; el.style.color = '#991b1b'; el.style.border = '1px solid #fecaca'; } else if (level === 'warn') { el.style.background = '#fff7ed'; el.style.color = '#92400e'; el.style.border = '1px solid #fcd34d'; } else { el.style.background = '#ecfeff'; el.style.color = '#0f766e'; el.style.border = '1px solid #a7f3d0'; } }
-document.addEventListener("DOMContentLoaded", () => {
-  const APP_ID = 105747;
-  const TOKEN = "wgf8TFDsJ8Ecvze";
-  const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
-
-// WebSocket Event Emitter
-class EventEmitter {
-  constructor() {
-    this.listeners = new Map();
-  }
-  
-  on(event, callback) {
-    if (!this.listeners.has(event)) {
-      this.listeners.set(event, new Set());
-    }
-    this.listeners.get(event).add(callback);
-    return this;
-  }
-  
-  off(event, callback) {
-    this.listeners.get(event)?.delete(callback);
-    return this;
-  }
-  
-  emit(event, ...args) {
-    this.listeners.get(event)?.forEach(cb => {
-      try { 
-        cb(...args);
-      } catch (e) {
-        console.error(`Event listener error for ${event}:`, e);
-      }
-    });
-    return this;
-  }
-}
-
-// WebSocket Manager
-class WSManager extends EventEmitter {
-  constructor() {
-    super();
-    this.mainWS = null;
-    this.authorized = false;
-    this.connecting = false;
-    this.pendingSubscribes = new Set();
-  }
-
-  async connect() {
-    if (this.mainWS?.readyState === WebSocket.OPEN) return this.mainWS;
-    if (this.connecting) return new Promise((r) => this.once('connected', r));
-    
-    this.connecting = true;
-    
-    try {
-      if (this.mainWS) await this.disconnect();
-      
-      this.mainWS = new WebSocket(WS_URL);
-      
-      await new Promise((resolve, reject) => {
-        this.mainWS.onopen = () => {
-          console.log("WebSocket opened - sending authorize");
-          this.mainWS.send(JSON.stringify({ authorize: TOKEN }));
-        };
-        
-        this.mainWS.onmessage = (msg) => {
-          const data = JSON.parse(msg.data);
-          console.log("WebSocket message:", data);
-          
-          if (data.authorize) {
-            this.authorized = true;
-            this.emit('authorized', data.authorize);
-            resolve(this.mainWS);
-            this.pendingSubscribes.forEach(s => this.subscribe(s));
-            this.pendingSubscribes.clear();
-          } else if (data.tick) {
-            this.emit('tick', data.tick);
-          }
-        };
-        
-        this.mainWS.onclose = () => {
-          console.log("WebSocket closed");
-          this.authorized = false;
-          this.emit('disconnected');
-          reject(new Error('Connection closed'));
-        };
-        
-        this.mainWS.onerror = (err) => {
-          console.error("WebSocket error:", err);
-          this.authorized = false;
-          this.emit('error', err);
-          reject(err);
-        };
-      });
-      
-      this.emit('connected', this.mainWS);
-      return this.mainWS;
-      
-    } catch (err) {
-      this.emit('error', err);
-      throw err;
-    } finally {
-      this.connecting = false;
-    }
-  }
-  
-  async disconnect() {
-    if (!this.mainWS) return;
-    
-    return new Promise(resolve => {
-      this.mainWS.onclose = () => {
-        this.mainWS = null;
-        this.authorized = false;
-        this.emit('disconnected');
-        resolve();
-      };
-      this.mainWS.close();
-    });
-  }
-
-  subscribe(symbol) {
-    if (!this.mainWS || !this.authorized) {
-      this.pendingSubscribes.add(symbol);
-      this.connect();
-      return;
-    }
-    
-    try {
-      // Unsubscribe from previous ticks first
-      this.mainWS.send(JSON.stringify({ forget_all: "ticks" }));
-      
-      // Subscribe to new symbol
-      this.mainWS.send(JSON.stringify({ 
-        ticks: symbol,
-        subscribe: 1
-      }));
-      
-      this.emit('subscribed', symbol);
-      
-    } catch (e) {
-      console.error('Subscribe failed:', e);
-      this.pendingSubscribes.add(symbol);
-      this.emit('error', e);
-    }
-  }
-  
-  send(data) {
-    if (!this.mainWS || this.mainWS.readyState !== WebSocket.OPEN) {
-      throw new Error('WebSocket not connected');
-    }
-    this.mainWS.send(JSON.stringify(data));
-  }
-}
-
-// Create singleton instance
-const deriv = new WSManager();
-
-// Trading symbols
-const SYMBOLS = [
-  { symbol: "BOOM1000", name: "Boom 1000" },
-  { symbol: "CRASH1000", name: "Crash 1000" },
-  { symbol: "BOOM500", name: "Boom 500" },
-  { symbol: "CRASH500", name: "Crash 500" },
-  { symbol: "BOOM900", name: "Boom 900" },
-  { symbol: "CRASH900", name: "Crash 900" },
-  { symbol: "BOOM600", name: "Boom 600" },
-  { symbol: "CRASH600", name: "Crash 600" },
-  { symbol: "R_100", name: "VIX 100" },
-  { symbol: "R_75", name: "VIX 75" },
-  { symbol: "R_50", name: "VIX 50" },
-  { symbol: "R_25", name: "VIX 25" },
-  { symbol: "R_10", name: "VIX 10" }
-];
-
-// Initialize UI Elements
-function initUI() {
-  const ui = {
-    connectBtn: document.getElementById("connectBtn"),
-    symbolList: document.getElementById("symbolList"),
-    chartInner: document.getElementById("chartInner"),
-    controlPanel: document.getElementById("controlFormPanel"),
-    controlPanelToggle: document.getElementById("controlPanelToggle"),
-    buyBtn: document.getElementById("buyBtn"),
-    sellBtn: document.getElementById("sellBtn"),
-    stakeInput: document.getElementById("stakeInput"),
-    multiplierInput: document.getElementById("multiplierSelect"),
-    buyNum: document.getElementById("buyNumberInput"),
-    sellNum: document.getElementById("sellNumberInput")
+  // UI refs
+  let ui = {
+    connectBtn: null, symbolList: null, chartInner: null,
+    buyBtn: null, sellBtn: null, stakeInput: null, multiplierSelect: null,
+    accountInfo: null, autoHistoryList: null, contractsPanel: null, contractsPanelToggle: null,
+    volGauge: null, trendGauge: null, probGauge: null, plGauge: null,
+    buyNum: null, sellNum: null, controlPanel: null, controlPanelToggle: null
   };
 
-  // Verify required elements
-  const required = ['connectBtn', 'symbolList', 'chartInner'];
-  const missing = required.filter(id => !ui[id]);
-  if (missing.length > 0) {
-    throw new Error(`Missing required elements: ${missing.join(', ')}`);
+  const SYMBOLS = [ 'BOOM1000','CRASH1000','BOOM500','CRASH500','BOOM900','CRASH900','BOOM600','CRASH600','R_100','R_75','R_50','R_25','R_10' ];
+
+  let currentSymbol = null; let recentChanges = []; let activeContractsMap = {}; let chart = null, areaSeries = null, chartData = [], lastPrices = {};
+  let latestPLAmount = 0;
+
+  function bindUI(){ 
+    ui.connectBtn = document.getElementById('connectBtn'); 
+    ui.symbolList = document.getElementById('symbolList'); 
+    ui.chartInner = document.getElementById('chartInner'); 
+    ui.buyBtn = document.getElementById('buyBtn'); 
+    ui.sellBtn = document.getElementById('sellBtn'); 
+    ui.stakeInput = document.getElementById('stakeInput'); 
+    ui.multiplierSelect = document.getElementById('multiplierSelect'); 
+    ui.accountInfo = document.getElementById('accountInfo'); 
+    ui.autoHistoryList = document.getElementById('autoHistoryList'); 
+    ui.contractsPanel = document.getElementById('contractsPanel'); 
+    ui.contractsPanelToggle = document.getElementById('contractsPanelToggle'); 
+    ui.volGauge = document.getElementById('volGauge'); 
+    ui.trendGauge = document.getElementById('trendGauge'); 
+    ui.probGauge = document.getElementById('probGauge'); 
+    ui.plGauge = document.getElementById('plGauge');
+    ui.buyNum = document.getElementById('buyNumberInput');
+    ui.sellNum = document.getElementById('sellNumberInput');
+    ui.controlPanel = document.getElementById('controlFormPanel');
+    ui.controlPanelToggle = document.getElementById('controlPanelToggle');
+    // support both older IDs (closeAll / closeWinning) and newer ones (closeAllBtn / closeWinningBtn)
+    ui.closeAllBtn = document.getElementById('closeAllBtn') || document.getElementById('closeAll');
+    ui.closeWinningBtn = document.getElementById('closeWinningBtn') || document.getElementById('closeWinning');
   }
 
-  return ui;
-}
+  function displaySymbols(){ if(!ui.symbolList) return; ui.symbolList.innerHTML=''; SYMBOLS.forEach(s=>{ const el=document.createElement('div'); el.className='symbol-item'; el.textContent=s; el.dataset.symbol=s; el.addEventListener('click', ()=>{ document.querySelectorAll('.symbol-item').forEach(i=>i.classList.remove('active')); el.classList.add('active'); subscribeSymbol(s); }); ui.symbolList.appendChild(el); }); }
 
-// Display Trading Symbols
-function displaySymbols() {
-  const symbolList = document.getElementById("symbolList");
-  if (!symbolList) return;
-  
-  symbolList.innerHTML = "";
-  SYMBOLS.forEach(s => {
-    const el = document.createElement("div");
-    el.className = "symbol-item";
-    el.textContent = s.name;
-    el.dataset.symbol = s.symbol;
-    el.addEventListener("click", () => selectSymbol(s.symbol, el));
-    symbolList.appendChild(el);
-  });
-}
+  function initChart(){ 
+    if(!ui.chartInner) return; 
+    try{ if(chart){ chart.remove(); } }catch(e){}
+    ui.chartInner.innerHTML='';
+    if(window.LightweightCharts){
+      chart = LightweightCharts.createChart(ui.chartInner,{ 
+        layout: { 
+          textColor: '#333',
+          backgroundColor: '#ffffff'
+        }, 
+        timeScale: { 
+          timeVisible: true, 
+          secondsVisible: true,
+          fixLeftEdge: true,
+          fixRightEdge: true,
+          barSpacing: 30
+        },
+        width: ui.chartInner.clientWidth,
+        height: ui.chartInner.clientHeight
+      });
+      
+      areaSeries = chart.addAreaSeries({ 
+        lineColor: '#2962FF',
+        topColor: 'rgba(41,98,255,0.28)',
+        bottomColor: 'rgba(41,98,255,0.05)',
+        lineWidth: 2,
+        priceLineVisible: false,
+        lastValueVisible: false
+      });
 
-  });
-  
-  // Add active class to selected symbol
-  if (element) {
-    element.classList.add('active');
-    element.style.background = '#007bff';
-    element.style.color = '#fff';
+      try {
+        chart.applyOptions({ 
+          priceScale: { 
+            scaleMargins: { top: 0.4, bottom: 0.4 },
+            alignLabels: true,
+            borderVisible: false,
+            autoScale: true,
+            mode: 2, // Logarithmic
+            invertScale: false
+          },
+          layout: {
+            backgroundColor: '#ffffff',
+            textColor: '#333333'
+          },
+          grid: {
+            vertLines: { visible: false },
+            horzLines: { visible: false }
+          },
+          crosshair: {
+            vertLine: { visible: false },
+            horzLine: { visible: false }
+          }
+        });
+
+        // Initialiser avec une fenêtre fixe de 2 ticks
+        chartData = [];
+        const now = Math.floor(Date.now() / 1000);
+        chart.timeScale().setVisibleRange({
+          from: now - 10,
+          to: now + 10
+        });
+
+      }catch(e){ console.warn('applyOptions priceScale failed', e); }
+    } else {
+      ui.chartInner.innerHTML = '<div style="padding:8px;color:#94a3b8">LightweightCharts not loaded</div>';
+    }
   }
-  
-  // Subscribe to symbol
-  deriv.subscribe(symbol);
-}
 
-// Initialize Chart
-function initChart(container) {
-  const chart = LightweightCharts.createChart(container, {
-    layout: { 
-      textColor: "#333",
-      background: { type: "solid", color: "#fff" }
-    },
-    timeScale: { 
-      timeVisible: true,
-      secondsVisible: true
+  function subscribeSymbol(symbol){ 
+    initChart();
+    
+    if(mainWS.authorized && mainWS.ws?.readyState === WebSocket.OPEN) {
+      currentSymbol = symbol;
+      mainWS.send({ forget_all: 'ticks' }); 
+      mainWS.send({ ticks: symbol, subscribe: 1 });
+      
+      // Afficher les gauges si on est connecté
+      if(document.getElementById('gauges')) {
+        document.getElementById('gauges').style.display = 'flex';
+      }
+    } else {
+      // Save the symbol for subscribing after authorization
+      window.pendingSubscribe = symbol;
+      if(!mainWS.ws || mainWS.ws.readyState !== WebSocket.OPEN) {
+        mainWS.connect();
+      }
     }
-  });
+  }
 
-  const areaSeries = chart.addAreaSeries({
-    lineColor: "#2962FF",
-    topColor: "rgba(41,98,255,0.28)",
-    bottomColor: "rgba(41,98,255,0.05)",
-    lineWidth: 2
-  });
+  function handleTick(msg){ 
+    const tick = msg.tick || msg; 
+    if(!tick || !tick.symbol) return; 
+    if(currentSymbol && tick.symbol!==currentSymbol) return; 
 
-  return { chart, areaSeries };
-}
+    const quote = Number(tick.quote); 
+    const epoch = Number(tick.epoch) || Math.floor(Date.now()/1000); 
 
-// Initialize Application
-document.addEventListener("DOMContentLoaded", async () => {
-  console.log("Starting Unicorn Deriv Trader...");
-  
-  try {
-    // Initialize UI
-    const ui = initUI();
-    console.log("UI elements initialized");
-
-    // Display symbols
-    displaySymbols();
-    console.log("Trading symbols displayed");
-
-    // Initialize chart
-    const { chart, areaSeries } = initChart(ui.chartInner);
-    console.log("Chart initialized");
-
-    // Initialize control panel state
-    if (ui.controlPanel) {
-      ui.controlPanel.style.display = "none";
-    }
-
-    // Setup control panel toggle
-    if (ui.controlPanelToggle && ui.controlPanel) {
-      ui.controlPanelToggle.addEventListener("click", () => {
-        const isVisible = ui.controlPanel.style.display === "flex";
+    if(areaSeries){ 
+      try{ 
+        // Ajouter le nouveau tick
+        chartData.push({ time: epoch, value: quote });
         
-        if (isVisible) {
-          ui.controlPanel.classList.remove("active");
+        // Garder seulement les 100 derniers ticks
+        if(chartData.length > 100) {
+          chartData.shift();
+        }
+
+        // Mettre à jour la série complète
+        areaSeries.setData(chartData);
+
+        // Centrer sur les 2 derniers ticks si nous avons au moins 2 points
+        if(chartData.length >= 2) {
+          const lastTwo = chartData.slice(-2);
+          const middleTime = Math.floor((lastTwo[0].time + lastTwo[1].time) / 2);
+          chart.timeScale().setVisibleRange({
+            from: middleTime - 5,
+            to: middleTime + 5
+          });
+        }
+      }catch(e){ console.warn('Chart update failed:', e); } 
+    } 
+
+    const prev = (lastPrices[tick.symbol] ?? quote); 
+    lastPrices[tick.symbol] = quote; 
+    const change = quote - prev; 
+    recentChanges.push(change); 
+    if(recentChanges.length>60) recentChanges.shift(); 
+
+    // Force une mise à jour des infos de balance
+    if(mainWS.authorized) {
+      mainWS.send({ balance: 1 }, true);
+      mainWS.send({ portfolio: 1 }, true);
+    }
+
+    updateGauges(); 
+  }
+
+  function updateGauges(){ 
+    if(!ui) return; 
+    
+    // Calculate volatility with exponential weighting
+    const mean = recentChanges.reduce((a,b,i)=>a + b * Math.exp(i/recentChanges.length), 0) / 
+                recentChanges.reduce((a,i)=>a + Math.exp(i/recentChanges.length), 0);
+    const variance = recentChanges.reduce((a,b,i)=>a + Math.pow(b-mean,2) * Math.exp(i/recentChanges.length), 0) / 
+                    recentChanges.reduce((a,i)=>a + Math.exp(i/recentChanges.length), 0);
+    const stdDev = Math.sqrt(variance);
+    const vol = Math.min(100, (stdDev/0.05)*100);
+    
+    // Calculate trend with momentum
+    const weightedSum = recentChanges.reduce((a,b,i)=>a + b * (i+1), 0);
+    const momentum = weightedSum / ((recentChanges.length * (recentChanges.length + 1)) / 2);
+    const trend = Math.min(100, Math.abs(momentum) * 2000);
+    
+    // Calculate probability with recent bias
+    const recentWindow = recentChanges.slice(-15);
+    const weightedUp = recentWindow.reduce((sum,change,i) => {
+      const weight = Math.exp(i/recentWindow.length);
+      return sum + (change > 0 ? weight : 0);
+    }, 0);
+    const totalWeight = recentWindow.reduce((sum,_,i) => sum + Math.exp(i/recentWindow.length), 0);
+    const prob = Math.min(100, (weightedUp / totalWeight) * 100);
+    
+    // Calculate P/L with active contracts only
+    const contracts = Object.values(activeContractsMap).filter(c => !c.is_sold && !c.is_expired);
+    let totalProfit = 0;
+    
+    if(contracts.length > 0) {
+      totalProfit = contracts.reduce((sum, c) => {
+        // Try multiple profit fields
+        let profit = 0;
+        if('profit' in c && !isNaN(Number(c.profit))) {
+          profit = Number(c.profit);
+        } else if('current_spot_profit' in c && !isNaN(Number(c.current_spot_profit))) {
+          profit = Number(c.current_spot_profit);
+        } else if(c.buy_price && c.current_spot && c.entry_spot) {
+          // Calculate manual P/L if needed
+          const direction = c.contract_type.includes('UP') ? 1 : -1;
+          const movement = direction * (c.current_spot - c.entry_spot);
+          profit = movement * Number(c.buy_price);
+        }
+        return sum + profit;
+      }, 0);
+    }
+    
+    latestPLAmount = totalProfit;
+    let plValue;
+    
+    if(totalProfit === 0) {
+      plValue = 50; // Neutral position
+    } else {
+      // Non-linear scaling for better visualization
+      plValue = 50 + (Math.sign(totalProfit) * Math.min(50, Math.sqrt(Math.abs(totalProfit)) * 10));
+    }
+    
+    // Update gauges with smooth transitions
+    drawGauge(ui.volGauge, vol, 'vol');
+    drawGauge(ui.trendGauge, trend, 'trend');
+    drawGauge(ui.probGauge, prob, 'prob');
+    drawGauge(ui.plGauge, plValue, 'pl');
+    
+    // Debug logging
+    console.debug('Gauge Updates:', {
+      volatility: vol.toFixed(2),
+      trend: trend.toFixed(2),
+      probability: prob.toFixed(2),
+      totalProfit: totalProfit.toFixed(2),
+      plValue: plValue.toFixed(2)
+    });
+  }
+    function drawGauge(el, v, type='vol'){ 
+    if(!el) return; 
+      // Ensure placeholder has explicit square dimensions to avoid oval shapes
+      el.style.width = '130px';
+      el.style.height = '130px';
+      el.style.display = 'inline-block';
+      el.style.boxSizing = 'border-box';
+      el.innerHTML = '';
+    
+    // Ensure gauge container exists
+    if (!document.getElementById('gaugesContainer')) {
+      const container = styleGaugesContainer();
+      document.body.appendChild(container);
+      // Move gauges to container
+      ['volGauge', 'trendGauge', 'probGauge', 'plGauge'].forEach(id => {
+        const gauge = document.getElementById(id);
+        if (gauge) container.appendChild(gauge);
+      });
+    }
+    
+    // Container
+    const container = document.createElement('div');
+    container.style.width = '130px';
+    container.style.height = '130px';
+    container.style.position = 'relative';
+    container.style.display = 'flex';
+    container.style.alignItems = 'center';
+    container.style.justifyContent = 'center';
+    container.style.left = '0';
+    
+    // Background ring (static)
+    const bgRing = document.createElement('div');
+    bgRing.style.width = '100%';
+    bgRing.style.height = '100%';
+    bgRing.style.borderRadius = '50%';
+    bgRing.style.position = 'absolute';
+    bgRing.style.background = '#f5f5f5';
+    bgRing.style.boxShadow = 'inset 0 0 10px rgba(0,0,0,0.1)';
+    
+    // Progress ring (animated)
+    const progressRing = document.createElement('div');
+    progressRing.style.width = '100%';
+    progressRing.style.height = '100%';
+    progressRing.style.borderRadius = '50%';
+    progressRing.style.position = 'absolute';
+    progressRing.style.background = `conic-gradient(
+      ${getGaugeColor(v)} ${v}%, 
+      transparent ${v}% 100%
+    )`;
+    progressRing.style.transition = 'all 0.5s ease-out';
+    progressRing.style.transform = 'rotate(-90deg)';
+    
+    // Outer ring border
+    const borderRing = document.createElement('div');
+    borderRing.style.width = '92%';
+    borderRing.style.height = '92%';
+    borderRing.style.borderRadius = '50%';
+    borderRing.style.position = 'absolute';
+  borderRing.style.border = '4px solid #e0e0e0';
+  borderRing.style.boxShadow = '0 6px 18px rgba(32,33,36,0.08)';
+    
+    // Inner circle
+    const inner = document.createElement('div');
+    inner.style.width = '75%';
+    inner.style.height = '75%';
+    inner.style.borderRadius = '50%';
+    inner.style.background = '#ffffff';
+    inner.style.position = 'absolute';
+    inner.style.display = 'flex';
+    inner.style.alignItems = 'center';
+    inner.style.justifyContent = 'center';
+    inner.style.flexDirection = 'column';
+    inner.style.boxShadow = 'inset 0 0 15px rgba(0,0,0,0.1)';
+    
+    // Value display
+    const value = document.createElement('div');
+    value.style.color = getGaugeColor(v);
+    value.style.fontSize = '20px';
+    value.style.fontWeight = '700';
+    value.style.marginBottom = '2px';
+    value.style.textShadow = '0 2px 4px rgba(0,0,0,0.03)';
+    
+    // For P/L gauge show currency amount, otherwise percent
+    if(type === 'pl'){
+      const amt = typeof latestPLAmount === 'number' ? latestPLAmount : 0;
+      const sign = amt >= 0 ? '+' : '-'; // Ajout du + pour les profits
+      value.textContent = `${sign}$${Math.abs(amt).toFixed(2)}`;
+      value.style.color = amt >= 0 ? '#16a34a' : '#dc2626'; // Vert pour profit, rouge pour perte
+    } else {
+      value.textContent = Math.round(v) + '%';
+    }
+    
+    // Label
+    const label = document.createElement('div');
+    label.style.color = '#888';
+    label.style.fontSize = '12px';
+    label.style.fontWeight = '500';
+    label.style.textTransform = 'uppercase';
+    label.style.letterSpacing = '1px';
+    label.textContent = getGaugeLabel(type);
+    
+    // Progress dots
+    const dotsContainer = document.createElement('div');
+    dotsContainer.style.position = 'absolute';
+    dotsContainer.style.width = '100%';
+    dotsContainer.style.height = '100%';
+    
+    // Add progress dots
+    const numDots = 24;
+    for(let i = 0; i < numDots; i++) {
+      const dot = document.createElement('div');
+      const angle = (i * 360 / numDots) - 90; // Start from top
+      const radius = 58; // Slightly smaller than ring
+      const x = radius * Math.cos(angle * Math.PI / 180);
+      const y = radius * Math.sin(angle * Math.PI / 180);
+      
+      dot.style.position = 'absolute';
+      dot.style.width = '4px';
+      dot.style.height = '4px';
+      dot.style.borderRadius = '50%';
+      dot.style.backgroundColor = i * (360 / numDots) <= v ? getGaugeColor(v) : '#e0e0e0';
+      dot.style.left = `calc(50% + ${x}px - 2px)`;
+      dot.style.top = `calc(50% + ${y}px - 2px)`;
+      dot.style.transition = 'background-color 0.3s ease';
+      
+      dotsContainer.appendChild(dot);
+    }
+    
+    // Assemble
+    inner.appendChild(value);
+    inner.appendChild(label);
+    container.appendChild(bgRing);
+    container.appendChild(progressRing);
+    container.appendChild(dotsContainer);
+    container.appendChild(borderRing);
+    container.appendChild(inner);
+    el.appendChild(container);
+  }
+  
+    function getGaugeColor(value) {
+    if (value < 30) return '#81c784';      // vert clair
+    if (value < 70) return '#ffb74d';      // orange clair
+    return '#e57373';                      // rouge clair
+  }
+  
+  function getGaugeLabel(type) {
+    switch(type) {
+      case 'vol': return 'VOLATILITY';
+      case 'trend': return 'TREND';
+      case 'prob': return 'PROBABILITY';
+      case 'pl': return 'P/L LIVE';
+      default: return '';
+    }
+  }
+
+  // Nouvelle fonction de mise à jour du gauge P/L
+  function updatePLGauge(plValue) {
+    if(!ui?.plGauge) return;
+    
+    // Mise à jour de la valeur globale
+    latestPLAmount = plValue;
+
+    // Couleur dynamique selon profit/perte
+    const color = plValue >= 0 ? "#4caf50" : "#f44336";
+    const deg = Math.min(360, Math.abs(plValue) * 3.6); // 100 = 360°
+
+    // Mettre à jour l'apparence du gauge
+    const gauge = ui.plGauge;
+    const inner = gauge.querySelector('div:last-child');
+    if(inner) {
+      const value = inner.querySelector('div:first-child');
+      if(value) {
+        value.textContent = `${plValue >= 0 ? "+" : ""}${plValue.toFixed(2)}$`;
+        value.style.color = color;
+      }
+    }
+
+    // Mettre à jour le background pour l'indicateur circulaire
+    const progressRing = gauge.querySelector('div:nth-child(2)');
+    if(progressRing) {
+      progressRing.style.background = `conic-gradient(${color} ${deg}deg, #ddd ${deg}deg)`;
+    }
+  }  function styleGaugesContainer() {
+    const container = document.createElement('div');
+    container.id = 'gaugesContainer';
+    container.style.position = 'fixed';
+    container.style.left = '20px';
+    container.style.top = '50%';
+    container.style.transform = 'translateY(-50%)';
+    container.style.display = 'flex';
+    container.style.flexDirection = 'column';
+    container.style.gap = '20px';
+    container.style.zIndex = '1000';
+    return container;
+  }
+
+  // Utility: recursively search object for the first numeric value for a set of possible keys
+  function findFirstNumericByKeys(obj, keys){
+    if(obj == null) return null;
+    if(typeof obj !== 'object') return null;
+    for(const k of keys){ if(k in obj && obj[k] != null && !isNaN(Number(obj[k]))) return Number(obj[k]); }
+    for(const v of Object.values(obj)){
+      if(typeof v === 'object'){
+        const r = findFirstNumericByKeys(v, keys);
+        if(r !== null) return r;
+      }
+    }
+    return null;
+  }
+
+  // Utility: recursively scan object to find any nested objects that look like contracts (have contract_id)
+  function scanForContracts(obj){
+    if(!obj || typeof obj !== 'object') return [];
+    const found = [];
+    function walk(o){
+      if(!o || typeof o !== 'object') return;
+      if('contract_id' in o && o.contract_id) { found.push(o); }
+      for(const v of Object.values(o)){
+        if(typeof v === 'object') walk(v);
+      }
+    }
+    walk(obj);
+    return found;
+  }
+
+  // Try to extract balance/currency info from contract-related WS messages and update accountInfo
+  function updateAccountInfoFromContracts(data){
+    if(!ui || !ui.accountInfo) return;
+    try{
+      // try multiple keys and nested locations with logging
+      console.debug('Account update data:', data);
+      
+      const bal = findFirstNumericByKeys(data, ['balance','account_balance','balance_raw','equity','funds','available']);
+      console.debug('Found balance:', bal);
+      
+      const cur = (function(){
+        if(data?.portfolio?.currency) return data.portfolio.currency;
+        if(data?.currency) return data.currency;
+        if(data?.portfolio && typeof data.portfolio === 'object' && data.portfolio.currency) return data.portfolio.currency;
+        // Récupérer la devise depuis le message authorize si disponible
+        if(mainWS.authorized && mainWS._lastAuth?.currency) return mainWS._lastAuth.currency;
+        return 'USD'; // Fallback to USD
+      })();
+      
+      if(bal !== null && bal !== undefined){
+        const existing = (ui.accountInfo.textContent||'').trim();
+        const parts = existing.split('|').map(p=>p.trim());
+        const possibleLogin = parts.length>1 ? parts[0] : (parts[0] && !parts[0].toLowerCase().startsWith('balance') ? parts[0] : '');
+        const newText = possibleLogin ? `${possibleLogin} | Balance: ${Number(bal).toFixed(2)} ${cur}` : `Balance: ${Number(bal).toFixed(2)} ${cur}`;
+        
+        // Ne mettre à jour que si la valeur a changé
+        if(ui.accountInfo.textContent !== newText) {
+          ui.accountInfo.textContent = newText;
+          console.debug('Balance updated:', newText);
+        }
+      }
+
+      // Forcer une mise à jour du P/L si on a des contrats actifs
+      const contracts = Object.values(activeContractsMap).filter(c => !c.is_sold && !c.is_expired);
+      if(contracts.length > 0) {
+        updateGauges();
+      }
+
+    }catch(e){ console.warn('updateAccountInfoFromContracts failed', e); }
+  }
+
+  // Contracts handlers
+  contractsWS.on('portfolio', data=>{ const list = data.portfolio?.contracts || data.contracts || []; list.forEach(c=>{ if(c?.contract_id) activeContractsMap[c.contract_id]=c; }); renderActiveContracts(); updateGauges(); updateAccountInfoFromContracts(data); });
+  contractsWS.on('active_positions', data=>{ const list = data.active_positions?.positions || data.positions || data.contracts || []; list.forEach(c=>{ if(c?.contract_id) activeContractsMap[c.contract_id]=Object.assign({}, activeContractsMap[c.contract_id]||{}, c); }); renderActiveContracts(); updateGauges(); updateAccountInfoFromContracts(data); });
+  contractsWS.on('proposal_open_contract', data=>{ const poc = data.proposal_open_contract||data; if(!poc||!poc.contract_id) return; if(poc.is_expired||poc.is_sold) delete activeContractsMap[poc.contract_id]; else activeContractsMap[poc.contract_id]=Object.assign({}, activeContractsMap[poc.contract_id]||{}, poc); renderActiveContracts(); updateGauges(); updateAccountInfoFromContracts(data); });
+
+  // Generic message scanner for contracts and balance info (some WS messages may not use the specific event types)
+  contractsWS.on('message', data => {
+    try{
+      // Log incoming message for debugging
+      console.debug('[ContractsWS] Message:', data);
+
+      // scan for nested contracts
+      const found = scanForContracts(data);
+      if(found.length){
+        found.forEach(c => { 
+          if(c?.contract_id) {
+            // Deep merge of contract data
+            activeContractsMap[c.contract_id] = {
+              ...activeContractsMap[c.contract_id] || {},
+              ...c,
+              // Always update timestamps
+              last_update: Date.now()
+            };
+
+            // If contract is sold/expired, schedule removal
+            if(c.is_sold || c.is_expired) {
+              setTimeout(() => {
+                delete activeContractsMap[c.contract_id];
+                renderActiveContracts();
+              }, 2000); // Keep briefly visible then remove
+            }
+          }
+        });
+        
+        // Immediate UI updates
+        renderActiveContracts();
+        updateGauges();
+      }
+
+      // Balance updates - check multiple message types
+      if(data.balance || data.balance_raw || data.account_balance) {
+        updateAccountInfoFromContracts(data);
+      }
+      
+      // Portfolio updates
+      if(data.portfolio || data.proposal_open_contract || data.active_positions) {
+        updateAccountInfoFromContracts(data);
+      }
+
+    }catch(e){ 
+      console.warn('contractsWS message scanner failed', e);
+      console.error(e); // Full error for debugging
+    }
+  });
+
+  function renderActiveContracts(){ 
+    if(!ui.autoHistoryList) return; 
+    
+    // Get active contracts and sort by purchase time
+    const arr = Object.keys(activeContractsMap)
+      .map(k => activeContractsMap[k])
+      .filter(c => c && !c.is_sold && !c.is_expired)
+      .sort((a, b) => (b.purchase_time || 0) - (a.purchase_time || 0));
+    
+    if(!arr.length){ 
+      ui.autoHistoryList.innerHTML='<div style="color:#94a3b8;padding:8px">No active contracts</div>'; 
+      return; 
+    } 
+
+    let html = `
+      <table class="trade-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>ID</th>
+            <th>Type</th>
+            <th>Entry</th>
+            <th>Current</th>
+            <th>Stake</th>
+            <th>Profit</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    arr.forEach(c => {
+      const t = c.purchase_time ? new Date(c.purchase_time*1000).toLocaleString() : '-';
+      const id = c.contract_id || '-';
+      const type = c.contract_type || '-';
+      const entry = c.entry_tick || c.entry_spot || '-';
+      const current = c.current_spot || c.exit_tick || entry;
+      const stake = (c.buy_price || c.purchase_price || c.stake || 0).toFixed(2);
+      const profit = (('profit' in c) ? Number(c.profit) : 
+                    (('current_spot_profit' in c) ? Number(c.current_spot_profit) : 0)).toFixed(2);
+      const profitClass = Number(profit) >= 0 ? 'profit-positive' : 'profit-negative';
+      const directionClass = type.includes('UP') ? 'buy' : type.includes('DOWN') ? 'sell' : '';
+
+      html += `
+        <tr>
+          <td>${t}</td>
+          <td>${id}</td>
+          <td class="${directionClass}">${type}</td>
+          <td>${entry}</td>
+          <td>${current}</td>
+          <td style="text-align:right">${stake}</td>
+          <td class="${profitClass}" style="text-align:right">${profit}</td>
+        </tr>
+      `;
+    });
+
+    html += '</tbody></table>';
+    ui.autoHistoryList.innerHTML = html;
+
+    // Update total P/L for gauge
+    const totalPL = arr.reduce((sum, c) => {
+      const profit = ('profit' in c) ? Number(c.profit) : 
+                    ('current_spot_profit' in c) ? Number(c.current_spot_profit) : 0;
+      return sum + profit;
+    }, 0);
+
+    latestPLAmount = totalPL;
+    updateGauges();
+  }
+
+  // Main WS wiring
+  mainWS.on('tick', d=> handleTick(d)); 
+  mainWS.on('message', d=>{ 
+    if(d && d.tick) handleTick(d);
+  }); 
+  // Add balance subscription handler
+  mainWS.on('balance', data => {
+    if(!ui?.accountInfo) return;
+    try {
+      if(data.balance) {
+        const b = data.balance;
+        ui.accountInfo.textContent = `Account: ${b.loginid} | Balance: ${Number(b.balance).toFixed(2)} ${b.currency}`;
+      }
+    } catch(e) {
+      console.warn('Balance handler failed', e);
+    }
+  });
+
+  mainWS.on('authorize', a=>{ 
+    if(!ui) return; 
+    try{
+      const auth = a && a.authorize ? a.authorize : a;
+      if(auth) {
+        const balance = auth.balance;
+        const currency = auth.currency || '';
+        const loginid = auth.loginid;
+        
+        if(ui.accountInfo) {
+          ui.accountInfo.textContent = `Account: ${loginid} | Balance: ${Number(balance).toFixed(2)} ${currency}`;
+        }
+
+        // Subscribe to balance updates immediately after authorization
+        mainWS.send({ balance: 1, subscribe: 1 }, true);
+
+        // Display gauges if symbol already selected
+        if(currentSymbol && document.getElementById('gauges')) {
+          document.getElementById('gauges').style.display = 'flex';
+        }
+
+        // If there was a pending symbol subscription, execute it now
+        if(window.pendingSubscribe) {
           setTimeout(() => {
-            ui.controlPanel.style.display = "none";
-          }, 320);
-          ui.controlPanelToggle.textContent = "⚙️ Show Controls";
+            if(mainWS.ws?.readyState === WebSocket.OPEN) {
+              mainWS.send({ forget_all: 'ticks' });
+              mainWS.send({ ticks: window.pendingSubscribe, subscribe: 1 });
+              currentSymbol = window.pendingSubscribe;
+              window.pendingSubscribe = null;
+            }
+          }, 300);
+        }
+      }
+    }catch(e){ 
+      console.warn('authorize handler failed', e); 
+    }
+    
+    if(ui.connectBtn) {
+      ui.connectBtn.textContent = 'Disconnect';
+      ui.connectBtn.style.background = '#4caf50';
+    }
+  });
+  contractsWS.on('authorize', ()=>{ /*contracts authorized*/ });
+
+  // UI actions
+  function attachActions(){ 
+    if(!ui) return; 
+    
+    // Connect button
+    if(ui.connectBtn) {
+      ui.connectBtn.addEventListener('click', ()=>{ 
+        if(mainWS.ws && mainWS.ws.readyState===WebSocket.OPEN){ 
+          mainWS.close(); 
+          contractsWS.close(); 
+          ui.connectBtn.textContent='Se connecter';
+          ui.connectBtn.style.background = '#f44336';
+          if(ui.accountInfo) {
+            ui.accountInfo.textContent='';
+          }
+          // Masquer les gauges à la déconnexion
+          if(document.getElementById('gauges')) {
+            document.getElementById('gauges').style.display = 'none';
+          }
+          window.pendingSubscribe = null;
         } else {
-          ui.controlPanel.style.display = "flex";
-          setTimeout(() => {
-            ui.controlPanel.classList.add("active");
-          }, 10);
-          ui.controlPanelToggle.textContent = "⚙️ Hide Controls";
+          ui.connectBtn.textContent = 'Connecting...';
+          if(ui.accountInfo) {
+            ui.accountInfo.textContent = 'Connecting...';
+          }
+          mainWS.connect(); 
+          contractsWS.connect(); 
+          ui.connectBtn.textContent='Connecting...';
+          ui.connectBtn.style.background = '#ff9800';
+        } 
+        displaySymbols(); 
+      });
+    }
+
+    // Trade buttons
+    if(ui.buyBtn) {
+      ui.buyBtn.addEventListener('click', ()=>{ 
+        console.debug('BUY button clicked');
+        executeTrade('BUY');
+      });
+    }
+    if(ui.sellBtn) {
+      ui.sellBtn.addEventListener('click', ()=>{ 
+        console.debug('SELL button clicked');
+        executeTrade('SELL');
+      });
+    }
+
+    // Close actions
+    if(ui.closeAllBtn) {
+      ui.closeAllBtn.addEventListener('click', () => {
+        closeAllContracts();
+      });
+    }
+    if(ui.closeWinningBtn) {
+      ui.closeWinningBtn.addEventListener('click', () => {
+        closeWinningContracts();
+      });
+    }
+
+    // Contracts panel toggle
+    if(ui.contractsPanelToggle) {
+      ui.contractsPanelToggle.addEventListener('click', ()=>{ 
+        if(!ui.contractsPanel) return;
+        const isVisible = ui.contractsPanel.style.display === 'block';
+        if(isVisible) {
+          ui.contractsPanel.style.display = 'none';
+          ui.contractsPanelToggle.textContent = '📊 Show Trades';
+        } else {
+          ui.contractsPanel.style.display = 'block';
+          ui.contractsPanelToggle.textContent = '📊 Hide Trades';
+          contractsWS.connect().then(()=>{ 
+            contractsWS.send({ portfolio:1, subscribe:1 }, true); 
+            contractsWS.send({ active_positions:1, subscribe:1 }, true); 
+          });
         }
       });
     }
 
-    // Setup WebSocket connection button
-    ui.connectBtn.addEventListener("click", async () => {
-      try {
-        ui.connectBtn.disabled = true;
-        ui.connectBtn.textContent = "Connecting...";
-        
-        await deriv.connect();
-        
-      } catch (err) {
-        console.error("Connection failed:", err);
-        ui.connectBtn.textContent = "Connection Failed";
-        ui.connectBtn.style.background = "#f44336";
-      } finally {
-        ui.connectBtn.disabled = false;
-      }
-    });
-
-    // Handle WebSocket events
-    deriv.on('authorized', () => {
-      ui.connectBtn.textContent = "Connected";
-      ui.connectBtn.style.background = "#4caf50";
-    });
-
-    deriv.on('disconnected', () => {
-      ui.connectBtn.textContent = "Disconnected";
-      ui.connectBtn.style.background = "#f44336";
-    });
-
-    deriv.on('error', (err) => {
-      console.error("Connection error:", err);
-      ui.connectBtn.textContent = "Connection Failed";
-      ui.connectBtn.style.background = "#f44336";
-    });
-
-    // Handle incoming ticks
-    deriv.on('tick', (tick) => {
-      if (!tick || !tick.symbol) return;
-      
-      const quote = Number(tick.quote);
-      const epoch = Number(tick.epoch);
-      
-      // Update chart
-      if (areaSeries) {
-        areaSeries.update({ 
-          time: epoch,
-          value: quote 
-        });
-      }
-    });
-
-    // Setup trading buttons
-    if (ui.buyBtn) {
-      ui.buyBtn.onclick = () => {
-        const stake = parseFloat(ui.stakeInput?.value) || 1;
-        const multiplier = parseInt(ui.multiplierInput?.value) || 300;
-        const numTrades = parseInt(ui.buyNum?.value) || 1;
-
-        for (let i = 0; i < numTrades; i++) {
-          deriv.send({
-            buy: 1,
-            price: stake,
-            parameters: {
-              contract_type: "MULTUP",
-              currency: "USD",
-              multiplier: multiplier,
-              basis: "stake",
-              amount: stake
-            }
-          });
+    // Control panel toggle
+    if(ui.controlPanelToggle && ui.controlPanel) {
+      ui.controlPanelToggle.addEventListener('click', () => {
+        const isVisible = ui.controlPanel.style.display === 'flex';
+        if(isVisible) {
+          ui.controlPanel.classList.remove('active');
+          setTimeout(() => {
+            ui.controlPanel.style.display = 'none';
+          }, 320);
+          ui.controlPanelToggle.textContent = '⚙️ Show Controls';
+        } else {
+          ui.controlPanel.style.display = 'flex';
+          setTimeout(() => {
+            ui.controlPanel.classList.add('active');
+          }, 10);
+          ui.controlPanelToggle.textContent = '⚙️ Hide Controls';
         }
-      };
+      });
     }
-
-    if (ui.sellBtn) {
-      ui.sellBtn.onclick = () => {
-        const stake = parseFloat(ui.stakeInput?.value) || 1;
-        const multiplier = parseInt(ui.multiplierInput?.value) || 300;
-        const numTrades = parseInt(ui.sellNum?.value) || 1;
-
-        for (let i = 0; i < numTrades; i++) {
-          deriv.send({
-            buy: 1,
-            price: stake,
-            parameters: {
-              contract_type: "MULTDOWN",
-              currency: "USD",
-              multiplier: multiplier,
-              basis: "stake",
-              amount: stake
-            }
-          });
-        }
-      };
-    }
-
-    console.log("Application initialized successfully");
-  } catch (err) {
-    console.error("Fatal error:", err);
-    alert("Failed to start the application. Please refresh and try again.");
   }
-});
+
+  function executeTrade(type){ 
+    if(!ui) return; 
+    const stake = parseFloat(ui.stakeInput?.value) || 1;
+    const multiplier = parseInt(ui.multiplierSelect?.value) || 300;
+
+    if(!mainWS.authorized || !currentSymbol){ 
+      console.warn('not authorized or no symbol'); 
+      return; 
+    }
+
+    const payload = { 
+      buy: 1, 
+      price: stake.toFixed(2), 
+      parameters: { 
+        contract_type: type==="BUY" ? "MULTUP" : "MULTDOWN",
+        symbol: currentSymbol,
+        currency: "USD",
+        basis: "stake",
+        amount: stake.toFixed(2),
+        multiplier
+      }
+    };
+
+    let numb_;
+    if (type === "BUY") {
+      numb_ = parseInt(ui.buyNum?.value) || 1;
+    } else if (type === "SELL") {
+      numb_ = parseInt(ui.sellNum?.value) || 1;
+    }
+
+    console.log(`Executing ${numb_} ${type} trades...`);
+    
+    for(let i = 0; i < numb_; i++) {
+      try{
+        mainWS.send(payload);
+        console.debug(`Trade ${i+1}/${numb_} sent:`, payload);
+      }catch(e){ 
+        console.warn(`Trade ${i+1}/${numb_} send failed:`, e, payload); 
+      }
+    }
+  }
+
+  // Close all active contracts (best-effort) by sending sell requests via contractsWS
+  function closeAllContracts(){
+    console.log("Closing all trades...");
+    
+    // Create new WS connection specifically for closing all trades
+    const closeAllWS = new WebSocketManager(WS_URL, 'closeAll');
+    
+    closeAllWS.on('authorize', (data) => {
+      if(!data.authorize?.loginid){ 
+        console.log("Token not authorized"); 
+        closeAllWS.close();
+        return; 
+      }
+      
+      console.log("Connection Authorized.");
+      closeAllWS.send({ portfolio: 1 });
+    });
+
+    closeAllWS.on('portfolio', (data) => {
+      if(data.portfolio?.contracts?.length > 0) {
+        const contracts = data.portfolio.contracts;
+        console.log('Found '+ contracts.length + ' active contracts - closing all...');
+        
+        contracts.forEach((contract, i) => {
+          setTimeout(() => {
+            console.log('Closing contract '+ contract.contract_id + ' (' + contract.contract_type + ')');
+            closeAllWS.send({
+              sell: contract.contract_id,
+              price: 0
+            });
+          }, i * 200);
+        });
+      } else {
+        console.log('No active contracts found.');
+        closeAllWS.close();
+      }
+    });
+
+    closeAllWS.on('sell', (data) => {
+      console.log(`✅ Contract ${data.sell.contract_id} closed with profit: ${parseFloat(data.sell.profit).toFixed(2)}`);
+    });
+
+    // Connect and start the process
+    closeAllWS.connect();
+  }
+
+  // Close only winning contracts (profit > 0)
+  function closeWinningContracts(){
+    console.log("Closing all profitable trades...");
+    
+    // Create new WS connection specifically for closing trades
+    const closeWS = new WebSocketManager(WS_URL, 'closeWinning');
+    
+    closeWS.on('authorize', (data) => {
+      console.log("✅ Authorized successfully. Fetching portfolio...");
+      closeWS.send({ portfolio: 1 });
+    });
+
+    closeWS.on('portfolio', (data) => {
+      if(data.portfolio?.contracts?.length > 0) {
+        const contracts = data.portfolio.contracts;
+        console.log("📊 Found " + contracts.length + " active contracts.");
+
+        contracts.forEach((contract, i) => {
+          setTimeout(() => {
+            closeWS.send({
+              proposal_open_contract: 1,
+              contract_id: contract.contract_id
+            });
+          }, i * 200);
+        });
+      } else {
+        console.log("⚠️ No active contracts found.");
+        closeWS.close();
+      }
+    });
+
+    closeWS.on('proposal_open_contract', (data) => {
+      if(data.proposal_open_contract) {
+        const poc = data.proposal_open_contract;
+        const profit = parseFloat(poc.profit);
+
+        if(profit > 0) {
+          console.log(`💰 Closing profitable trade ${poc.contract_id} with profit ${profit.toFixed(2)}`);
+          closeWS.send({
+            sell: poc.contract_id,
+            price: 0
+          });
+        }
+      }
+    });
+
+    closeWS.on('sell', (data) => {
+      const profit = parseFloat(data.sell.profit);
+      console.log(`✅ Trade ${data.sell.contract_id} closed with profit: ${profit.toFixed(2)}`);
+    });
+
+    // Connect and start the process
+    closeWS.connect();
+  }
+
+  // expose for debug
+  window.__app = { mainWS, contractsWS, subscribeSymbol, renderActiveContracts, activeContractsMap };
+
+  // Start
+  document.addEventListener('DOMContentLoaded', ()=>{
+    bindUI(); displaySymbols(); initChart(); attachActions(); // connect contracts channel for updates
+    contractsWS.connect();
+  });
 
 })();
