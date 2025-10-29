@@ -107,7 +107,7 @@
           secondsVisible: true,
           fixLeftEdge: true,
           fixRightEdge: true,
-          barSpacing: 10
+          barSpacing: 5
         },
         width: ui.chartInner.clientWidth,
         height: ui.chartInner.clientHeight
