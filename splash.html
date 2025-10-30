@@ -26,23 +26,43 @@
       animation: fadeIn 1.5s ease-in-out;
     }
 
+    /* ==== Effet de lumière pour World Unicorn ==== */
     h1 {
       font-size: 3rem;
       letter-spacing: 2px;
-      color: #ffffff; /* texte blanc pur */
+      color: #ffffff;
       margin-bottom: 0.6rem;
-      text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.4); /* ombre plus visible pour lisibilité */
+      text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.4);
+      position: relative;
+      display: inline-block;
+      overflow: hidden;
+      background: linear-gradient(90deg, #ffffff 0%, #b3b3b3 20%, #ffffff 40%);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: lightSweep 3s linear infinite;
     }
 
+    @keyframes lightSweep {
+      0% {
+        background-position: -200% center;
+      }
+      100% {
+        background-position: 200% center;
+      }
+    }
+
+    /* Texte secondaire */
     p {
       font-size: 1.1rem;
-      color: #ffffff; /* texte blanc pur */
+      color: #ffffff;
       letter-spacing: 1px;
       margin-bottom: 2rem;
-      text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.5); /* ombre légère mais lisible */
+      text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.5);
       animation: fadeInText 2s ease-in forwards;
     }
 
+    /* Barre de chargement */
     .progress-bar {
       position: relative;
       width: 300px;
@@ -88,7 +108,7 @@
   </div>
 
   <script>
-    // Simule un chargement puis redirige vers la page login
+    // Redirection après le chargement
     setTimeout(() => {
       window.location.href = "login.html"; // 👉 change ici ton fichier de destination
     }, 7500);
