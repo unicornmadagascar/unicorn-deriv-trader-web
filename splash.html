@@ -19,7 +19,6 @@
       align-items: center;
       background: #ffffff; /* fond blanc */
       overflow: hidden;
-      color: whitesmoke; /* couleur globale des textes */
     }
 
     .splash-container {
@@ -30,18 +29,19 @@
     h1 {
       font-size: 3rem;
       letter-spacing: 2px;
-      color: whitesmoke; /* ✅ texte principal en whitesmoke */
+      color: #ffffff; /* texte blanc pur */
       margin-bottom: 0.6rem;
-      text-shadow: 0 0 6px rgba(0,0,0,0.1);
+      text-shadow: 0 0 2px rgba(0,0,0,0.2); /* ombre légère */
     }
 
     p {
       font-size: 1.1rem;
-      color: whitesmoke; /* ✅ tagline en whitesmoke */
-      opacity: 0.95;
+      color: #ffffff; /* texte blanc pur */
+      opacity: 0.9;
       letter-spacing: 1px;
       margin-bottom: 2rem;
       animation: fadeInText 2s ease-in forwards;
+      text-shadow: 0 0 1px rgba(0,0,0,0.15); /* ombre très légère */
     }
 
     .progress-bar {
@@ -60,7 +60,7 @@
       left: 0;
       height: 100%;
       width: 0%;
-      background: linear-gradient(90deg, #7f00ff, #e100ff); /* ✅ bleu/violet */
+      background: linear-gradient(90deg, #7f00ff, #e100ff); /* bleu/violet */
       border-radius: 10px;
       animation: loadProgress 3s ease-in-out forwards;
     }
