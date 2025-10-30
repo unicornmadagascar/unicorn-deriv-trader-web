@@ -96,7 +96,7 @@
   function displaySymbols(){ if(!ui.symbolList) return; ui.symbolList.innerHTML=''; SYMBOLS.forEach(s=>{ const el=document.createElement('div'); el.className='symbol-item'; el.textContent=s; el.dataset.symbol=s; el.addEventListener('click', ()=>{ document.querySelectorAll('.symbol-item').forEach(i=>i.classList.remove('active')); el.classList.add('active'); subscribeSymbol(s); }); ui.symbolList.appendChild(el); }); }
 
   function initChart(){ 
-    if(!ui.chartInner) return; 
+    if(ui.chartInner === null) return; 
     try{ if(chart){ chart.remove(); } }catch(e){}
     ui.chartInner.innerHTML='';
     if(window.LightweightCharts){
