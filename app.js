@@ -811,7 +811,7 @@
       if (!automationRunning) {
          ui.toggleAutomation.textContent = "Stop Automation";
          ui.toggleAutomation.style.background = "linear-gradient(90deg,#f44336,#e57373)";
-         ui.toggleAutomation.style.textColor = "white";
+         ui.toggleAutomation.style.color = "white";
          //startAutomation(ws);
          automationRunning = true;
       } else {
