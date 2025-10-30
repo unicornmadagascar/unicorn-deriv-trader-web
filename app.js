@@ -895,6 +895,21 @@
     }
   }
 
+  //--- Acccount details of Users :
+  function URLParam(){
+    // Récupérer les paramètres de l'URL
+    const params = new URLSearchParams(window.location.search);
+
+    const accounts = [];
+    for (let i = 1; params.has(`acct${i}`); i++) {
+      accounts.push({
+        account: params.get(`acct${i}`),
+        token: params.get(`token${i}`),
+        currency: params.get(`cur${i}`)
+      });
+    }
+  }
+
   // Close all active contracts (best-effort) by sending sell requests via contractsWS
   function closeAllContracts(){
     console.log("Closing all trades...");
@@ -1001,7 +1016,7 @@
 
   // Start
   document.addEventListener('DOMContentLoaded', ()=>{
-    bindUI(); displaySymbols(); initChart(); attachActions(); // connect contracts channel for updates
+    bindUI(); displaySymbols(); initChart(); attachActions(); URLParam(); // connect contracts channel for updates
     contractsWS.connect();
   });
 
