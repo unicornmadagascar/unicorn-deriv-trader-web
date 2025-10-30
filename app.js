@@ -811,11 +811,13 @@
       if (!automationRunning) {
          ui.toggleAutomation.textContent = "Stop Automation";
          ui.toggleAutomation.style.background = "linear-gradient(90deg,#f44336,#e57373)";
+         ui.toggleAutomation.style.textColor = "white";
          //startAutomation(ws);
          automationRunning = true;
       } else {
          ui.toggleAutomation.textContent = "Launch Automation";
-         ui.toggleAutomation.style.background = "linear-gradient(90deg,#4caf50,#81c784)";
+         ui.toggleAutomation.style.background = "whitesmoke";
+         ui.toggleAutomation.style.textColor = "gray";
          //stopAutomation(ws);
          automationRunning = false;
       }
@@ -893,7 +895,7 @@
         currency: "USD",
         basis: "stake",
         amount: stake.toFixed(2),
-        multiplier
+        multiplier : multiplier
       }
     };
 
