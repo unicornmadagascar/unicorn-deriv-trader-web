@@ -95,59 +95,46 @@
 
   function displaySymbols(){ if(!ui.symbolList) return; ui.symbolList.innerHTML=''; SYMBOLS.forEach(s=>{ const el=document.createElement('div'); el.className='symbol-item'; el.textContent=s; el.dataset.symbol=s; el.addEventListener('click', ()=>{ document.querySelectorAll('.symbol-item').forEach(i=>i.classList.remove('active')); el.classList.add('active'); subscribeSymbol(s); }); ui.symbolList.appendChild(el); }); }
 
-  function initChart() {
-    // Vérifie si le container existe dans le DOM
-    if (!ui.chartInner) {
-      console.warn("⚠️ ui.chartInner introuvable, attente de rendu...");
-      setTimeout(initChart, 300);
-      return;
-    }
+  function initChart(){ 
+    if(!ui.chartInner) return; 
+    try{ if(chart){ chart.remove(); } }catch(e){}
+    ui.chartInner.innerHTML='';
+    if(window.LightweightCharts){
+      chart = LightweightCharts.createChart(ui.chartInner,{ 
+        layout: { 
+          textColor: '#333',
+          backgroundColor: '#ffffff'
+        }, 
+        timeScale: { 
+          timeVisible: true, 
+          secondsVisible: true,
+          fixLeftEdge: true,
+          fixRightEdge: true,
+          barSpacing: 5
+        },
+        width: ui.chartInner.clientWidth,
+        height: ui.chartInner.clientHeight
+      });
+      
+      areaSeries = chart.addAreaSeries({ 
+        lineColor: '#2962FF',
+        topColor: 'rgba(41,98,255,0.28)',
+        bottomColor: 'rgba(41,98,255,0.05)',
+        lineWidth: 2,
+        priceLineVisible: true,
+        lastValueVisible: true
+      });
 
-    try {
-      if (chart) chart.remove();
-    } catch (e) {
-      console.warn("Erreur suppression chart:", e);
-    }
-
-    ui.chartInner.innerHTML = '';
-
-    // Vérifie la présence de LightweightCharts avant création
-    if (!window.LightweightCharts) {
-      ui.chartInner.innerHTML = '<div style="padding:8px;color:#94a3b8">LightweightCharts not loaded</div>';
-      return;
-    }
-
-    // Création du chart
-    chart = LightweightCharts.createChart(ui.chartInner, {
-      layout: {
-        textColor: '#333',
-        backgroundColor: '#ffffff'
-      },
-      timeScale: {
-        timeVisible: true,
-        secondsVisible: true,
-        fixLeftEdge: true,
-        fixRightEdge: true,
-        barSpacing: 5
-      },
-      width: ui.chartInner.clientWidth,
-      height: ui.chartInner.clientHeight
-    });
-
-    // Création de la série principale
-    areaSeries = chart.addAreaSeries({
-      lineColor: '#2962FF',
-      topColor: 'rgba(41,98,255,0.28)',
-      bottomColor: 'rgba(41,98,255,0.05)',
-      lineWidth: 2,
-      priceLineVisible: true,
-      lastValueVisible: true
-    });
-
-    // ✅ Protection avant applyOptions
-    if (chart && chart.priceScale) {
       try {
-        chart.applyOptions({
+        chart.applyOptions({ 
+          priceScale: { 
+            scaleMargins: { top: 0.4, bottom: 0.4 },
+            alignLabels: true,
+            borderVisible: false,
+            autoScale: true,
+            mode: 2, // Logarithmic
+            invertScale: false
+          },
           layout: {
             backgroundColor: '#ffffff',
             textColor: '#333333'
@@ -159,18 +146,10 @@
           crosshair: {
             vertLine: { visible: false },
             horzLine: { visible: false }
-          },
-          rightPriceScale: {  // 🟢 plus stable que "priceScale"
-            scaleMargins: { top: 0.4, bottom: 0.4 },
-            alignLabels: true,
-            borderVisible: false,
-            autoScale: true,
-            mode: 2,
-            invertScale: false
           }
         });
 
-        // Fenêtre de temps initiale
+        // Initialiser avec une fenêtre fixe de 2 ticks
         chartData = [];
         const now = Math.floor(Date.now() / 1000);
         chart.timeScale().setVisibleRange({
@@ -178,28 +157,11 @@
           to: now + 10
         });
 
-      } catch (e) {
-        console.error("❌ applyOptions priceScale failed:", e);
-        // Retente après un petit délai (parfois le chart n’est pas prêt tout de suite)
-        setTimeout(() => {
-          try {
-            chart.applyOptions({
-              rightPriceScale: {
-                scaleMargins: { top: 0.4, bottom: 0.4 },
-                alignLabels: true
-              }
-            });
-          } catch (retryErr) {
-            console.error("⚠️ Retry applyOptions failed:", retryErr);
-          }
-        }, 300);
-      }
+      }catch(e){ console.log('applyOptions priceScale failed', e); }
     } else {
-      console.warn("⚠️ Chart ou priceScale non prêt, retry...");
-      setTimeout(initChart, 300);
+      ui.chartInner.innerHTML = '<div style="padding:8px;color:#94a3b8">LightweightCharts not loaded</div>';
     }
   }
-
 
   function subscribeSymbol(symbol){ 
     initChart();

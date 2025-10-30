@@ -20,7 +20,18 @@
     /* chart area */
     #chartArea { flex:1; display:flex; flex-direction:column; }
     /* Keep chart at a stable height so opening other panels doesn't shrink it */
-    #chartInner { flex: none; height: calc(100vh - 160px); min-height:300px; background:#fff; margin:12px; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.06); overflow:hidden; }
+    /*#chartInner { flex: none; height: calc(100vh - 160px); min-height:300px; background:#fff; margin:12px; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.06); overflow:hidden; } */
+    #chartInner {
+      width: 100%;                      /* toujours la largeur complète du conteneur parent */
+      height: calc(100vh - 160px);      /* hauteur adaptative à la fenêtre */
+      min-height: 300px;                /* sécurité pour petits écrans */
+      background: #ffffff;              /* fond blanc propre */
+      margin: 0 auto;                   /* centré horizontalement */
+      border-radius: 8px;               /* coins arrondis */
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+      overflow: hidden;                 /* empêche les scrollbars internes */
+      display: block;                   /* force le rendu correct */
+    }
 
     /* gauges */
     #gauges { 
