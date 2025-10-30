@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>World Unicorn | Loading</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: "Poppins", sans-serif;
+    }
+
+    body {
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at top, #0a0a1a 0%, #050510 100%);
+      overflow: hidden;
+      color: white;
+    }
+
+    .splash-container {
+      text-align: center;
+      animation: fadeIn 1.5s ease-in-out;
+    }
+
+    h1 {
+      font-size: 3rem;
+      letter-spacing: 2px;
+      background: linear-gradient(90deg, #7f00ff, #e100ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.6rem;
+      animation: glow 2.5s ease-in-out infinite alternate;
+    }
+
+    p {
+      font-size: 1.1rem;
+      opacity: 0.85;
+      letter-spacing: 1px;
+      margin-bottom: 2rem;
+      animation: fadeInText 2s ease-in forwards;
+    }
+
+    .progress-bar {
+      position: relative;
+      width: 300px;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      margin: 0 auto;
+      overflow: hidden;
+    }
+
+    .progress {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #7f00ff, #e100ff);
+      border-radius: 10px;
+      animation: loadProgress 3s ease-in-out forwards;
+    }
+
+    @keyframes loadProgress {
+      0% { width: 0%; }
+      100% { width: 100%; }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeInText {
+      0% { opacity: 0; }
+      100% { opacity: 1; }
+    }
+
+    @keyframes glow {
+      from { text-shadow: 0 0 10px #7f00ff, 0 0 20px #7f00ff; }
+      to { text-shadow: 0 0 20px #e100ff, 0 0 40px #e100ff; }
+    }
+  </style>
+</head>
+<body>
+  <div class="splash-container">
+    <h1>World Unicorn</h1>
+    <p>Smarter. Faster. Automated. The New Era of Deriv Trading.</p>
+    <div class="progress-bar"><div class="progress"></div></div>
+  </div>
+
+  <script>
+    // Simule un chargement puis redirige vers la page login
+    setTimeout(() => {
+      window.location.href = "login.html"; // 👉 change ici ton fichier de destination
+    }, 3500);
+  </script>
+</body>
+</html>
