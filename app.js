@@ -817,7 +817,7 @@
       } else {
          ui.toggleAutomation.textContent = "Launch Automation";
          ui.toggleAutomation.style.background = "whitesmoke";
-         ui.toggleAutomation.style.textColor = "gray";
+         ui.toggleAutomation.style.color = "gray";
          //stopAutomation(ws);
          automationRunning = false;
       }
