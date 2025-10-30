@@ -11,6 +11,8 @@
   const TOKEN = 'wgf8TFDsJ8Ecvze';
   const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
 
+  const automationRunning = true;
+
   function safeCall(cb, ...args){ try{ cb(...args); } catch(e){ console.error('handler error', e); } }
 
   class WebSocketManager {
