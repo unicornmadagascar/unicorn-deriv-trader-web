@@ -17,9 +17,9 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      background: #ffffff; /* ✅ fond blanc */
+      background: #ffffff; /* fond blanc */
       overflow: hidden;
-      color: whitesmoke; /* ✅ couleur globale des textes */
+      color: whitesmoke; /* couleur globale des textes */
     }
 
     .splash-container {
@@ -30,17 +30,14 @@
     h1 {
       font-size: 3rem;
       letter-spacing: 2px;
-      background: linear-gradient(90deg, #9b00ff, #ff00aa);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      color: whitesmoke; /* ✅ texte principal en whitesmoke */
       margin-bottom: 0.6rem;
-      animation: glow 2.5s ease-in-out infinite alternate;
-      text-shadow: 0 0 10px rgba(155, 0, 255, 0.4);
+      text-shadow: 0 0 6px rgba(0,0,0,0.1);
     }
 
     p {
       font-size: 1.1rem;
-      color: #a9a9a9; /* gris doux pour contraste */
+      color: whitesmoke; /* ✅ tagline en whitesmoke */
       opacity: 0.95;
       letter-spacing: 1px;
       margin-bottom: 2rem;
@@ -63,7 +60,7 @@
       left: 0;
       height: 100%;
       width: 0%;
-      background: linear-gradient(90deg, #9b00ff, #ff00aa);
+      background: linear-gradient(90deg, #7f00ff, #e100ff); /* ✅ bleu/violet */
       border-radius: 10px;
       animation: loadProgress 3s ease-in-out forwards;
     }
@@ -81,11 +78,6 @@
     @keyframes fadeInText {
       0% { opacity: 0; }
       100% { opacity: 1; }
-    }
-
-    @keyframes glow {
-      from { text-shadow: 0 0 8px #caa0ff, 0 0 16px #e1bfff; }
-      to { text-shadow: 0 0 14px #ff00aa, 0 0 28px #a900ff; }
     }
   </style>
 </head>
