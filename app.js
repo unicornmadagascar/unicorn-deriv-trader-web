@@ -154,7 +154,7 @@
           to: now + 10
         });
 
-      }catch(e){ console.warn('applyOptions priceScale failed', e); }
+      }catch(e){ console.log('applyOptions priceScale failed', e); }
     } else {
       ui.chartInner.innerHTML = '<div style="padding:8px;color:#94a3b8">LightweightCharts not loaded</div>';
     }
