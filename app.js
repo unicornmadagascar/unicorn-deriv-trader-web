@@ -1039,7 +1039,7 @@
 
   // Start
   document.addEventListener('DOMContentLoaded', ()=>{
-    bindUI(); displaySymbols(); initChart(); attachActions(); URLParam(); // connect contracts channel for updates
+    bindUI(); displaySymbols(); URLParam(); initChart(); attachActions(); // connect contracts channel for updates
     contractsWS.connect();
   });
 
