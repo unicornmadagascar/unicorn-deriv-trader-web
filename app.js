@@ -54,7 +54,7 @@
   // UI refs
   let ui = {
     connectBtn: null, symbolList: null, chartInner: null,
-    buyBtn: null, sellBtn: null, stakeInput: null, multiplierSelect: null,
+    buyBtn: null, sellBtn: null,toggleAutomation: null, stakeInput: null, multiplierSelect: null,
     accountInfo: null, autoHistoryList: null, contractsPanel: null, contractsPanelToggle: null,
     volGauge: null, trendGauge: null, probGauge: null, plGauge: null,
     buyNum: null, sellNum: null, controlPanel: null, controlPanelToggle: null
@@ -85,6 +85,7 @@
     ui.sellNum = document.getElementById('sellNumberInput');
     ui.controlPanel = document.getElementById('controlFormPanel');
     ui.controlPanelToggle = document.getElementById('controlPanelToggle');
+    ui.toggleAutomation = document.getElementById('toggleAutomation');
     // support both older IDs (closeAll / closeWinning) and newer ones (closeAllBtn / closeWinningBtn)
     ui.closeAllBtn = document.getElementById('closeAllBtn') || document.getElementById('closeAll');
     ui.closeWinningBtn = document.getElementById('closeWinningBtn') || document.getElementById('closeWinning');
@@ -798,6 +799,24 @@
       ui.sellBtn.addEventListener('click', ()=>{ 
         console.debug('SELL button clicked');
         executeTrade('SELL');
+      });
+    }
+
+    if (ui.toggleAutomation) {
+      // === Automation Toggle ===
+      ui.toggleAutomation.addEventListener("click", () => {
+      //let ws = new WebSocket(WS_URL);
+      if (!automationRunning) {
+         ui.toggleAutomation.textContent = "Stop Automation";
+         ui.toggleAutomation.style.background = "linear-gradient(90deg,#f44336,#e57373)";
+         //startAutomation(ws);
+         automationRunning = true;
+      } else {
+         ui.toggleAutomation.textContent = "Launch Automation";
+         ui.toggleAutomation.style.background = "linear-gradient(90deg,#4caf50,#81c784)";
+         //stopAutomation(ws);
+         automationRunning = false;
+      }
       });
     }
 
