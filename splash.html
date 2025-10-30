@@ -17,9 +17,9 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      background: radial-gradient(circle at top, #0a0a1a 0%, #050510 100%);
+      background: #ffffff; /* ✅ fond blanc */
       overflow: hidden;
-      color: white;
+      color: #111;
     }
 
     .splash-container {
@@ -39,7 +39,8 @@
 
     p {
       font-size: 1.1rem;
-      opacity: 0.85;
+      color: #333;
+      opacity: 0.9;
       letter-spacing: 1px;
       margin-bottom: 2rem;
       animation: fadeInText 2s ease-in forwards;
@@ -49,7 +50,7 @@
       position: relative;
       width: 300px;
       height: 8px;
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(0, 0, 0, 0.1);
       border-radius: 10px;
       margin: 0 auto;
       overflow: hidden;
@@ -82,8 +83,8 @@
     }
 
     @keyframes glow {
-      from { text-shadow: 0 0 10px #7f00ff, 0 0 20px #7f00ff; }
-      to { text-shadow: 0 0 20px #e100ff, 0 0 40px #e100ff; }
+      from { text-shadow: 0 0 8px #caa0ff, 0 0 16px #e1bfff; }
+      to { text-shadow: 0 0 12px #e100ff, 0 0 24px #a900ff; }
     }
   </style>
 </head>
